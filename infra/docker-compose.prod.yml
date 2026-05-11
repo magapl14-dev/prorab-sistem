@@ -66,6 +66,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:-change_me_generate_with_openssl}
       APP_ENV: production
       CORS_ORIGINS: "https://welldom05.duckdns.org"
+      GOOGLE_CREDENTIALS_JSON: ${GOOGLE_CREDENTIALS_JSON:-}
     depends_on:
       postgres:
         condition: service_healthy
