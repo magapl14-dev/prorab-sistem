@@ -170,6 +170,15 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
 .mbadge.g{color:var(--green);background:#e8f5e9}
 .mbadge.b{color:#5e35b1;background:#ede7f6}
 .dash-notice{background:#fff8e1;border-radius:var(--radius);margin:0 12px 16px;padding:12px 14px;font-size:12px;color:#7a5c00;line-height:1.6}
+.tx-header{display:flex;justify-content:space-between;font-size:10px;color:var(--text2);font-weight:700;letter-spacing:.3px;text-transform:uppercase;padding:0 0 8px;border-bottom:1px solid var(--border);margin-bottom:4px}
+.tx-row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding:9px 0;border-bottom:1px solid var(--border)}
+.tx-row:last-child{border-bottom:none}
+.tx-main{flex:1;min-width:0}
+.tx-name{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tx-meta{font-size:11px;color:var(--text2);margin-top:2px}
+.tx-right{text-align:right;flex-shrink:0}
+.tx-earned{font-size:14px;font-weight:700;color:var(--green)}
+.tx-buy{font-size:11px;color:var(--text2);margin-top:2px}
 
 /* ── form / bottom sheet ── */
 .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100}
@@ -901,12 +910,13 @@ async function loadDashboard() {
 
   try {
     const code = currentProject.code;
-    const [earnings, plan, ps, monthly, chart] = await Promise.all([
+    const [earnings, plan, ps, monthly, chart, recsResp] = await Promise.all([
       Earnings.project(code).catch(() => null),
       Earnings.plan(code).catch(() => null),
       Earnings.periodStats(code).catch(() => null),
       Earnings.monthly(code).catch(() => []),
       Earnings.chart14(code).catch(() => []),
+      Records.list(code, { kind: 'expense', limit: 100 }).catch(() => ({ items: [] })),
     ]);
 
     let html = '';
@@ -1080,6 +1090,36 @@ async function loadDashboard() {
         </div>`;
       }
       html += `<div class="dash-card"><div class="summary-title">По месяцам</div>${mhtml}</div>`;
+    }
+
+    // ── Transactions breakdown
+    const recs = (recsResp?.items || []).filter(r => parseFloat(r.commission||0) + parseFloat(r.rentier_foreman||0) > 0 || parseFloat(r.sum_buy||0) > 0);
+    if (recs.length) {
+      let thtml = '';
+      for (const r of recs) {
+        const com = parseFloat(r.commission || 0);
+        const rent = parseFloat(r.rentier_gross || 0) * (ps ? ps.rentier_share_pct / 100 : 1);
+        const earned = com + rent;
+        const buy = parseFloat(r.sum_buy || 0);
+        const d = r.operation_date ? r.operation_date.slice(0,10).split('-').reverse().join('.') : '';
+        thtml += `<div class="tx-row">
+          <div class="tx-main">
+            <div class="tx-name">${esc(r.name || '—')}</div>
+            <div class="tx-meta">${d}${r.type ? ' · ' + esc(r.type) : ''}${r.category ? ' · ' + esc(r.category) : ''}</div>
+          </div>
+          <div class="tx-right">
+            <div class="tx-earned">+${fmt(earned)} ₽</div>
+            <div class="tx-buy">${fmt(buy)} ₽</div>
+          </div>
+        </div>`;
+      }
+      html += `<div class="dash-card">
+        <div class="summary-title">По транзакциям</div>
+        <div class="tx-header">
+          <span>Наименование</span><span>Заработок&nbsp;/&nbsp;Закупка</span>
+        </div>
+        ${thtml}
+      </div>`;
     }
 
     html += `<div class="dash-notice">ℹ️ Только ваш персональный заработок по этому проекту. Другие прорабы вас не видят. Ставку и эффективность настраивает администратор.</div>`;
