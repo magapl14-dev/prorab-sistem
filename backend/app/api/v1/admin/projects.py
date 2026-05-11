@@ -7,7 +7,7 @@ from sqlalchemy import select, and_
 from ....core.database import get_db
 from ....core.deps import admin_only
 from ....models.models import User, Project, UserProject, Dictionary
-from ....schemas.schemas import ProjectCreate, ProjectUpdate, ProjectOut, AssignUserRequest, DictionaryOut, DictionaryCreate
+from ....schemas.schemas import ProjectCreate, ProjectUpdate, ProjectOut, AssignUserRequest, DictionaryOut, DictionaryCreate, DictionaryUpdate
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -157,3 +157,32 @@ async def create_dictionary(
     db.add(d)
     await db.commit()
     return d
+
+
+@router.patch("/dictionaries/{dict_id}", response_model=DictionaryOut)
+async def update_dictionary(
+    dict_id: UUID,
+    data: DictionaryUpdate,
+    admin: User = Depends(admin_only),
+    db: AsyncSession = Depends(get_db),
+):
+    d = (await db.execute(select(Dictionary).where(Dictionary.id == dict_id, Dictionary.active == True))).scalar_one_or_none()
+    if not d:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    for field, value in data.model_dump(exclude_none=True).items():
+        setattr(d, field, value)
+    await db.commit()
+    return d
+
+
+@router.delete("/dictionaries/{dict_id}", status_code=204)
+async def delete_dictionary(
+    dict_id: UUID,
+    admin: User = Depends(admin_only),
+    db: AsyncSession = Depends(get_db),
+):
+    d = (await db.execute(select(Dictionary).where(Dictionary.id == dict_id, Dictionary.active == True))).scalar_one_or_none()
+    if not d:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    d.active = False
+    await db.commit()

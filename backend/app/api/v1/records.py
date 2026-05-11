@@ -58,7 +58,7 @@ def _record_out(r: Record) -> RecordOut:
     photos = [_photo_out(p) for p in (r.photos or []) if not p.deleted_at]
     return RecordOut(
         id=r.id, kind=r.kind, operation_date=r.operation_date,
-        name=r.name, type=r.type, category=r.category, comment=r.comment,
+        name=r.name, type=r.type, category=r.category, kassa=r.kassa, comment=r.comment,
         qty=r.qty, price=r.price, sum_buy=r.sum_buy,
         markup_pct_snapshot=r.markup_pct_snapshot, sum_sell=r.sum_sell,
         commission=r.commission, rentier_gross=r.rentier_gross,

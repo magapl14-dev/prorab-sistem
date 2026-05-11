@@ -14,7 +14,8 @@
       "Bash(git commit -m 'Update deploy workflow for Docker Compose *)",
       "Bash(git commit -m 'Configure domain welldom05.duckdns.org *)",
       "Bash(git commit -m 'Simplify prod deploy: standalone compose, no secrets files *)",
-      "Bash(git commit -m 'Remove Docker: local storage, optional Redis, systemd+nginx deploy *)"
+      "Bash(git commit -m 'Remove Docker: local storage, optional Redis, systemd+nginx deploy *)",
+      "Bash(Remove-Item \"c:\\\\Users\\\\111\\\\Documents\\\\GitHub\\\\prorab-sistem\\\\.github\\\\workflows\\\\blank.yml\")"
     ]
   }
 }

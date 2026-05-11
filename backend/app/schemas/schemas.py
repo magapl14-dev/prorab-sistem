@@ -94,6 +94,7 @@ class ProjectUpdate(BaseModel):
     deadline: Optional[date] = None
     whatsapp_url: Optional[str] = None
     telegram_url: Optional[str] = None
+    gsheet_id: Optional[str] = None
     active: Optional[bool] = None
 
 
@@ -112,6 +113,7 @@ class ProjectOut(BaseModel):
     plan_monthly: Decimal
     whatsapp_url: Optional[str] = None
     telegram_url: Optional[str] = None
+    gsheet_id: Optional[str] = None
     created_at: datetime
     model_config = {"from_attributes": True}
 
@@ -129,6 +131,7 @@ class RecordCreate(BaseModel):
     name: Optional[str] = None
     type: Optional[str] = None
     category: Optional[str] = None
+    kassa: Optional[str] = None
     comment: Optional[str] = None
     qty: Decimal = Decimal("1")
     price: Optional[Decimal] = None
@@ -143,6 +146,7 @@ class RecordUpdate(BaseModel):
     name: Optional[str] = None
     type: Optional[str] = None
     category: Optional[str] = None
+    kassa: Optional[str] = None
     comment: Optional[str] = None
     qty: Optional[Decimal] = None
     price: Optional[Decimal] = None
@@ -177,6 +181,7 @@ class RecordOut(BaseModel):
     name: Optional[str] = None
     type: Optional[str] = None
     category: Optional[str] = None
+    kassa: Optional[str] = None
     comment: Optional[str] = None
     qty: Optional[Decimal] = None
     price: Optional[Decimal] = None
@@ -257,3 +262,8 @@ class DictionaryCreate(BaseModel):
     kind: str
     value: str
     display_order: int = 0
+
+
+class DictionaryUpdate(BaseModel):
+    value: Optional[str] = None
+    display_order: Optional[int] = None

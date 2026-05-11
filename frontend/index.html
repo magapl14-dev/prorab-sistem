@@ -468,7 +468,8 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
             <h2>Администрирование</h2>
           </div>
           <button class="btn btn-secondary" style="margin-bottom:10px" onclick="openAdminUsers()">👥 Пользователи</button>
-          <button class="btn btn-secondary" onclick="openAdminProjects()">🏗️ Проекты</button>
+          <button class="btn btn-secondary" style="margin-bottom:10px" onclick="openAdminProjects()">🏗️ Проекты</button>
+          <button class="btn btn-secondary" onclick="openAdminDictionaries()">📋 Справочники</button>
         </div>
       </div>
     </div>
@@ -524,6 +525,10 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
           <label>Категория</label>
           <select id="f-category"><option value="">— выберите —</option></select>
         </div>
+      </div>
+      <div class="form-group">
+        <label>Касса</label>
+        <select id="f-kassa"><option value="">— не указана —</option></select>
       </div>
       <div class="row-2">
         <div class="form-group">
@@ -587,6 +592,12 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
 
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
+
+<!-- LIGHTBOX -->
+<div id="lightbox" onclick="closeLightbox()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:999;align-items:center;justify-content:center;cursor:zoom-out">
+  <img id="lightbox-img" src="" style="max-width:95vw;max-height:95vh;object-fit:contain;border-radius:8px;box-shadow:0 4px 40px rgba(0,0,0,.8)">
+  <div style="position:absolute;top:16px;right:20px;color:#fff;font-size:32px;cursor:pointer;line-height:1" onclick="closeLightbox()">×</div>
+</div>
 
 <!-- MODAL -->
 <div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
@@ -839,6 +850,7 @@ window.openDetail = async function(id) {
       r.name && ['Наименование', r.name],
       r.type && ['Тип', r.type],
       r.category && ['Категория', r.category],
+      r.kassa && ['Касса', r.kassa],
       r.qty && r.price && ['Кол-во × Цена', `${r.qty} × ${fmt(r.price)} ₽`],
       r.sum_buy && ['Сумма закупки', `${fmt(r.sum_buy)} ₽`],
       r.sum_sell && ['Сумма с наценкой', `${fmt(r.sum_sell)} ₽`],
@@ -849,7 +861,7 @@ window.openDetail = async function(id) {
       r.author && ['Автор', r.author.name],
     ].filter(Boolean);
 
-    const canDelete = _user && (_user.role === 'admin' || (r.author && r.author.id === _user.id));
+    const canDelete = _user && _user.role === 'admin';
 
     document.getElementById('detail-body').innerHTML = `
       <div class="info-list">
@@ -858,12 +870,12 @@ window.openDetail = async function(id) {
       ${r.photos && r.photos.length ? `
         <div style="margin-top:16px">
           <div class="record-photos" style="flex-wrap:wrap;gap:8px">
-            ${r.photos.map(p => `<img src="${p.url}" style="width:100px;height:100px;border-radius:8px;object-fit:cover">`).join('')}
+            ${r.photos.map(p => `<img src="${p.thumb_url||p.url}" onclick="openLightbox('${p.url}')" style="width:100px;height:100px;border-radius:8px;object-fit:cover;cursor:pointer">`).join('')}
           </div>
         </div>` : ''}
       ${canDelete ? `
         <div style="margin-top:20px">
-          <button class="btn btn-danger" onclick="deleteRecord('${r.id}','${r.kind}')">Удалить запись</button>
+          <button class="btn btn-danger" onclick="confirmDeleteRecord('${r.id}','${r.kind}')">Удалить запись</button>
         </div>` : ''}
     `;
   } catch (_) {
@@ -871,16 +883,45 @@ window.openDetail = async function(id) {
   }
 };
 
-window.deleteRecord = async function(id, kind) {
-  if (!confirm('Удалить запись?')) return;
+window.confirmDeleteRecord = function(id, kind) {
+  const a = Math.floor(Math.random() * 9) + 1;
+  const b = Math.floor(Math.random() * 9) + 1;
+  const answer = a + b;
+  openModal('Удалить запись?', `
+    <p style="color:var(--red);font-weight:600;margin-bottom:12px">⚠️ Это действие нельзя отменить</p>
+    <p style="margin-bottom:16px">Чтобы подтвердить удаление, решите пример:</p>
+    <div style="font-size:24px;font-weight:800;text-align:center;margin-bottom:12px">${a} + ${b} = ?</div>
+    <div class="form-group">
+      <input id="delete-answer" type="number" inputmode="numeric" placeholder="Ваш ответ" style="text-align:center;font-size:20px">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn" style="background:var(--red)" onclick="doDeleteRecord('${id}','${kind}',${answer})">Удалить</button>
+    </div>
+  `);
+  setTimeout(() => { const el = document.getElementById('delete-answer'); if (el) el.focus(); }, 100);
+};
+
+window.doDeleteRecord = async function(id, kind, answer) {
+  const entered = parseInt(document.getElementById('delete-answer').value);
+  if (entered !== answer) { toast('Неверный ответ — запись не удалена'); return; }
   try {
     await Records.delete(currentProject.code, id);
-    closeSheet();
+    closeModal(); closeSheet();
     toast('Запись удалена');
     loadTab(kind === 'expense' ? 'expense' : kind === 'master_payment' ? 'master_payment' : 'client_payment');
   } catch (_) {
     toast('Ошибка удаления');
   }
+};
+
+window.openLightbox = function(url) {
+  document.getElementById('lightbox-img').src = url;
+  document.getElementById('lightbox').style.display = 'flex';
+};
+window.closeLightbox = function() {
+  document.getElementById('lightbox').style.display = 'none';
+  document.getElementById('lightbox-img').src = '';
 };
 
 // ── Add form ──────────────────────────────────────────────────────────────────
@@ -897,6 +938,7 @@ window.openAddForm = function(kind) {
   document.getElementById('f-price').value = '';
   document.getElementById('f-qty-result').textContent = '';
   document.getElementById('f-price-result').textContent = '';
+  document.getElementById('f-kassa').value = '';
   document.getElementById('f-comment').value = '';
   document.getElementById('f-master-name').value = '';
   document.getElementById('f-payment-amount').value = '';
@@ -962,6 +1004,7 @@ window.saveRecord = async function() {
       data.name = document.getElementById('f-name').value || undefined;
       data.type = document.getElementById('f-type').value || undefined;
       data.category = document.getElementById('f-category').value || undefined;
+      data.kassa = document.getElementById('f-kassa').value || undefined;
       const qty = document.getElementById('f-qty').value;
       const price = document.getElementById('f-price').value;
       if (qty) data.qty = evalFormula(qty);
@@ -1733,7 +1776,7 @@ window.openAdminProjects = async function() {
             <h3>${esc(p.name)} ${p.active ? '' : '<em style="font-size:12px;color:var(--red)">неактивен</em>'}</h3>
             <p style="font-size:13px;color:var(--text2);margin-top:3px">${esc(p.code)} · наценка ${p.markup_pct}% · ставка ${p.foreman_rate_pct}%</p>
             <div class="admin-item-actions">
-              <button onclick="openEditProject('${esc(p.code)}',${p.markup_pct},${p.foreman_rate_pct},${p.foreman_efficiency},${p.foreman_fixed},${p.plan_total},${p.plan_monthly},'${esc(p.name)}')">✏️ Изм.</button>
+              <button onclick="openEditProject('${esc(p.code)}',${p.markup_pct},${p.foreman_rate_pct},${p.foreman_efficiency},${p.foreman_fixed},${p.plan_total},${p.plan_monthly},'${esc(p.name)}','${esc(p.gsheet_id||'')}')">✏️ Изм.</button>
               <button onclick="toggleProject('${esc(p.code)}',${p.active})">${p.active ? '🔴 Откл.' : '🟢 Вкл.'}</button>
               <button onclick="confirmDeleteProject('${esc(p.code)}','${esc(p.name)}')" style="color:var(--red)">🗑️</button>
             </div>
@@ -1811,7 +1854,7 @@ window.submitCreateProject = async function() {
   } catch(e) { toast('Ошибка: ' + (e?.detail || JSON.stringify(e))); }
 };
 
-window.openEditProject = function(code, markup, rate, eff, fixed, plan, planm, name) {
+window.openEditProject = function(code, markup, rate, eff, fixed, plan, planm, name, gsheet) {
   openModal('Редактировать проект', `
     <div class="form-group"><label>Название</label><input id="m-epname" type="text" value="${esc(name)}"></div>
     <div class="form-group"><label>Наценка %</label><input id="m-emarkup" type="number" value="${markup}" step="0.5"></div>
@@ -1820,6 +1863,10 @@ window.openEditProject = function(code, markup, rate, eff, fixed, plan, planm, n
     <div class="form-group"><label>Фикс в месяц ₽</label><input id="m-efixed" type="number" value="${fixed}" step="1000"></div>
     <div class="form-group"><label>Бюджет проекта ₽</label><input id="m-eplan" type="number" value="${plan}" step="10000"></div>
     <div class="form-group"><label>План на месяц ₽</label><input id="m-eplanm" type="number" value="${planm}" step="10000"></div>
+    <div class="form-group">
+      <label>Google Sheets ID / URL <span style="font-size:11px;color:var(--text2)">(для синхронизации)</span></label>
+      <input id="m-egsheet" type="text" value="${esc(gsheet||'')}" placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms">
+    </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
       <button class="btn" onclick="submitEditProject('${code}')">Сохранить</button>
@@ -1828,6 +1875,7 @@ window.openEditProject = function(code, markup, rate, eff, fixed, plan, planm, n
 };
 
 window.submitEditProject = async function(code) {
+  const gsheet = document.getElementById('m-egsheet').value.trim();
   const data = {
     name: document.getElementById('m-epname').value.trim(),
     markup_pct: parseFloat(document.getElementById('m-emarkup').value),
@@ -1836,11 +1884,113 @@ window.submitEditProject = async function(code) {
     foreman_fixed: parseFloat(document.getElementById('m-efixed').value),
     plan_total: parseFloat(document.getElementById('m-eplan').value),
     plan_monthly: parseFloat(document.getElementById('m-eplanm').value),
+    gsheet_id: gsheet || null,
   };
   try {
     await Admin.projects.update(code, data);
     closeModal(); toast('Проект обновлён'); openAdminProjects();
   } catch(e) { toast('Ошибка: ' + (e?.detail || JSON.stringify(e))); }
+};
+
+// ── Admin: Dictionaries ───────────────────────────────────────────────────────
+window.openAdminDictionaries = async function() {
+  openSheet('detail-sheet');
+  document.getElementById('detail-title').textContent = 'Справочники';
+  document.getElementById('detail-body').innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+  try {
+    const items = await Admin.dictionaries.list();
+    const kinds = {
+      type: 'Тип расхода',
+      category: 'Категория',
+      kassa: 'Касса',
+      master_payment_type: 'Тип выплаты мастеру',
+    };
+    const grouped = {};
+    items.forEach(i => { if (!grouped[i.kind]) grouped[i.kind] = []; grouped[i.kind].push(i); });
+    // Also show empty groups for known kinds
+    Object.keys(kinds).forEach(k => { if (!grouped[k]) grouped[k] = []; });
+
+    document.getElementById('detail-body').innerHTML = Object.entries(grouped).map(([kind, vals]) => `
+      <div style="padding:12px 16px 4px">
+        <div style="font-size:11px;font-weight:700;color:var(--text2);letter-spacing:.5px;text-transform:uppercase;margin-bottom:8px">
+          ${kinds[kind] || kind}
+        </div>
+        ${vals.map(v => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+            <span id="dval-${v.id}" style="font-size:14px">${esc(v.value)}</span>
+            <div style="display:flex;gap:8px">
+              <button onclick="editDictItem('${v.id}','${esc(v.value)}')" style="border:none;background:none;cursor:pointer;color:var(--orange);font-size:13px">✏️</button>
+              <button onclick="deleteDictItem('${v.id}')" style="border:none;background:none;cursor:pointer;color:var(--red);font-size:13px">🗑️</button>
+            </div>
+          </div>
+        `).join('')}
+        <div style="padding:8px 0">
+          <button onclick="addDictItem('${kind}')" style="border:none;background:none;color:var(--orange);font-size:13px;font-weight:600;cursor:pointer;padding:0">+ Добавить</button>
+        </div>
+      </div>
+    `).join('');
+  } catch(_) {
+    document.getElementById('detail-body').innerHTML = '<p style="padding:16px">Ошибка загрузки</p>';
+  }
+};
+
+window.addDictItem = function(kind) {
+  const kinds = { type: 'Тип расхода', category: 'Категория', kassa: 'Касса', master_payment_type: 'Тип выплаты мастеру' };
+  openModal(`Добавить — ${kinds[kind]||kind}`, `
+    <div class="form-group"><label>Значение</label><input id="m-dval" type="text" placeholder="Например: Материалы"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn" onclick="submitAddDict('${kind}')">Добавить</button>
+    </div>
+  `);
+};
+
+window.submitAddDict = async function(kind) {
+  const value = document.getElementById('m-dval').value.trim();
+  if (!value) { toast('Введите значение'); return; }
+  try {
+    await Admin.dictionaries.create({ kind, value });
+    closeModal(); toast('Добавлено'); openAdminDictionaries();
+    loadDictionaries();
+  } catch(e) { toast('Ошибка: ' + (e?.detail || '')); }
+};
+
+window.editDictItem = function(id, currentVal) {
+  openModal('Изменить значение', `
+    <div class="form-group"><label>Значение</label><input id="m-dedit" type="text" value="${esc(currentVal)}"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn" onclick="submitEditDict('${id}')">Сохранить</button>
+    </div>
+  `);
+};
+
+window.submitEditDict = async function(id) {
+  const value = document.getElementById('m-dedit').value.trim();
+  if (!value) { toast('Введите значение'); return; }
+  try {
+    await Admin.dictionaries.update(id, { value });
+    closeModal(); toast('Сохранено'); openAdminDictionaries();
+    loadDictionaries();
+  } catch(e) { toast('Ошибка: ' + (e?.detail || '')); }
+};
+
+window.deleteDictItem = function(id) {
+  openModal('Удалить значение справочника?', `
+    <p>Это значение будет скрыто из форм.</p>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn" style="background:var(--red)" onclick="submitDeleteDict('${id}')">Удалить</button>
+    </div>
+  `);
+};
+
+window.submitDeleteDict = async function(id) {
+  try {
+    await Admin.dictionaries.delete(id);
+    closeModal(); toast('Удалено'); openAdminDictionaries();
+    loadDictionaries();
+  } catch(e) { toast('Ошибка: ' + (e?.detail || '')); }
 };
 
 // ── Dictionaries ──────────────────────────────────────────────────────────────
@@ -1850,10 +2000,13 @@ async function loadDictionaries() {
     const items = await Records.dictionaries(currentProject.code);
     dictionaries.type = items.filter(i => i.kind === 'type').map(i => i.value);
     dictionaries.category = items.filter(i => i.kind === 'category').map(i => i.value);
+    dictionaries.kassa = items.filter(i => i.kind === 'kassa').map(i => i.value);
     const typeEl = document.getElementById('f-type');
     const catEl = document.getElementById('f-category');
+    const kassaEl = document.getElementById('f-kassa');
     typeEl.innerHTML = '<option value="">— тип —</option>' + dictionaries.type.map(v => `<option>${v}</option>`).join('');
     catEl.innerHTML = '<option value="">— категория —</option>' + dictionaries.category.map(v => `<option>${v}</option>`).join('');
+    kassaEl.innerHTML = '<option value="">— не указана —</option>' + (dictionaries.kassa || []).map(v => `<option>${v}</option>`).join('');
   } catch (_) {}
 }
 

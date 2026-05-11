@@ -92,6 +92,7 @@ class Record(Base):
     commission = Column(Numeric(12, 2), default=0)
     rentier_gross = Column(Numeric(12, 2), default=0)
     rentier_share_snapshot = Column(Numeric(5, 2), nullable=True)
+    kassa = Column(String(200), nullable=True)
     client_rep_name = Column(String(200), nullable=True)
     payment_amount = Column(Numeric(12, 2), nullable=True)
     payment_date = Column(Date, nullable=True)

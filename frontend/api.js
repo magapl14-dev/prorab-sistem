@@ -102,6 +102,8 @@ export const Admin = {
   dictionaries: {
     list: () => _get("/admin/dictionaries"),
     create: (data) => _post("/admin/dictionaries", data),
+    update: (id, data) => _patch(`/admin/dictionaries/${id}`, data),
+    delete: (id) => _delete(`/admin/dictionaries/${id}`),
   },
 };
 
