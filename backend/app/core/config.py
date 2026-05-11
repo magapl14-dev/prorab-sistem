@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings
-from typing import Literal
+from typing import Literal, Optional
 
 
 class Settings(BaseSettings):
@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     jwt_refresh_ttl: int = 2592000  # 30 days
 
     cors_origins: str = "http://localhost:8000"
+
+    google_credentials_json: Optional[str] = None
 
     login_max_attempts: int = 3
     login_lockout_seconds: int = 900
