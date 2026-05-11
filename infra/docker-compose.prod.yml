@@ -67,6 +67,8 @@ services:
       APP_ENV: production
       CORS_ORIGINS: "https://welldom05.duckdns.org"
       GOOGLE_CREDENTIALS_JSON: ${GOOGLE_CREDENTIALS_JSON:-}
+    volumes:
+      - /opt/prorab-sistem/google-credentials.json:/opt/prorab-sistem/google-credentials.json:ro
     depends_on:
       postgres:
         condition: service_healthy
