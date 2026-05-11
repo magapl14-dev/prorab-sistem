@@ -1,0 +1,1052 @@
+WELL DOM
+Платформа учёта прорабов
+версия 2.0 · собственная инфраструктура
+Техническое задание на разработку
+Миграция с Google Apps Script на Python/FastAPI + PostgreSQL
+? Бэкенд
+Python 3.12 + FastAPI
+PostgreSQL 16
+SQLAlchemy 2.0 + Alembic
+S3-совместимое хранилище	?? Фронтенд
+Текущее PWA (HTML+JS)
+Замена endpoint на REST API
+Хостится рядом с API
+Google Sheets — по запросу
+Апрель 2026
+Comrades Devs · TRISS Digital
+
+1. Цели и обоснование миграции
+1.1 Что есть сейчас
+Текущая версия системы построена на Google Apps Script. Это бесплатное и быстрое для прототипа решение, но имеет принципиальные ограничения:
+Каждый проект — отдельная Google Sheet. При росте до 50+ проектов теряется управляемость
+Apps Script имеет жёсткие лимиты квот: 6 минут на скрипт, 90 минут на пользователя в день, 50 МБ ответа
+Нет реальной транзакционности — параллельная запись двух прорабов может затереть друг друга
+Sheets не подходит для аналитики: нельзя индексировать, нельзя делать сложные join, медленные агрегации
+Невозможна интеграция с 1С, банковскими API, складскими системами
+Невозможно создание мобильного приложения для App Store / Google Play (нужен полноценный REST API)
+Зависимость от показа баннеров Google в веб-приложениях («Это приложение создано пользователем Google Apps Script»)
+Невозможен корпоративный single sign-on, OAuth для других сервисов компании
+1.2 Что хотим получить
+
+Бизнес-цели
+Масштабируемая платформа на 100+ проектов и 200+ пользователей одновременно
+Свой брендированный сайт и приложение на собственном домене welldom05.ru
+Возможность продавать систему как SaaS для других строительных компаний
+Интеграции с банками (платёжные документы), 1С, маркетплейсами стройматериалов
+Аналитическая отчётность за любые периоды и проекты в реальном времени
+
+Технические цели
+Single source of truth — PostgreSQL как главное хранилище
+Google Sheets сохраняется как опциональный экспорт по запросу администратора
+Контейнеризация — деплой через Docker одной командой
+CI/CD — автодеплой при push в main-ветку
+Мониторинг и логи — Prometheus + Grafana, sentry для ошибок
+Полная обратная совместимость с текущим PWA — клиент не заметит миграцию
+
+2. Архитектура системы
+2.1 Высокоуровневая схема
+Платформа состоит из нескольких изолированных слоёв, каждый из которых отвечает за свою задачу:
+
+????????????????????????????????????????????????????????????????
+?                    КЛИЕНТЫ                                    ?
+?  ??????????????  ??????????????  ??????????????              ?
+?  ?  Прораб    ?  ?  Клиент    ?  ?  Админ     ?              ?
+?  ?   PWA      ?  ?   PWA      ?  ?  Dashboard ?              ?
+?  ??????????????  ??????????????  ??????????????              ?
+????????????????????????????????????????????????????????????????
+         ? HTTPS           ?                ?
+         ?                 ?                ?
+????????????????????????????????????????????????????????????????
+?              CADDY / NGINX (Reverse Proxy + TLS)              ?
+?????????????????????????????????????????????????????????????????
+                             ?
+          ???????????????????????????????????????
+          ?                  ?                  ?
+   ????????????????  ????????????????  ????????????????
+   ?   FastAPI    ?  ?   FastAPI    ?  ?   FastAPI    ?
+   ?   worker 1   ?  ?   worker 2   ?  ?   worker 3   ?
+   ?  (uvicorn)   ?  ?  (uvicorn)   ?  ?  (uvicorn)   ?
+   ????????????????  ????????????????  ????????????????
+          ?                 ?                 ?
+          ?????????????????????????????????????
+                            ?
+           ??????????????????????????????????????
+           ?       PostgreSQL 16 (primary)      ?
+           ?   + read replica для отчётности    ?
+           ??????????????????????????????????????
+                            ?
+          ?????????????????????????????????????
+          ?                 ?                 ?
+   ????????????????  ????????????????  ????????????????
+   ?  S3-хранил.  ?  ?     Redis    ?  ? Google Sheets?
+   ?  для фото    ?  ?  кеш+сессии  ?  ?  (экспорт)   ?
+   ????????????????  ????????????????  ????????????????
+2.2 Компоненты системы
+Reverse Proxy (Caddy)
+Caddy — современная альтернатива Nginx с автоматическим Let's Encrypt SSL. Принимает все входящие HTTPS-запросы, терминирует TLS, проксирует на FastAPI. Также раздаёт статику PWA (Index.html, манифест, иконки).
+Application Server (FastAPI)
+Главное приложение на Python 3.12. Запускается через uvicorn (ASGI-сервер) в нескольких воркерах для параллельной обработки запросов. Каждый воркер — отдельный процесс, общается с БД через пул соединений.
+PostgreSQL 16
+Основное хранилище. Используется primary + read replica для разделения нагрузки: запись идёт в primary, отчёты и аналитика читают с реплики. Бэкапы каждые 6 часов, WAL-архивирование для point-in-time recovery.
+Redis
+Используется для:
+Сессии пользователей и JWT refresh-токены
+Rate limiting (защита от подбора PIN, ограничение запросов на endpoint)
+Кеширование часто запрашиваемых данных (справочники, агрегаты дашборда)
+Pub/Sub для уведомлений в реальном времени (опционально)
+S3-совместимое хранилище фото
+Все фотографии чеков, квитанций и стройки хранятся в S3-совместимом объектном хранилище. Варианты:
+Yandex Object Storage (рекомендуется для РФ)
+Selectel S3, VK Cloud Object Storage
+Self-hosted MinIO (для air-gap инсталляций)
+Фото загружаются через presigned URL — клиент общается с S3 напрямую, минуя сервер. Это снимает нагрузку с FastAPI.
+Google Sheets integration (опциональная)
+Отдельный модуль `sheets_exporter`, который по запросу администратора формирует Google-таблицу проекта в формате, аналогичном текущей системе. Используется для:
+Передачи отчётности клиенту в привычном для него виде
+Резервного хранения данных в Google Drive
+Бухгалтерской выгрузки (одна таблица на проект, привычный формат)
+Sheets не является источником истины и используется только в режиме «read from PostgreSQL, write to Sheets».
+
+3. Технологический стек
+3.1 Бэкенд
+Компонент	Технология	Назначение
+Язык	Python 3.12	Современный синтаксис, async/await, type hints
+Web framework	FastAPI 0.110+	Асинхронный, авто-документация OpenAPI
+ASGI-сервер	Uvicorn + Gunicorn	Production-ready запуск воркеров
+ORM	SQLAlchemy 2.0	Type-safe запросы, поддержка async
+Миграции БД	Alembic	Версионирование схемы
+Валидация	Pydantic 2.x	Сериализация JSON, проверка типов
+Аутентификация	python-jose + bcrypt	JWT-токены, хеширование PIN
+HTTP-клиент	httpx	Запросы к Google API
+Google Sheets	gspread + google-auth	Экспорт данных в Sheets
+S3-клиент	boto3	Работа с объектным хранилищем
+Логирование	structlog + sentry-sdk	Структурированные логи
+Тесты	pytest + httpx.AsyncClient	Unit + integration тесты
+3.2 База данных
+Параметр	Значение	Обоснование
+СУБД	PostgreSQL 16+	Промышленный стандарт, JSONB, FTS
+Encoding	UTF-8	Поддержка кириллицы и эмодзи
+Locale	ru_RU.UTF-8	Корректная сортировка русских строк
+Timezone	Europe/Moscow	Согласуется с прорабами в РФ
+Расширения	pgcrypto, uuid-ossp, citext	Шифрование, UUID, case-insensitive
+Pool	asyncpg (через SQLAlchemy)	Производительный async-драйвер
+Бэкапы	pg_dump + WAL-G в S3	Ежедневные + WAL для PITR
+Replication	Streaming replication	Read-replica для отчётов
+3.3 Инфраструктура
+Компонент	Технология	Назначение
+Контейнеризация	Docker + docker-compose	Одинаковая среда dev/prod
+Reverse proxy	Caddy 2	Auto-SSL, HTTP/2, простая конфигурация
+Хранилище фото	Yandex Object Storage	S3-совместимое, в РФ
+Кеш и сессии	Redis 7	Сессии, rate limit, кеш
+CI/CD	GitHub Actions / GitLab CI	Авто-деплой при push
+Мониторинг	Prometheus + Grafana	Метрики приложения и БД
+Логи	Loki + Grafana	Централизованные логи
+Ошибки	Sentry	Tracking ошибок в production
+Uptime	UptimeRobot / Better Stack	Внешний мониторинг доступности
+Сервер	VPS Selectel / Timeweb	4 CPU / 8 GB RAM / 80 GB SSD старт
+3.4 Фронтенд
+На первом этапе фронтенд остаётся текущим PWA — один HTML-файл с встроенными CSS и JavaScript. Меняется только endpoint API:
+
+// БЫЛО (Apps Script):
+google.script.run
+  .withSuccessHandler(handleResult)
+  .addExpense(data);
+ 
+// СТАЛО (FastAPI):
+fetch("https://api.welldom05.ru/api/v1/expenses", {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer " + accessToken,
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify(data)
+}).then(r => r.json()).then(handleResult);
+Для миграции создаётся универсальный wrapper `api.js`, который полностью повторяет интерфейс google.script.run — это позволяет минимизировать изменения в существующем коде PWA.
+
+4. Схема базы данных
+База данных спроектирована с учётом денормализации для скорости чтения и нормализации для целостности данных. Все таблицы имеют поля created_at, updated_at и soft-delete через deleted_at.
+4.1 Диаграмма связей
+
+   ???????????????         ????????????????????
+   ?   users     ?         ?  user_projects   ?
+   ???????????????    1:N  ????????????????????
+   ? id (uuid)   ??????????? user_id          ?
+   ? phone       ?         ? project_id       ?
+   ? name        ?         ? role             ?
+   ? pin_hash    ?         ? granted_at       ?
+   ? role        ?         ????????????????????
+   ? active      ?                  ? N:1
+   ???????????????                  ?
+                            ???????????????????
+                            ?    projects     ?
+                            ???????????????????
+                            ? id (uuid)       ?
+                            ? code (slug)     ?
+                            ? name            ?
+                            ? markup_pct      ?
+                            ? foreman_rate    ?
+                            ? foreman_fixed   ?
+                            ? rentier_share   ?
+                            ? plan_total      ?
+                            ? plan_monthly    ?
+                            ? deadline        ?
+                            ? active          ?
+                            ???????????????????
+                                     ? 1:N
+                  ???????????????????????????????????????
+                  ?                  ?                  ?
+          ????????????????   ????????????????   ????????????????
+          ?   records    ?   ?client_payments?  ?  rentier_log ?
+          ????????????????   ?????????????????  ????????????????
+          ? id           ?   ? id            ?  ? record_id    ?
+          ? project_id   ?   ? project_id    ?  ? gross_amount ?
+          ? date         ?   ? amount        ?  ? foreman_part ?
+          ? kind         ?   ? rep_name      ?  ? company_part ?
+          ? name         ?   ? paid_at       ?  ????????????????
+          ? category     ?   ????????????????
+          ? qty, price   ?
+          ? sum_buy      ?       ????????????????
+          ? markup_pct   ?       ?   photos     ?
+          ? sum_sell     ? 1:N   ????????????????
+          ? commission   ????????? record_id    ?
+          ? rentier      ?       ? s3_key       ?
+          ? author_id    ?       ? thumb_key    ?
+          ? created_at   ?       ? uploaded_at  ?
+          ????????????????       ????????????????
+4.2 Таблица users
+Все пользователи системы: прорабы, клиенты, администраторы.
+
+Колонка	Тип	Описание
+id	uuid PRIMARY KEY	Сгенерирован uuid_generate_v4()
+phone	citext UNIQUE NOT NULL	Номер +79XXXXXXXXX в нормализованном виде
+name	text NOT NULL	Имя для отображения
+pin_hash	text NOT NULL	bcrypt хеш PIN-кода
+role	user_role NOT NULL	ENUM: admin, foreman, client
+email	citext NULL	Опционально, для админов
+active	boolean DEFAULT true	Soft-disable аккаунта
+failed_attempts	integer DEFAULT 0	Счётчик неверных PIN
+locked_until	timestamptz NULL	До какого момента заблокирован
+last_login_at	timestamptz NULL	Последний успешный вход
+created_at	timestamptz DEFAULT now()	
+updated_at	timestamptz DEFAULT now()	
+deleted_at	timestamptz NULL	Soft-delete
+
+Индексы:
+CREATE UNIQUE INDEX idx_users_phone ON users(phone) WHERE deleted_at IS NULL
+CREATE INDEX idx_users_role ON users(role) WHERE active = true
+4.3 Таблица projects
+
+Колонка	Тип	Описание
+id	uuid PRIMARY KEY	
+code	citext UNIQUE NOT NULL	Человекочитаемый ID типа "bakery"
+name	text NOT NULL	Название для отображения
+active	boolean DEFAULT true	Активен ли проект
+deadline	date NULL	Плановая дата сдачи
+markup_pct	numeric(5,2) DEFAULT 15	Наценка за ведение, %
+foreman_rate_pct	numeric(5,2) DEFAULT 2.5	Ставка прораба от закупа
+foreman_efficiency	numeric(5,2) DEFAULT 100	Коэффициент эффективности
+foreman_fixed	numeric(12,2) DEFAULT 0	Фикс прораба ?/мес
+rentier_foreman_share	numeric(5,2) DEFAULT 100	Доля прораба от рантье, %
+plan_total	numeric(14,2) DEFAULT 0	Общий план оборота, ?
+plan_monthly	numeric(14,2) DEFAULT 0	План на месяц, ?
+whatsapp_url	text NULL	Ссылка на WhatsApp группу
+telegram_url	text NULL	Ссылка на Telegram группу
+gsheet_id	text NULL	ID связанной Google Sheet (опционально)
+metadata	jsonb DEFAULT '{}'::jsonb	Расширяемые поля
+created_at	timestamptz DEFAULT now()	
+updated_at	timestamptz DEFAULT now()	
+deleted_at	timestamptz NULL	
+4.4 Таблица user_projects (связь many-to-many)
+
+Колонка	Тип	Описание
+user_id	uuid REFERENCES users(id)	
+project_id	uuid REFERENCES projects(id)	
+role	user_role NOT NULL	Роль в этом проекте
+granted_at	timestamptz DEFAULT now()	
+granted_by	uuid REFERENCES users(id)	Кто выдал доступ
+revoked_at	timestamptz NULL	Когда отозван
+Составной первичный ключ (user_id, project_id). Один пользователь может быть в нескольких проектах с разными ролями.
+4.5 Таблица records (главная — все записи)
+Содержит все операции: закупки, оплаты мастерам, платежи клиенту. Различаются по полю kind.
+
+Колонка	Тип	Описание
+id	uuid PRIMARY KEY	
+project_id	uuid REFERENCES projects(id)	
+kind	record_kind NOT NULL	ENUM: expense, master_payment, client_payment
+operation_date	date NOT NULL	Дата операции
+name	text NULL	Наименование позиции / мастера
+type	text NULL	Материалы/Работы/Доставка/Уборка/Прочее
+category	text NULL	Этап работ
+comment	text NULL	Произвольный комментарий
+qty	numeric(10,3) DEFAULT 1	Количество
+price	numeric(12,2) NULL	Цена за единицу
+sum_buy	numeric(14,2) GENERATED ALWAYS AS (qty*price) STORED	Сумма закупа
+markup_pct_snapshot	numeric(5,2) NULL	Наценка на момент записи
+sum_sell	numeric(14,2) NULL	Сумма с наценкой
+commission	numeric(12,2) DEFAULT 0	Комиссия прораба
+rentier_gross	numeric(12,2) DEFAULT 0	Рантье брутто
+rentier_share_snapshot	numeric(5,2) NULL	Доля прораба на момент записи
+client_rep_name	text NULL	Представитель клиента (только для платежей)
+payment_amount	numeric(12,2) NULL	Сумма платежа клиента
+payment_date	date NULL	Дата оплаты
+author_id	uuid REFERENCES users(id)	Кто внёс запись
+metadata	jsonb DEFAULT '{}'::jsonb	Расширения
+created_at	timestamptz DEFAULT now()	
+updated_at	timestamptz DEFAULT now()	
+deleted_at	timestamptz NULL	
+
+Индексы и ограничения:
+idx_records_project_date ON records(project_id, operation_date DESC) — главный для отчётов
+idx_records_author ON records(author_id) WHERE deleted_at IS NULL — заработок прораба
+idx_records_kind ON records(project_id, kind) — фильтр по типу
+CHECK (kind != 'client_payment' OR payment_amount IS NOT NULL) — валидация
+Партиционирование по project_id (или по году operation_date) при >10M записей
+4.6 Таблица photos
+
+Колонка	Тип	Описание
+id	uuid PRIMARY KEY	
+record_id	uuid REFERENCES records(id) ON DELETE CASCADE	
+s3_bucket	text NOT NULL	Имя bucket в S3
+s3_key	text NOT NULL	Путь к оригиналу
+thumb_key	text NOT NULL	Путь к превью 400x400
+mime_type	text NOT NULL	image/jpeg, image/png
+size_bytes	integer NOT NULL	
+width	integer NULL	
+height	integer NULL	
+kind	photo_kind NOT NULL	ENUM: receipt, payment_proof, gallery
+uploaded_at	timestamptz DEFAULT now()	
+uploaded_by	uuid REFERENCES users(id)	
+4.7 Таблица audit_log
+Полный журнал действий пользователей для аудита и расследований. Каждое изменение записывается отдельной строкой.
+
+Колонка	Тип	Описание
+id	bigserial PRIMARY KEY	
+user_id	uuid REFERENCES users(id)	
+project_id	uuid NULL	
+action	text NOT NULL	CREATE_EXPENSE, UPDATE_RECORD, LOGIN, LOGIN_FAIL
+entity_type	text NULL	record, project, user
+entity_id	uuid NULL	
+old_value	jsonb NULL	Снимок до изменения
+new_value	jsonb NULL	Снимок после
+ip	inet NULL	
+user_agent	text NULL	
+created_at	timestamptz DEFAULT now()	
+4.8 Таблица dictionaries (справочники)
+Глобальные справочники: типы записей, категории работ, типы платежей мастерам. Аналог трёх отдельных листов в текущей системе, унифицированы в одну таблицу.
+
+Колонка	Тип	Описание
+id	uuid PRIMARY KEY	
+kind	dictionary_kind NOT NULL	ENUM: type, category, master_payment_type
+value	text NOT NULL	Значение
+display_order	integer DEFAULT 0	Для сортировки
+active	boolean DEFAULT true	
+created_at	timestamptz DEFAULT now()	
+created_by	uuid REFERENCES users(id)	
+UNIQUE (kind, value) WHERE active = true — нельзя дубликатов в активных значениях.
+
+5. REST API endpoints
+Все endpoints под префиксом /api/v1. Аутентификация через JWT-токены в заголовке Authorization: Bearer <token>. Версионирование через URL для безопасной эволюции API.
+5.1 Аутентификация
+Метод	Путь	Описание
+POST	/api/v1/auth/login	Вход: phone + pin ? access_token, refresh_token
+POST	/api/v1/auth/refresh	Обновление access_token по refresh_token
+POST	/api/v1/auth/logout	Инвалидация refresh_token
+POST	/api/v1/auth/change-pin	Смена своего PIN (требует старого)
+GET	/api/v1/auth/me	Текущий пользователь + список проектов
+
+Пример POST /api/v1/auth/login:
+// Request
+{
+  "phone": "+79161234567",
+  "pin": "5829"
+}
+ 
+// Response 200 OK
+{
+  "access_token": "eyJhbGciOiJIUzI1NiIs...",
+  "refresh_token": "eyJhbGciOiJIUzI1NiIs...",
+  "expires_in": 900,
+  "user": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "name": "Магомед",
+    "role": "foreman",
+    "projects": [
+      { "id": "...", "code": "bakery", "name": "Пекарня",
+        "role": "foreman" }
+    ]
+  }
+}
+ 
+// Response 423 Locked (заблокирован)
+{
+  "error": "account_locked",
+  "message": "Слишком много неудачных попыток",
+  "retry_after": 870
+}
+5.2 Записи (records)
+Метод	Путь	Описание
+GET	/api/v1/projects/{code}/records	Список записей с фильтрами
+POST	/api/v1/projects/{code}/records	Создать запись
+GET	/api/v1/projects/{code}/records/{id}	Получить одну запись
+PATCH	/api/v1/projects/{code}/records/{id}	Обновить запись
+DELETE	/api/v1/projects/{code}/records/{id}	Soft-delete (admin only)
+
+Query-параметры GET /records:
+Параметр	Тип	Описание
+kind	string	expense / master_payment / client_payment
+type	string	Фильтр по типу записи (Материалы, Работы и т.д.)
+category	string	Фильтр по категории
+author_id	uuid	Только записи этого автора
+date_from	date	Период от
+date_to	date	Период до
+search	string	Полнотекстовый поиск по name/comment
+limit	int	По умолчанию 50, максимум 200
+cursor	string	Cursor-based pagination
+
+Пример POST /records (создание закупки):
+// Request
+{
+  "kind": "expense",
+  "operation_date": "2026-04-26",
+  "name": "Цемент М500",
+  "type": "Материалы",
+  "category": "Стяжка пола",
+  "qty": 20,
+  "price": 350,
+  "comment": "Закупка для стяжки 2-го этажа",
+  "photo_ids": ["photo-uuid-1", "photo-uuid-2"]
+}
+ 
+// Response 201 Created
+{
+  "id": "rec-uuid",
+  "kind": "expense",
+  "operation_date": "2026-04-26",
+  "name": "Цемент М500",
+  "qty": 20,
+  "price": 350,
+  "sum_buy": 7000,
+  "sum_sell": 8050,
+  "markup_pct": 15,
+  "author": { "id": "...", "name": "Магомед" },
+  "photos": [...],
+  "created_at": "2026-04-26T14:32:18+03:00"
+}
+5.3 Фотографии
+Метод	Путь	Описание
+POST	/api/v1/photos/upload-url	Получить presigned URL для прямой загрузки в S3
+POST	/api/v1/photos/confirm	Подтвердить загрузку, создать запись в БД
+GET	/api/v1/projects/{code}/photos	Галерея проекта с фильтрами
+DELETE	/api/v1/photos/{id}	Удалить (soft-delete + queue cleanup S3)
+Workflow загрузки фото:
+Клиент: POST /photos/upload-url с метаданными (filename, size, mime)
+Сервер: возвращает presigned URL валидный 5 минут + photo_id
+Клиент: PUT файл напрямую в S3 по полученному URL
+Клиент: POST /photos/confirm с photo_id ? запись активируется
+Сервер: фоновая задача создаёт thumbnail 400x400 через Pillow
+5.4 Доход прораба
+Метод	Путь	Описание
+GET	/api/v1/projects/{code}/earnings	Заработок по конкретному проекту
+GET	/api/v1/earnings/all	Сводный заработок по всем проектам
+GET	/api/v1/projects/{code}/plan	Прогресс плана оборота
+5.5 Администрирование проектов
+Метод	Путь	Описание
+GET	/api/v1/admin/projects	Список всех проектов
+POST	/api/v1/admin/projects	Создать проект
+PATCH	/api/v1/admin/projects/{code}	Изменить параметры проекта
+POST	/api/v1/admin/projects/{code}/users	Назначить пользователя
+DELETE	/api/v1/admin/projects/{code}/users/{user_id}	Отозвать доступ
+POST	/api/v1/admin/users	Создать пользователя
+5.6 Экспорт в Google Sheets
+Метод	Путь	Описание
+POST	/api/v1/admin/projects/{code}/export-sheets	Создать/обновить Google Sheet
+GET	/api/v1/admin/exports/{id}	Статус задачи экспорта (queued/running/done/failed)
+Экспорт работает асинхронно. После POST возвращается job_id, клиент опрашивает статус. При завершении — URL созданной Google Sheet.
+
+6. Интеграция с Google Sheets (экспорт)
+Google Sheets интегрирован как опциональный канал доставки данных. Это не основное хранилище — все данные живут в PostgreSQL.
+6.1 Сценарии использования
+Передача отчёта клиенту — клиент получает Google Sheet с историей операций по своему проекту в привычном виде.
+Бухгалтерская выгрузка — месячная сводка для бухгалтера в Excel/Sheets для дальнейшей обработки.
+Резервная копия — периодический snapshot данных проекта в Google Drive владельца.
+Совместная работа — подрядчик/инвестор может комментировать конкретные строки.
+6.2 Архитектура экспорта
+
+????????????????????????????????????????????????????????????
+? Администратор нажимает "Экспорт в Google Sheets"          ?
+? в админ-панели для проекта X                              ?
+????????????????????????????????????????????????????????????
+                         ?
+                         ?
+          POST /api/v1/admin/projects/X/export-sheets
+                         ?
+                         ?
+????????????????????????????????????????????????????????????
+? FastAPI: создаёт export_job в БД (status=queued)          ?
+?         возвращает job_id, ставит задачу в Redis queue    ?
+????????????????????????????????????????????????????????????
+                         ?
+                         ?
+????????????????????????????????????????????????????????????
+? Background worker (arq/rq):                                ?
+?  1. Читает все записи проекта из PostgreSQL                ?
+?  2. Создаёт Google Sheet через gspread (service account)   ?
+?  3. Записывает шапку и данные                              ?
+?  4. Применяет форматирование (заливка, формулы)            ?
+?  5. Шарит ссылку на email пользователя (опционально)       ?
+?  6. Обновляет export_job (status=done, sheet_url=...)      ?
+????????????????????????????????????????????????????????????
+                         ?
+                         ?
+          Клиент опрашивает GET /api/v1/admin/exports/{id}
+          При status=done — получает URL созданной таблицы
+6.3 Структура экспортируемой Sheet
+Sheet формируется в том же формате что и текущая система — чтобы клиенту не приходилось переучиваться:
+Лист «Таблица» — записи в формате A...T (как сейчас)
+Лист «Дашборд» — сводка с агрегатами (новое)
+Лист «По мастерам» — оплаты сгруппированные по получателю
+Лист «По месяцам» — помесячная сводка с графиком
+Лист «Информация» — параметры проекта, ставки, контакты
+6.4 Авторизация в Google API
+Используется Service Account — это специальный технический аккаунт Google со своим email и приватным ключом. Не требует interactive-логина пользователя.
+
+# google_sheets_client.py
+from google.oauth2.service_account import Credentials
+import gspread
+ 
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive.file"
+]
+ 
+creds = Credentials.from_service_account_file(
+    "service-account.json",
+    scopes=SCOPES
+)
+ 
+gc = gspread.authorize(creds)
+ 
+def export_project(project_id: UUID) -> str:
+    """Создаёт Google Sheet и возвращает её URL."""
+    project = await get_project(project_id)
+    records = await get_records(project_id)
+ 
+    sh = gc.create(f"WELL DOM — {project.name}")
+    ws = sh.sheet1
+    ws.update_title("Таблица")
+ 
+    ws.update("A1", [HEADER_ROW])
+    ws.update("A2", [r.to_sheet_row() for r in records])
+ 
+    # Форматирование
+    ws.format("A1:T1", {"backgroundColor": {...}})
+    sh.share(project.client_email, perm_type="user", role="reader")
+ 
+    return sh.url
+6.5 Лимиты Google Sheets API
+Лимит	Значение	Как обходим
+Запросов / минута	60 read + 60 write на проект	Batch-операции, exponential backoff
+Размер ячейки	50000 символов	Длинные комментарии обрезаем
+Ячеек в Sheet	10 миллионов	Проекты >100k записей разбиваем по годам
+Размер запроса	10 МБ	Чанки по 1000 строк
+
+7. Аутентификация и авторизация
+7.1 Схема JWT
+Используется пара токенов:
+Access token — короткоживущий (15 минут), содержит user_id, role, permissions. Передаётся в каждом запросе.
+Refresh token — долгоживущий (30 дней), хранится только на стороне клиента в HttpOnly cookie. Используется только для получения нового access token.
+При логине Refresh-токен записывается в Redis с TTL — это позволяет принудительно разлогинивать пользователя (token revocation).
+7.2 Хранение PIN
+PIN-код прораба никогда не хранится в открытом виде. Используется bcrypt с work factor 12:
+
+from passlib.context import CryptContext
+ 
+pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+ 
+def hash_pin(pin: str) -> str:
+    return pwd_ctx.hash(pin)
+ 
+def verify_pin(pin: str, hash: str) -> bool:
+    return pwd_ctx.verify(pin, hash)
+ 
+# В БД:
+# pin_hash = "$2b$12$KIXxPfnK6S7ZpoG9qV7HZuYjL..."
+7.3 Защита от подбора (rate limiting)
+При 3-х неверных попытках подряд — блокировка на 15 минут. Реализовано на двух уровнях:
+Per-account: failed_attempts в БД, при 3 ? locked_until = now() + 15 min
+Per-IP: счётчик в Redis с TTL 60 секунд, при >5 попыток/мин ? 429 Too Many Requests
+7.4 RBAC (роли)
+Роль	Что может	Чего не может
+admin	Всё: пользователи, проекты, экспорт	—
+foreman	CRUD записей в своих проектах, видит свой доход	Не видит других прорабов, чужие проекты
+client	Read-only история своего проекта, фото, контакты	Не видит комиссию, рантье, мастеров
+7.5 Декораторы на endpoints
+
+from fastapi import Depends, HTTPException
+ 
+# Зависимость для извлечения текущего пользователя
+async def current_user(token: str = Depends(oauth2_scheme)) -> User:
+    payload = jwt.decode(token, SECRET, algorithms=["HS256"])
+    user = await db.get(User, payload["sub"])
+    if not user or not user.active:
+        raise HTTPException(401)
+    return user
+ 
+# Проверка роли
+def require_role(*roles):
+    async def _check(user: User = Depends(current_user)):
+        if user.role not in roles:
+            raise HTTPException(403)
+        return user
+    return _check
+ 
+# Использование
+@router.delete("/records/{id}", status_code=204)
+async def delete_record(
+    id: UUID,
+    user: User = Depends(require_role("admin", "foreman")),
+):
+    ...
+
+8. Развёртывание и инфраструктура
+8.1 Структура проекта
+
+welldom/
+??? backend/
+?   ??? app/
+?   ?   ??? api/v1/             # endpoints
+?   ?   ?   ??? auth.py
+?   ?   ?   ??? records.py
+?   ?   ?   ??? photos.py
+?   ?   ?   ??? earnings.py
+?   ?   ?   ??? admin/
+?   ?   ??? models/             # SQLAlchemy модели
+?   ?   ??? schemas/            # Pydantic схемы
+?   ?   ??? services/           # бизнес-логика
+?   ?   ?   ??? earnings.py
+?   ?   ?   ??? plan.py
+?   ?   ?   ??? sheets_export.py
+?   ?   ??? workers/            # фоновые задачи
+?   ?   ??? core/               # config, security, db
+?   ?   ??? main.py             # FastAPI app
+?   ??? alembic/                # миграции
+?   ??? tests/
+?   ??? pyproject.toml
+?   ??? Dockerfile
+??? frontend/                   # текущее PWA
+?   ??? index.html
+?   ??? manifest.json
+?   ??? api.js                  # wrapper для REST API
+??? infra/
+?   ??? docker-compose.yml
+?   ??? docker-compose.prod.yml
+?   ??? Caddyfile
+?   ??? deploy.sh
+??? docs/
+8.2 docker-compose.yml
+
+version: "3.9"
+ 
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: welldom
+      POSTGRES_USER: welldom
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups
+    secrets:
+      - db_password
+    restart: unless-stopped
+ 
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+ 
+  api:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://welldom@postgres/welldom
+      REDIS_URL: redis://redis:6379/0
+      S3_BUCKET: welldom-photos
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
+    depends_on: [postgres, redis]
+    secrets: [jwt_secret, gcp_service_account]
+    restart: unless-stopped
+ 
+  worker:
+    build: ./backend
+    command: arq app.workers.WorkerSettings
+    environment:
+      DATABASE_URL: postgresql+asyncpg://welldom@postgres/welldom
+      REDIS_URL: redis://redis:6379/0
+    depends_on: [postgres, redis]
+    restart: unless-stopped
+ 
+  caddy:
+    image: caddy:2-alpine
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./infra/Caddyfile:/etc/caddy/Caddyfile
+      - ./frontend:/srv/frontend
+      - caddy_data:/data
+    depends_on: [api]
+    restart: unless-stopped
+ 
+volumes:
+  postgres_data:
+  redis_data:
+  caddy_data:
+ 
+secrets:
+  db_password:
+    file: ./secrets/db_password.txt
+  jwt_secret:
+    file: ./secrets/jwt_secret.txt
+  gcp_service_account:
+    file: ./secrets/gcp-service-account.json
+8.3 Caddyfile
+
+{
+    email admin@welldom05.ru
+}
+ 
+# Главный домен — PWA + API
+welldom05.ru, www.welldom05.ru {
+    # Сжатие
+    encode gzip zstd
+ 
+    # Security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+ 
+    # API ? FastAPI
+    handle /api/* {
+        reverse_proxy api:8000
+    }
+ 
+    # OpenAPI docs (только в dev)
+    handle /docs* {
+        reverse_proxy api:8000
+    }
+ 
+    # PWA — статические файлы
+    handle {
+        root * /srv/frontend
+        try_files {path} /index.html
+        file_server
+    }
+}
+ 
+# Поддомен для админки (опционально)
+admin.welldom05.ru {
+    reverse_proxy api:8000
+}
+8.4 Минимальные требования к серверу
+Этап	CPU	RAM	Диск	Месяц ? (РФ хостинг)
+Пилот (3 проекта)	2 vCPU	4 GB	40 GB SSD	~1500–2500 ?
+Прод (20 проектов)	4 vCPU	8 GB	80 GB SSD	~3500–5500 ?
+Масштаб (100+)	8 vCPU	16 GB	200 GB SSD	~9000–14000 ?
+8.5 CI/CD pipeline (GitHub Actions)
+
+# .github/workflows/deploy.yml
+name: Deploy to production
+ 
+on:
+  push:
+    branches: [main]
+ 
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r backend/requirements.txt
+      - run: pytest backend/tests
+ 
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.PROD_HOST }}
+          username: deploy
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd /opt/welldom
+            git pull origin main
+            docker compose pull
+            docker compose up -d --build
+            docker compose exec -T api alembic upgrade head
+
+9. Миграция данных из Apps Script
+Существующие данные в Google Sheets необходимо перенести в PostgreSQL без потерь. Миграция проходит в одну сессию (downtime ~30 минут).
+9.1 Этапы миграции
+
+Этап 1: Подготовка (1 день)
+Развёрнут production-сервер с PostgreSQL
+Запущена FastAPI без публичного доступа
+Применены все миграции схемы (alembic upgrade head
+Создан admin-пользователь через CLI
+
+Этап 2: Анонс прорабам и клиенту (за 3 дня до)
+Сообщение в WhatsApp группах: дата миграции, что изменится
+Просьба завершить текущие записи накануне
+Резервный режим: на время миграции можно использовать бумажный блокнот
+
+Этап 3: Миграция данных (30 минут)
+Отключается текущий PWA (deployment-archive в Apps Script)
+Запускается скрипт migrate.py — читает каждую Google Sheet и пишет в PostgreSQL
+Фотографии копируются из Google Drive в S3-хранилище
+Проверяется целостность: сумма записей, общий оборот, число фото
+Активируется новый PWA на welldom05.ru
+
+Этап 4: Параллельная работа (2 недели)
+Старая система остаётся доступной как read-only бэкап
+Все новые записи идут только в новую систему
+Прорабы тестируют функциональность
+При обнаружении расхождений — точечные исправления
+
+Этап 5: Полное переключение
+Старая Apps Script удаляется
+Google Sheets проектов остаются как исторический архив
+Регулярные бэкапы PostgreSQL настроены в S3
+9.2 Скрипт миграции
+
+# scripts/migrate_from_appscript.py
+import gspread
+from app.models import Project, User, Record, Photo
+from app.db import async_session
+ 
+async def migrate_project(sheet_id: str, project_code: str):
+    ss = gc.open_by_key(sheet_id)
+    rows = ss.worksheet("Таблица").get_all_values()
+ 
+    async with async_session() as db:
+        project = await db.get(Project, code=project_code)
+ 
+        for row in rows[1:]:  # пропускаем заголовок
+            if not row[0]:
+                continue
+ 
+            record = Record(
+                project_id=project.id,
+                operation_date=parse_date(row[0]),
+                name=row[1],
+                type=row[2],
+                category=row[3],
+                comment=row[4],
+                qty=parse_decimal(row[5]),
+                price=parse_decimal(row[6]),
+                # ... остальные поля
+                kind=detect_kind(row),
+                author_id=lookup_user(row[16]),  # колонка Q
+                created_at=parse_datetime(row[17])
+            )
+            db.add(record)
+ 
+            # Фото — отдельной задачей
+            for photo_url in extract_drive_urls(row[9]):
+                await schedule_photo_migration(record, photo_url)
+ 
+        await db.commit()
+ 
+    print(f"? {project_code}: {len(rows)-1} записей мигрировано")
+9.3 Проверка целостности
+После миграции запускается верификация:
+SELECT COUNT(*) FROM records WHERE project_id=...  ? сравнить с числом строк в Sheet
+SELECT SUM(sum_buy) FROM records WHERE project_id=...  ? сравнить с итогом в Sheet
+SELECT COUNT(*) FROM photos WHERE record_id IN (...)  ? все ли фото скопировались
+Спот-проверка случайных 20 записей: данные в БД и в Sheet совпадают
+
+10. Безопасность
+10.1 Транспорт
+Весь трафик через HTTPS (TLS 1.3, автоматический Let's Encrypt через Caddy)
+HSTS заголовок с preload — браузер всегда подключается по HTTPS
+HTTP redirected на HTTPS на уровне Caddy
+10.2 Аутентификация
+JWT с коротким TTL (15 минут access, 30 дней refresh)
+Refresh tokens в Redis с возможностью отзыва
+PIN хешируется bcrypt (work factor 12)
+Rate limiting: 3 попытки ? блокировка аккаунта на 15 минут
+Per-IP rate limit: 5 попыток входа/минута
+10.3 Авторизация
+RBAC через декораторы FastAPI (require_role)
+Row-level security в PostgreSQL для критичных таблиц
+Проверка project_id в каждом запросе — клиент не может получить чужой проект подменой ID
+Маскирование PII (имена мастеров) на уровне сервиса перед отправкой клиенту
+10.4 Защита от инъекций
+SQL injection — невозможна, SQLAlchemy ORM всегда параметризует запросы
+XSS — Pydantic валидирует все входящие данные, фронт делает escapeHTML на вывод
+CSRF — JWT в Authorization header (не в cookie) исключает классический CSRF
+Path traversal в загрузке фото — S3 keys генерируются сервером, клиент не контролирует имя файла
+10.5 Защита данных
+Бэкапы PostgreSQL шифруются (AES-256) перед загрузкой в S3
+Service account для Google API в Docker secrets, не в репозитории
+Секреты в `.env` исключены из Git, читаются из Docker secrets
+PII (телефоны, имена) хранятся в БД, но логи не пишут PII в открытом виде
+GDPR-совместимое удаление: API DELETE /users/{id} полностью стирает все данные с подтверждением
+10.6 Мониторинг и реакция
+Sentry для tracking ошибок в production (бесплатный план до 5k events/мес)
+Slack/Telegram алерт при > 50 failed login за час (попытка брутфорса)
+Алерт при > 100 5xx ошибок в час
+Audit log пишет все CREATE/UPDATE/DELETE — можно расследовать любой инцидент
+
+11. План разработки и оценка
+Разработка разбита на 5 фаз. Каждая фаза завершается работающим прототипом с возможностью демонстрации.
+11.1 Фаза 1: Инфраструктура и аутентификация (2 недели)
+Развёртывание VPS, Docker-стек, домен, SSL
+Создание схемы БД, первые миграции Alembic
+JWT-аутентификация, эндпоинты login/refresh/me
+Базовые модели User, Project, UserProject
+Admin CLI: создать пользователя, создать проект
+CI/CD pipeline
+11.2 Фаза 2: Основная функциональность (3 недели)
+CRUD для records (все три типа: expense, master_payment, client_payment)
+Сервис расчёта заработка прораба (fix + bonus + rentier)
+План оборота: расчёт прогресса и темпа
+Загрузка фото через S3 presigned URLs
+Справочники (типы, категории)
+Маскирование данных для клиента
+11.3 Фаза 3: Адаптация фронтенда (2 недели)
+Создание api.js — wrapper повторяющий интерфейс google.script.run
+Замена всех вызовов google.script.run на api.js
+Авторизация: вход с сохранением JWT в localStorage
+Обработка истечения access-token, автоматический refresh
+Тестирование на реальных проектах в staging
+11.4 Фаза 4: Миграция и экспорт (2 недели)
+Скрипт переноса данных из Apps Script
+Тестовая миграция одного проекта
+Экспорт в Google Sheets — backend worker + endpoint
+Админ-панель для управления экспортами
+Проверка целостности данных
+11.5 Фаза 5: Запуск и стабилизация (1 неделя)
+Полная миграция всех 3 пилотных проектов
+Параллельная работа 1 неделя
+Sentry, мониторинг, алерты
+Документация для админа
+Отключение Apps Script
+11.6 Сводная оценка
+Фаза	Недель	Что делается	Видимый результат
+Инфраструктура	2	Сервер, БД, JWT, CI/CD	Можно зайти в систему
+Основной функционал	3	CRUD, заработок, фото	Полная API готова
+Адаптация фронта	2	api.js wrapper	PWA работает через REST
+Миграция + Sheets	2	Скрипт + экспорт	Данные перенесены
+Запуск	1	Стабилизация	Полный переход
+
+Итого: ~10 недель работы одного разработчика среднего уровня. С учётом отпусков и непредвиденных задач — 12–14 недель.
+
+12. Стоимость владения
+12.1 Разовые затраты (старт)
+Статья	Сумма	Комментарий
+Разработка (12 недель)	700 000 – 1 200 000 ?	Зависит от уровня команды
+Дизайн доработок (если нужно)	40 000 – 80 000 ?	Логотип, иконки, графика
+Юридическое сопровождение	30 000 – 60 000 ?	Договор оферты, политика конфиденциальности
+Регистрация торговой марки	40 000 ?	Опционально, для защиты бренда WELL DOM
+Итого старт	810 000 – 1 380 000 ?	
+12.2 Ежемесячные операционные затраты
+Статья	Стоимость / мес	Комментарий
+VPS (4 CPU / 8 GB)	~4 000 ?	Selectel / Timeweb
+Резервный VPS (HA)	~4 000 ?	Опционально, для production
+S3-хранилище фото	500 – 2 000 ?	Зависит от объёма
+Домен .ru	~30 ?	350 ? в год
+Sentry (платный план)	0 – 2 600 ?	Бесплатно до 5k events
+UptimeRobot Pro	~600 ?	Опционально
+Резервное копирование БД	500 ?	WAL-G в S3
+Поддержка (DevOps)	10 000 – 30 000 ?	~10ч/мес
+Итого месяц	~20 000 – 45 000 ?	
+12.3 Сравнение с текущим решением
+Параметр	Apps Script	Свой сервер
+Стоимость старта	0 ?	800 000 – 1.4 млн ?
+Стоимость владения / мес	0 ?	20 000 – 45 000 ?
+Лимит проектов	~50 (квоты)	Не ограничен
+Лимит пользователей	~100	10 000+ (с масштабированием)
+Скорость	Средняя	В 5–10 раз быстрее
+Брендирование	С плашкой Google	Свой домен
+Интеграции	Только Google API	Любые: 1С, банки, маркетплейсы
+Аналитика	Ограниченная	Полная — SQL запросы
+Резервное копирование	Через Google Drive	PITR, WAL-archiving
+Возможность продажи как SaaS	Нет	Да
+
+Когда переходить
+Переход на собственный сервер целесообразен, если:
+Подтверждена ценность для пользователей (3+ проекта стабильно используют систему)
+Появилась перспектива продаж как SaaS (нужны другие компании готовые платить)
+Текущие ограничения Apps Script стали мешать развитию (баннеры, медленность, нет интеграций)
+Готов бюджет на разработку и хотя бы 6 месяцев операционных затрат вперёд
+
+13. Риски и митигация
+Риск	Вероятность	Влияние	Митигация
+Простой во время миграции	Средняя	Высокое	Параллельная работа 2 недели, бэкап в виде Apps Script
+
+Потеря данных при миграции	Низкая	Критическое	Снапшот всех Sheets перед стартом, проверка целостности
+Прорабы не примут новую систему	Низкая	Высокое	PWA максимально похож на текущий, плавная миграция
+Превышение бюджета разработки	Средняя	Высокое	Фиксированная цена контракта, поэтапная оплата
+DDoS / атаки	Низкая	Среднее	Cloudflare перед Caddy, rate limiting
+Утечка данных	Низкая	Критическое	Шифрование на rest, аудит логи, минимум доступов
+Зависимость от Google Sheets API	Низкая	Низкое	Sheets опционален, не блокирует работу системы
+Уход разработчика	Средняя	Высокое	Документация, типизация кода, тесты
+
+14. Приложения
+14.1 Пример .env файла
+
+# Application
+APP_NAME=welldom
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=https://welldom05.ru
+ 
+# Database
+DATABASE_URL=postgresql+asyncpg://welldom:pass@postgres:5432/welldom
+DATABASE_POOL_SIZE=20
+DATABASE_MAX_OVERFLOW=10
+ 
+# Redis
+REDIS_URL=redis://redis:6379/0
+ 
+# JWT
+JWT_SECRET=<openssl rand -hex 32>
+JWT_ALGORITHM=HS256
+JWT_ACCESS_TTL=900       # 15 минут
+JWT_REFRESH_TTL=2592000  # 30 дней
+ 
+# S3 / Object Storage
+S3_ENDPOINT=https://storage.yandexcloud.net
+S3_BUCKET=welldom-photos
+S3_ACCESS_KEY=<from cloud console>
+S3_SECRET_KEY=<from cloud console>
+ 
+# Google Sheets
+GCP_SERVICE_ACCOUNT_FILE=/run/secrets/gcp-sa.json
+ 
+# Sentry
+SENTRY_DSN=https://...@sentry.io/...
+ 
+# CORS
+CORS_ORIGINS=https://welldom05.ru,https://www.welldom05.ru
+14.2 Глоссарий
+Термин	Расшифровка
+PWA	Progressive Web App — веб-приложение работающее как нативное
+JWT	JSON Web Token — стандарт для токенов аутентификации
+ORM	Object-Relational Mapping — отображение объектов на таблицы БД
+ASGI	Asynchronous Server Gateway Interface — async-стандарт Python
+CRUD	Create, Read, Update, Delete — стандартные операции с данными
+RBAC	Role-Based Access Control — управление доступом по ролям
+SaaS	Software as a Service — поставка ПО по подписке
+CI/CD	Continuous Integration/Deployment — автоматизация сборки и выкатки
+PITR	Point-In-Time Recovery — восстановление БД на любой момент
+WAL	Write-Ahead Log — журнал транзакций PostgreSQL
+Service Account	Технический аккаунт Google для серверных интеграций
+
+
