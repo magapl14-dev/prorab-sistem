@@ -1,8 +1,8 @@
 {
-    email admin@welldom05.ru
+    email magapl14@gmail.com
 }
 
-welldom05.ru, www.welldom05.ru {
+welldom05.duckdns.org {
     encode gzip zstd
 
     header {
@@ -18,6 +18,11 @@ welldom05.ru, www.welldom05.ru {
 
     handle /health {
         reverse_proxy api:8000
+    }
+
+    handle /s3/* {
+        uri strip_prefix /s3
+        reverse_proxy minio:9000
     }
 
     handle {

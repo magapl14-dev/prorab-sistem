@@ -17,7 +17,10 @@ services:
   api:
     environment:
       APP_ENV: production
-      CORS_ORIGINS: "https://welldom05.ru,https://www.welldom05.ru"
+      CORS_ORIGINS: "https://welldom05.duckdns.org"
+      S3_ENDPOINT: http://minio:9000
+      S3_PUBLIC_URL: https://welldom05.duckdns.org/s3
+      S3_BUCKET: welldom-photos
     ports: []
     volumes: []
 
