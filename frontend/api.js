@@ -86,12 +86,18 @@ export const Admin = {
     update: (code, data) => _patch(`/admin/projects/${code}`, data),
     assignUser: (code, data) => _post(`/admin/projects/${code}/users`, data),
     revokeUser: (code, userId) => _delete(`/admin/projects/${code}/users/${userId}`),
+    activate: (code) => _patch(`/admin/projects/${code}/activate`, {}),
+    deactivate: (code) => _patch(`/admin/projects/${code}/deactivate`, {}),
+    delete: (code) => _delete(`/admin/projects/${code}`),
   },
   users: {
     list: () => _get("/admin/users"),
     create: (data) => _post("/admin/users", data),
     update: (id, data) => _patch(`/admin/users/${id}`, data),
     deactivate: (id) => _patch(`/admin/users/${id}/deactivate`, {}),
+    activate: (id) => _patch(`/admin/users/${id}/activate`, {}),
+    delete: (id) => _delete(`/admin/users/${id}`),
+    projects: (id) => _get(`/admin/users/${id}/projects`),
   },
   dictionaries: {
     list: () => _get("/admin/dictionaries"),

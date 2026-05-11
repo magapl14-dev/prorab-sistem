@@ -748,9 +748,9 @@ window.showTab = function(tab) {
   document.getElementById('tab-' + tab).classList.add('active');
   const nb = document.getElementById('nav-' + tab);
   if (nb) nb.classList.add('active');
-  if (tab === 'expenses') loadTab('expenses');
-  else if (tab === 'masters') loadTab('masters');
-  else if (tab === 'payments') loadTab('payments');
+  if (tab === 'expenses') loadTab('expense');
+  else if (tab === 'masters') loadTab('master_payment');
+  else if (tab === 'payments') loadTab('client_payment');
   else if (tab === 'dashboard') loadDashboard();
   else if (tab === 'report') loadReport();
   else if (tab === 'profile') setupProfile();
@@ -1500,16 +1500,18 @@ window.openAdminUsers = async function() {
     document.getElementById('detail-body').innerHTML = `
       <div class="admin-list">
         ${users.map(u => `
-          <div class="admin-item">
+          <div class="admin-item" id="auser-${u.id}">
             <div class="admin-item-top">
               <div>
                 <h3>${esc(u.name)}</h3>
-                <p>${esc(u.phone)} · <span class="badge badge-${u.role}">${roleLabel(u.role)}</span>${u.active ? '' : ' · <em>неактивен</em>'}</p>
+                <p>${esc(u.phone)} · <span class="badge badge-${u.role}">${roleLabel(u.role)}</span>${u.active ? '' : ' · <em style="color:var(--red)">неактивен</em>'}</p>
               </div>
             </div>
             <div class="admin-item-actions">
-              <button onclick="openAssignUser('${u.id}','${esc(u.name)}')">🏗️ Проект</button>
-              <button onclick="openEditUser('${u.id}','${esc(u.name)}','${esc(u.phone)}','${u.role}')">✏️ Изменить</button>
+              <button onclick="openAssignUser('${u.id}','${esc(u.name)}')">🏗️ Проекты</button>
+              <button onclick="openEditUser('${u.id}','${esc(u.name)}','${esc(u.phone)}','${u.role}')">✏️ Изм.</button>
+              <button onclick="toggleUser('${u.id}',${u.active})">${u.active ? '🔴 Откл.' : '🟢 Вкл.'}</button>
+              <button onclick="confirmDeleteUser('${u.id}','${esc(u.name)}')" style="color:var(--red)">🗑️</button>
             </div>
           </div>
         `).join('')}
@@ -1521,6 +1523,32 @@ window.openAdminUsers = async function() {
   } catch (_) {
     document.getElementById('detail-body').innerHTML = '<p style="padding:16px">Ошибка загрузки</p>';
   }
+};
+
+window.toggleUser = async function(id, isActive) {
+  try {
+    if (isActive) await Admin.users.deactivate(id);
+    else await Admin.users.activate(id);
+    toast(isActive ? 'Пользователь отключён' : 'Пользователь активирован');
+    openAdminUsers();
+  } catch(e) { toast('Ошибка: ' + (e?.detail || '')); }
+};
+
+window.confirmDeleteUser = function(id, name) {
+  openModal('Удалить пользователя?', `
+    <p>Удалить <b>${esc(name)}</b>? Это действие нельзя отменить.</p>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn" style="background:var(--red)" onclick="deleteUser('${id}')">Удалить</button>
+    </div>
+  `);
+};
+
+window.deleteUser = async function(id) {
+  try {
+    await Admin.users.delete(id);
+    closeModal(); toast('Пользователь удалён'); openAdminUsers();
+  } catch(e) { toast('Ошибка: ' + (e?.detail || '')); }
 };
 
 window.openCreateUser = function() {
@@ -1582,32 +1610,58 @@ window.submitEditUser = async function(id) {
   } catch(e) { toast('Ошибка: ' + (e?.detail || JSON.stringify(e))); }
 };
 
-window.openAssignUser = function(userId, userName) {
+window.openAssignUser = async function(userId, userName) {
   const projects = window._adminProjects || [];
-  openModal(`Проекты — ${userName}`, `
-    <div class="form-group"><label>Проект</label>
-      <select id="m-proj">${projects.map(p => `<option value="${p.code}">${esc(p.name)}</option>`).join('')}</select>
-    </div>
-    <div class="form-group"><label>Роль в проекте</label>
-      <select id="m-prole">
-        <option value="foreman">Прораб</option>
-        <option value="admin">Администратор</option>
-        <option value="client">Клиент</option>
-      </select>
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
-      <button class="btn" onclick="submitAssign('${userId}')">Назначить</button>
-    </div>
-  `);
+  openModal(`Проекты — ${userName}`, '<div class="loader"><div class="spinner"></div></div>');
+  try {
+    const assigned = await Admin.users.projects(userId);
+    const assignedCodes = assigned.map(a => a.code);
+    document.getElementById('modal-body').innerHTML = `
+      ${assigned.length ? `<div style="margin-bottom:12px">
+        <div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:6px">НАЗНАЧЕНЫ</div>
+        ${assigned.map(a => `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">
+            <span><b>${esc(a.name)}</b> <span class="badge badge-${a.role}" style="font-size:10px">${roleLabel(a.role)}</span></span>
+            <button onclick="revokeUserFromProject('${userId}','${a.code}','${userName}')" style="color:var(--red);border:none;background:none;cursor:pointer;font-size:20px;line-height:1">×</button>
+          </div>
+        `).join('')}
+      </div>` : '<p style="color:var(--text2);font-size:13px;margin-bottom:12px">Нет назначенных проектов</p>'}
+      <div style="font-size:12px;color:var(--text2);font-weight:600;margin-bottom:6px">ДОБАВИТЬ ПРОЕКТ</div>
+      <div class="form-group"><label>Проект</label>
+        <select id="m-proj">${projects.map(p => `<option value="${p.code}"${assignedCodes.includes(p.code)?' style="color:var(--text2)"':''} >${esc(p.name)}${assignedCodes.includes(p.code)?' ✓':''}</option>`).join('')}</select>
+      </div>
+      <div class="form-group"><label>Роль в проекте</label>
+        <select id="m-prole">
+          <option value="foreman">Прораб</option>
+          <option value="admin">Администратор</option>
+          <option value="client">Клиент</option>
+        </select>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-secondary" onclick="closeModal()">Готово</button>
+        <button class="btn" onclick="submitAssign('${userId}','${userName}')">Назначить</button>
+      </div>
+    `;
+  } catch(e) {
+    document.getElementById('modal-body').innerHTML = '<p>Ошибка загрузки</p>';
+  }
 };
 
-window.submitAssign = async function(userId) {
+window.revokeUserFromProject = async function(userId, code, userName) {
+  try {
+    await Admin.projects.revokeUser(code, userId);
+    toast('Доступ отозван');
+    openAssignUser(userId, userName);
+  } catch(e) { toast('Ошибка: ' + (e?.detail || '')); }
+};
+
+window.submitAssign = async function(userId, userName) {
   const code = document.getElementById('m-proj').value;
   const role = document.getElementById('m-prole').value;
   try {
     await Admin.projects.assignUser(code, { user_id: userId, role });
-    closeModal(); toast('Пользователь назначен на проект');
+    toast('Пользователь назначен на проект');
+    openAssignUser(userId, userName);
   } catch(e) { toast('Ошибка: ' + (e?.detail || JSON.stringify(e))); }
 };
 
@@ -1621,10 +1675,12 @@ window.openAdminProjects = async function() {
       <div class="admin-list">
         ${projects.map(p => `
           <div class="admin-item">
-            <h3>${esc(p.name)}</h3>
+            <h3>${esc(p.name)} ${p.active ? '' : '<em style="font-size:12px;color:var(--red)">неактивен</em>'}</h3>
             <p style="font-size:13px;color:var(--text2);margin-top:3px">${esc(p.code)} · наценка ${p.markup_pct}% · ставка ${p.foreman_rate_pct}%</p>
             <div class="admin-item-actions">
-              <button onclick="openEditProject('${esc(p.code)}',${p.markup_pct},${p.foreman_rate_pct},${p.foreman_efficiency},${p.foreman_fixed},${p.plan_total},${p.plan_monthly},'${esc(p.name)}')">✏️ Редактировать</button>
+              <button onclick="openEditProject('${esc(p.code)}',${p.markup_pct},${p.foreman_rate_pct},${p.foreman_efficiency},${p.foreman_fixed},${p.plan_total},${p.plan_monthly},'${esc(p.name)}')">✏️ Изм.</button>
+              <button onclick="toggleProject('${esc(p.code)}',${p.active})">${p.active ? '🔴 Откл.' : '🟢 Вкл.'}</button>
+              <button onclick="confirmDeleteProject('${esc(p.code)}','${esc(p.name)}')" style="color:var(--red)">🗑️</button>
             </div>
           </div>
         `).join('')}
@@ -1636,6 +1692,32 @@ window.openAdminProjects = async function() {
   } catch (_) {
     document.getElementById('detail-body').innerHTML = '<p style="padding:16px">Ошибка</p>';
   }
+};
+
+window.toggleProject = async function(code, isActive) {
+  try {
+    if (isActive) await Admin.projects.deactivate(code);
+    else await Admin.projects.activate(code);
+    toast(isActive ? 'Проект деактивирован' : 'Проект активирован');
+    openAdminProjects();
+  } catch(e) { toast('Ошибка: ' + (e?.detail || '')); }
+};
+
+window.confirmDeleteProject = function(code, name) {
+  openModal('Удалить проект?', `
+    <p>Удалить проект <b>${esc(name)}</b>? Все данные останутся в базе, но проект будет недоступен.</p>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn" style="background:var(--red)" onclick="deleteProject('${code}')">Удалить</button>
+    </div>
+  `);
+};
+
+window.deleteProject = async function(code) {
+  try {
+    await Admin.projects.delete(code);
+    closeModal(); toast('Проект удалён'); openAdminProjects();
+  } catch(e) { toast('Ошибка: ' + (e?.detail || '')); }
 };
 
 window.openCreateProject = function() {

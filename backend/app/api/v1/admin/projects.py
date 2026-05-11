@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 
@@ -94,6 +94,47 @@ async def revoke_user(
     if up:
         up.revoked_at = datetime.now(timezone.utc)
         await db.commit()
+
+
+@router.patch("/projects/{code}/activate")
+async def activate_project(
+    code: str,
+    admin: User = Depends(admin_only),
+    db: AsyncSession = Depends(get_db),
+):
+    project = (await db.execute(select(Project).where(Project.code == code, Project.deleted_at.is_(None)))).scalar_one_or_none()
+    if not project:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    project.active = True
+    await db.commit()
+    return {"ok": True}
+
+
+@router.patch("/projects/{code}/deactivate")
+async def deactivate_project(
+    code: str,
+    admin: User = Depends(admin_only),
+    db: AsyncSession = Depends(get_db),
+):
+    project = (await db.execute(select(Project).where(Project.code == code, Project.deleted_at.is_(None)))).scalar_one_or_none()
+    if not project:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    project.active = False
+    await db.commit()
+    return {"ok": True}
+
+
+@router.delete("/projects/{code}", status_code=204)
+async def delete_project(
+    code: str,
+    admin: User = Depends(admin_only),
+    db: AsyncSession = Depends(get_db),
+):
+    project = (await db.execute(select(Project).where(Project.code == code, Project.deleted_at.is_(None)))).scalar_one_or_none()
+    if not project:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    project.deleted_at = datetime.now(timezone.utc)
+    await db.commit()
 
 
 # ── Dictionaries ──────────────────────────────────────────────────────────────
