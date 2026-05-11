@@ -186,3 +186,40 @@ async def delete_dictionary(
         raise HTTPException(status.HTTP_404_NOT_FOUND)
     d.active = False
     await db.commit()
+
+
+# ── Google Sheets sync ────────────────────────────────────────────────────────
+
+@router.post("/projects/{code}/sync-sheets")
+async def sync_sheets(
+    code: str,
+    admin: User = Depends(admin_only),
+    db: AsyncSession = Depends(get_db),
+):
+    from sqlalchemy.orm import selectinload
+    from ....models.models import Record
+    from ....services.gsheets import sync_project_to_sheet
+
+    project = (await db.execute(
+        select(Project).where(Project.code == code, Project.deleted_at.is_(None))
+    )).scalar_one_or_none()
+    if not project:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    if not project.gsheet_id:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Google Sheet ID not set for this project")
+
+    records = (await db.execute(
+        select(Record)
+        .options(selectinload(Record.author))
+        .where(Record.project_id == project.id, Record.deleted_at.is_(None))
+        .order_by(Record.operation_date)
+    )).scalars().all()
+
+    try:
+        result = await sync_project_to_sheet(project, list(records))
+    except RuntimeError as e:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(e))
+    except Exception as e:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"Google Sheets error: {e}")
+
+    return result

@@ -89,6 +89,7 @@ export const Admin = {
     activate: (code) => _patch(`/admin/projects/${code}/activate`, {}),
     deactivate: (code) => _patch(`/admin/projects/${code}/deactivate`, {}),
     delete: (code) => _delete(`/admin/projects/${code}`),
+    syncSheets: (code) => _post(`/admin/projects/${code}/sync-sheets`, {}),
   },
   users: {
     list: () => _get("/admin/users"),

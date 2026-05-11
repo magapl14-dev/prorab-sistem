@@ -1830,6 +1830,7 @@ window.openAdminProjects = async function() {
             <p style="font-size:13px;color:var(--text2);margin-top:3px">${esc(p.code)} · наценка ${p.markup_pct}% · ставка ${p.foreman_rate_pct}%</p>
             <div class="admin-item-actions">
               <button onclick="openEditProject('${esc(p.code)}',${p.markup_pct},${p.foreman_rate_pct},${p.foreman_efficiency},${p.foreman_fixed},${p.plan_total},${p.plan_monthly},'${esc(p.name)}','${esc(p.gsheet_id||'')}')">✏️ Изм.</button>
+              ${p.gsheet_id ? `<button onclick="syncSheets('${esc(p.code)}')" title="Синхронизировать с Google Sheets">📊 Sheets</button>` : ''}
               <button onclick="toggleProject('${esc(p.code)}',${p.active})">${p.active ? '🔴 Откл.' : '🟢 Вкл.'}</button>
               <button onclick="confirmDeleteProject('${esc(p.code)}','${esc(p.name)}')" style="color:var(--red)">🗑️</button>
             </div>
@@ -1842,6 +1843,27 @@ window.openAdminProjects = async function() {
     `;
   } catch (_) {
     document.getElementById('detail-body').innerHTML = '<p style="padding:16px">Ошибка</p>';
+  }
+};
+
+window.syncSheets = async function(code) {
+  const btn = document.querySelector(`button[onclick="syncSheets('${code}')"]`);
+  const origText = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+  try {
+    const r = await Admin.projects.syncSheets(code);
+    toast(`Синхронизировано ${r.synced} записей`);
+    if (r.sheet_url) {
+      openModal('Синхронизация выполнена',
+        `<p>Записей загружено: <strong>${r.synced}</strong></p>
+        <p>Аккаунт: ${r.service_email}</p>
+        <p>Время: ${r.synced_at}</p>
+        <a href="${r.sheet_url}" target="_blank" class="btn btn-primary" style="display:inline-block;margin-top:10px">📊 Открыть таблицу</a>`);
+    }
+  } catch(e) {
+    toast('Ошибка синхронизации: ' + (e?.detail || JSON.stringify(e)));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = origText; }
   }
 };
 
