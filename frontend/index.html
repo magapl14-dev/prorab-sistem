@@ -235,6 +235,10 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
 .rpt-an-row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px}
 .rpt-an-row:last-child{border-bottom:none}
 
+/* ── formula fields ── */
+.formula-hint-lbl{font-size:10px;color:var(--text2);font-weight:400;margin-left:4px}
+.formula-result{font-size:12px;color:var(--orange);font-weight:600;min-height:16px;margin-top:3px;padding-left:2px}
+
 /* ── form / bottom sheet ── */
 .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100}
 .overlay.open{display:block}
@@ -514,12 +518,14 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
       </div>
       <div class="row-2">
         <div class="form-group">
-          <label>Количество</label>
-          <input type="number" id="f-qty" value="1" min="0.001" step="any" oninput="calcSum()">
+          <label>Количество <span class="formula-hint-lbl">= формула</span></label>
+          <input type="text" id="f-qty" value="1" inputmode="decimal" autocomplete="off" placeholder="1 или 2+3" oninput="calcSum()">
+          <div class="formula-result" id="f-qty-result"></div>
         </div>
         <div class="form-group">
-          <label>Цена (₽)</label>
-          <input type="number" id="f-price" min="0" step="any" placeholder="0" oninput="calcSum()">
+          <label>Цена (₽) <span class="formula-hint-lbl">= формула</span></label>
+          <input type="text" id="f-price" inputmode="decimal" autocomplete="off" placeholder="0 или 1500+200" oninput="calcSum()">
+          <div class="formula-result" id="f-price-result"></div>
         </div>
       </div>
       <div class="calc-sum" id="calc-sum-block">
@@ -880,6 +886,8 @@ window.openAddForm = function(kind) {
   document.getElementById('f-name').value = '';
   document.getElementById('f-qty').value = '1';
   document.getElementById('f-price').value = '';
+  document.getElementById('f-qty-result').textContent = '';
+  document.getElementById('f-price-result').textContent = '';
   document.getElementById('f-comment').value = '';
   document.getElementById('f-master-name').value = '';
   document.getElementById('f-payment-amount').value = '';
@@ -898,9 +906,30 @@ window.openAddForm = function(kind) {
   openSheet('add-sheet');
 };
 
+function evalFormula(str) {
+  if (!str || !str.trim()) return 0;
+  const s = str.trim();
+  if (!/^[0-9+\-*/().\s]+$/.test(s)) return parseFloat(s) || 0;
+  try {
+    // eslint-disable-next-line no-new-func
+    const result = Function('"use strict"; return (' + s + ')')();
+    return isFinite(result) ? result : 0;
+  } catch(_) { return parseFloat(s) || 0; }
+}
+
+function showFormulaResult(inputId, resultId, suffix) {
+  const raw = document.getElementById(inputId).value.trim();
+  const el = document.getElementById(resultId);
+  if (!raw) { el.textContent = ''; return 0; }
+  const val = evalFormula(raw);
+  const isFormula = raw !== String(val) && raw !== val.toString() && /[+\-*/()]/.test(raw);
+  el.textContent = isFormula ? '= ' + (suffix ? fmt(val) + ' ' + suffix : val) : '';
+  return val;
+}
+
 window.calcSum = function() {
-  const qty = parseFloat(document.getElementById('f-qty').value) || 0;
-  const price = parseFloat(document.getElementById('f-price').value) || 0;
+  const qty = showFormulaResult('f-qty', 'f-qty-result', '');
+  const price = showFormulaResult('f-price', 'f-price-result', '₽');
   document.getElementById('calc-sum-value').textContent = fmt(qty * price) + ' ₽';
 };
 
@@ -926,8 +955,8 @@ window.saveRecord = async function() {
       data.category = document.getElementById('f-category').value || undefined;
       const qty = document.getElementById('f-qty').value;
       const price = document.getElementById('f-price').value;
-      if (qty) data.qty = parseFloat(qty);
-      if (price) data.price = parseFloat(price);
+      if (qty) data.qty = evalFormula(qty);
+      if (price) data.price = evalFormula(price);
     } else if (currentKind === 'master_payment') {
       data.name = document.getElementById('f-master-name').value || undefined;
       const amt = document.getElementById('f-payment-amount').value;
