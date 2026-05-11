@@ -1024,7 +1024,7 @@ let _rptPeriod = 'all';
 let _rptType = 'all';
 let _rptCategory = '';
 let _rptMine = false;
-let _rptAllRecs = [];
+let _rptAllRecs = null; // null = loading, [] = loaded-empty, [...] = loaded-with-data
 
 window.switchRptTab = function(tab) {
   _rptTab = tab;
@@ -1056,8 +1056,13 @@ window.setRptCategory = function(cat) {
 
 async function loadReport() {
   if (!currentProject) return;
+  _rptAllRecs = null; // mark as loading
   const el = document.getElementById('rpt-content');
   el.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+  document.getElementById('rpt-expense').textContent = '—';
+  document.getElementById('rpt-income').textContent = '—';
+  document.getElementById('rpt-balance').textContent = '—';
+  document.getElementById('rpt-balance').className = 'rpt-sum-val';
 
   const today = new Date();
   const todayStr = today.toISOString().slice(0,10);
@@ -1147,12 +1152,20 @@ async function loadReport() {
     renderRptContent();
   } catch(e) {
     console.error(e);
-    el.innerHTML = '<div class="empty">Ошибка загрузки</div>';
+    _rptAllRecs = [];
+    el.innerHTML = `<div class="empty"><div class="icon">⚠️</div>Ошибка загрузки<div style="font-size:12px;color:var(--text2);margin-top:6px">${e?.detail || e?.message || ''}</div></div>`;
   }
 }
 
 function renderRptContent() {
   const el = document.getElementById('rpt-content');
+
+  // Still loading — don't replace spinner with empty state
+  if (_rptAllRecs === null) {
+    el.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+    return;
+  }
+
   const existingPlan = el.querySelector('.dash-card');
   const planHtml = existingPlan ? existingPlan.outerHTML : '';
 
@@ -1197,6 +1210,10 @@ function renderRptContent() {
   if (_rptCategory) recs = recs.filter(r => r.category === _rptCategory);
   recs.sort((a,b) => (b.operation_date||'').localeCompare(a.operation_date||''));
 
+  const emptyMsg = _rptAllRecs.length === 0
+    ? '<div class="empty"><div class="icon">📋</div>Записей нет<div style="font-size:12px;color:var(--text2);margin-top:6px">Добавьте транзакции через вкладки<br>Закупка, Мастера или Клиент</div></div>'
+    : '<div class="empty"><div class="icon">🔍</div>Нет записей по фильтру</div>';
+
   const listHtml = recs.length ? recs.map(r => {
     const d = r.operation_date ? r.operation_date.slice(0,10).split('-').reverse().join('.') : '';
     let title, sub, amt, cls;
@@ -1226,7 +1243,7 @@ function renderRptContent() {
         <div class="rpt-rec-date">${d}</div>
       </div>
     </div>`;
-  }).join('') : '<div class="empty"><div class="icon">📋</div>Нет записей</div>';
+  }).join('') : emptyMsg;
 
   el.innerHTML = planHtml + listHtml;
 }
