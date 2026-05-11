@@ -24,8 +24,8 @@ class Settings(BaseSettings):
 
     jwt_secret: str = "change_me"
     jwt_algorithm: str = "HS256"
-    jwt_access_ttl: int = 900
-    jwt_refresh_ttl: int = 2592000
+    jwt_access_ttl: int = 604800   # 7 days
+    jwt_refresh_ttl: int = 2592000  # 30 days
 
     cors_origins: str = "http://localhost:8000"
 
