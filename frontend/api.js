@@ -90,6 +90,7 @@ export const Admin = {
   users: {
     list: () => _get("/admin/users"),
     create: (data) => _post("/admin/users", data),
+    update: (id, data) => _patch(`/admin/users/${id}`, data),
     deactivate: (id) => _patch(`/admin/users/${id}/deactivate`, {}),
   },
   dictionaries: {

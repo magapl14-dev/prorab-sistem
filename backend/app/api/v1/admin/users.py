@@ -41,6 +41,28 @@ async def create_user(
     return user
 
 
+@router.patch("/users/{user_id}", status_code=200)
+async def update_user(
+    user_id: str,
+    data: dict,
+    admin: User = Depends(admin_only),
+    db: AsyncSession = Depends(get_db),
+):
+    from uuid import UUID
+    result = await db.execute(select(User).where(User.id == UUID(user_id), User.deleted_at.is_(None)))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    if "role" in data and data["role"] in ("admin", "foreman", "client"):
+        user.role = data["role"]
+    if "pin" in data and data["pin"]:
+        user.pin_hash = hash_pin(str(data["pin"]))
+    if "name" in data and data["name"]:
+        user.name = data["name"]
+    await db.commit()
+    return {"ok": True}
+
+
 @router.patch("/users/{user_id}/deactivate", status_code=200)
 async def deactivate_user(
     user_id: str,
