@@ -196,6 +196,44 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
 .tx-right{text-align:right;flex-shrink:0}
 .tx-earned{font-size:14px;font-weight:700;color:var(--green)}
 .tx-buy{font-size:11px;color:var(--text2);margin-top:2px}
+/* ── report tab ── */
+.rpt-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:0;background:#fff;border-bottom:1px solid var(--border);flex-shrink:0}
+.rpt-sum{padding:12px 8px;text-align:center;border-right:1px solid var(--border)}
+.rpt-sum:last-child{border-right:none}
+.rpt-sum-val{font-size:15px;font-weight:800;color:var(--orange)}
+.rpt-sum-val.green{color:var(--green)}
+.rpt-sum-val.red{color:var(--red)}
+.rpt-sum-lbl{font-size:9px;color:var(--text2);font-weight:700;letter-spacing:.4px;text-transform:uppercase;margin-top:2px}
+.rpt-price{background:#fff;margin:8px 12px;border-radius:var(--radius);padding:12px 16px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.rpt-price-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px}
+.rpt-price-row:last-child{border-bottom:none;font-weight:700;font-size:14px;padding-top:8px}
+.rpt-price-row .green{color:var(--green)}
+.rpt-price-row .orange{color:var(--orange)}
+.rpt-subtabs{display:flex;background:#fff;border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none;flex-shrink:0}
+.rpt-subtabs::-webkit-scrollbar{display:none}
+.rpt-stab{flex:0 0 auto;padding:10px 14px;border:none;background:none;font-size:13px;font-weight:500;cursor:pointer;color:var(--text2);border-bottom:3px solid transparent;white-space:nowrap;display:flex;align-items:center;gap:5px}
+.rpt-stab.active{color:var(--orange);border-bottom-color:var(--orange);font-weight:600}
+.rpt-filters{padding:8px 12px;background:#fff;border-bottom:1px solid var(--border);flex-shrink:0}
+.rpt-filter-row{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-bottom:6px}
+.rpt-filter-row:last-child{margin-bottom:0}
+.rpt-filter-row::-webkit-scrollbar{display:none}
+.rpt-chip{white-space:nowrap;padding:5px 12px;border-radius:20px;border:1.5px solid var(--border);background:#fff;font-size:12px;cursor:pointer;color:var(--text2);display:flex;align-items:center;gap:4px;flex-shrink:0}
+.rpt-chip.active{background:var(--orange);color:#fff;border-color:var(--orange)}
+.rpt-chip select{border:none;background:none;font-size:12px;color:inherit;outline:none;cursor:pointer}
+.rpt-rec{background:#fff;margin:0 12px 8px;border-radius:var(--radius);padding:12px 14px;box-shadow:0 1px 3px rgba(0,0,0,.07);display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.rpt-rec-left{flex:1;min-width:0}
+.rpt-rec-title{font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rpt-rec-sub{font-size:11px;color:var(--text2);margin-top:3px}
+.rpt-rec-amt{font-size:16px;font-weight:700;text-align:right;flex-shrink:0}
+.rpt-rec-amt.expense{color:var(--text)}
+.rpt-rec-amt.income{color:var(--green)}
+.rpt-rec-date{font-size:11px;color:var(--text2);text-align:right;margin-top:2px}
+.rpt-masters-item{background:#fff;margin:0 12px 8px;border-radius:var(--radius);padding:12px 14px;box-shadow:0 1px 3px rgba(0,0,0,.07);display:flex;justify-content:space-between;align-items:center}
+.rpt-photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:8px 12px}
+.rpt-photo-grid img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px}
+.rpt-analytics-card{background:#fff;border-radius:var(--radius);margin:0 12px 8px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.rpt-an-row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px}
+.rpt-an-row:last-child{border-bottom:none}
 
 /* ── form / bottom sheet ── */
 .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100}
@@ -363,6 +401,46 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
       </div>
     </div>
 
+    <!-- REPORT TAB -->
+    <div class="tab" id="tab-report">
+      <div class="rpt-summary" id="rpt-summary">
+        <div class="rpt-sum"><div class="rpt-sum-val" id="rpt-expense">—</div><div class="rpt-sum-lbl">Расход</div></div>
+        <div class="rpt-sum"><div class="rpt-sum-val green" id="rpt-income">—</div><div class="rpt-sum-lbl">Оплаты</div></div>
+        <div class="rpt-sum"><div class="rpt-sum-val" id="rpt-balance">—</div><div class="rpt-sum-lbl">Баланс</div></div>
+      </div>
+      <div class="rpt-price" id="rpt-price-card" style="display:none">
+        <div class="rpt-price-row"><span>Цена закупа</span><span id="rpt-buy">—</span></div>
+        <div class="rpt-price-row"><span id="rpt-markup-lbl">Наценка за ведение</span><span class="green" id="rpt-markup-val">—</span></div>
+        <div class="rpt-price-row"><span>ИТОГО клиенту</span><span class="orange" id="rpt-sell">—</span></div>
+      </div>
+      <div class="rpt-subtabs">
+        <button class="rpt-stab active" id="rst-list" onclick="switchRptTab('list')">☰ Список</button>
+        <button class="rpt-stab" id="rst-photos" onclick="switchRptTab('photos')">🖼 Фото</button>
+        <button class="rpt-stab" id="rst-masters" onclick="switchRptTab('masters')">👷 Мастера</button>
+        <button class="rpt-stab" id="rst-analytics" onclick="switchRptTab('analytics')">📊 Аналитика</button>
+      </div>
+      <div class="rpt-filters" id="rpt-filters">
+        <div class="rpt-filter-row">
+          <div class="rpt-chip active" id="rpt-p-all" onclick="setRptPeriod('all',this)">Все</div>
+          <div class="rpt-chip" id="rpt-p-mine" onclick="setRptPeriod('mine',this)">👤 Только мои</div>
+          <div class="rpt-chip" id="rpt-p-today" onclick="setRptPeriod('today',this)">Сегодня</div>
+          <div class="rpt-chip" id="rpt-p-week" onclick="setRptPeriod('week',this)">Неделя</div>
+          <div class="rpt-chip" id="rpt-p-month" onclick="setRptPeriod('month',this)">Месяц</div>
+        </div>
+        <div class="rpt-filter-row">
+          <div class="rpt-chip active" id="rpt-t-all" onclick="setRptType('all',this)">Все</div>
+          <div class="rpt-chip" id="rpt-t-mat" onclick="setRptType('expense',this)">📦 Материалы</div>
+          <div class="rpt-chip" id="rpt-t-pay" onclick="setRptType('client_payment',this)">💳 Оплаты</div>
+          <div class="rpt-chip" style="padding:0 4px 0 12px">
+            📋 <select id="rpt-cat-select" onchange="setRptCategory(this.value)">
+              <option value="">Все категории</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="content" id="rpt-content" style="padding-top:8px"></div>
+    </div>
+
     <!-- PROFILE TAB -->
     <div class="tab" id="tab-profile">
       <div class="content">
@@ -398,8 +476,8 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
     <button class="nav-btn" onclick="showTab('dashboard')" id="nav-dashboard">
       <span class="icon">📊</span>Доход
     </button>
-    <button class="nav-btn" onclick="showTab('profile')" id="nav-profile">
-      <span class="icon">👤</span>Профиль
+    <button class="nav-btn" onclick="showTab('report')" id="nav-report">
+      <span class="icon">📈</span>Отчёт
     </button>
   </nav>
 </div>
@@ -674,6 +752,8 @@ window.showTab = function(tab) {
   else if (tab === 'masters') loadTab('masters');
   else if (tab === 'payments') loadTab('payments');
   else if (tab === 'dashboard') loadDashboard();
+  else if (tab === 'report') loadReport();
+  else if (tab === 'profile') setupProfile();
 };
 
 // ── Load records ──────────────────────────────────────────────────────────────
@@ -899,6 +979,219 @@ window.onPhotoSelected = async function(e) {
     }
   }
 };
+
+// ── Report ────────────────────────────────────────────────────────────────────
+let _rptTab = 'list';
+let _rptPeriod = 'all';
+let _rptType = 'all';
+let _rptCategory = '';
+let _rptMine = false;
+let _rptAllRecs = [];
+
+window.switchRptTab = function(tab) {
+  _rptTab = tab;
+  document.querySelectorAll('.rpt-stab').forEach(b => b.classList.remove('active'));
+  document.getElementById('rst-' + tab).classList.add('active');
+  document.getElementById('rpt-filters').style.display = tab === 'list' ? '' : 'none';
+  renderRptContent();
+};
+
+window.setRptPeriod = function(period, el) {
+  _rptMine = period === 'mine';
+  _rptPeriod = _rptMine ? 'all' : period;
+  document.querySelectorAll('[id^="rpt-p-"]').forEach(e => e.classList.remove('active'));
+  el.classList.add('active');
+  loadReport();
+};
+
+window.setRptType = function(type, el) {
+  _rptType = type;
+  document.querySelectorAll('[id^="rpt-t-"]').forEach(e => e.classList.remove('active'));
+  el.classList.add('active');
+  renderRptContent();
+};
+
+window.setRptCategory = function(cat) {
+  _rptCategory = cat;
+  renderRptContent();
+};
+
+async function loadReport() {
+  if (!currentProject) return;
+  const el = document.getElementById('rpt-content');
+  el.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0,10);
+  const weekStart = new Date(today); weekStart.setDate(today.getDate() - today.getDay() + 1);
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+
+  const params = { limit: 200 };
+  if (_rptPeriod === 'today')  { params.date_from = todayStr; params.date_to = todayStr; }
+  if (_rptPeriod === 'week')   { params.date_from = weekStart.toISOString().slice(0,10); }
+  if (_rptPeriod === 'month')  { params.date_from = monthStart.toISOString().slice(0,10); }
+  if (_rptMine && _user)       { params.author_id = _user.id; }
+
+  try {
+    const [allRecs, plan] = await Promise.all([
+      Records.list(currentProject.code, params),
+      Earnings.plan(currentProject.code).catch(() => null),
+    ]);
+    _rptAllRecs = allRecs.items || [];
+
+    // Fill category select
+    const cats = [...new Set(_rptAllRecs.filter(r=>r.category).map(r=>r.category))].sort();
+    const catSel = document.getElementById('rpt-cat-select');
+    const curCat = catSel.value;
+    catSel.innerHTML = '<option value="">Все категории</option>' + cats.map(c=>`<option${c===curCat?' selected':''}>${c}</option>`).join('');
+
+    // Summary numbers
+    const expenses = _rptAllRecs.filter(r => r.kind === 'expense');
+    const clientPays = _rptAllRecs.filter(r => r.kind === 'client_payment');
+    const totalExpense = expenses.reduce((s,r) => s + parseFloat(r.sum_buy||0), 0);
+    const totalIncome = clientPays.reduce((s,r) => s + parseFloat(r.payment_amount||0), 0);
+    const balance = totalIncome - totalExpense;
+    const totalSell = expenses.reduce((s,r) => s + parseFloat(r.sum_sell||0), 0);
+    const markup = totalSell - totalExpense;
+
+    document.getElementById('rpt-expense').textContent = fmt(totalExpense) + ' ₽';
+    document.getElementById('rpt-income').textContent = fmt(totalIncome) + ' ₽';
+    const balEl = document.getElementById('rpt-balance');
+    balEl.textContent = (balance >= 0 ? '+' : '') + fmt(balance) + ' ₽';
+    balEl.className = 'rpt-sum-val ' + (balance >= 0 ? 'green' : 'red');
+
+    // Price breakdown
+    const priceCard = document.getElementById('rpt-price-card');
+    priceCard.style.display = '';
+    document.getElementById('rpt-buy').textContent = fmt(totalExpense) + ' ₽';
+    document.getElementById('rpt-markup-lbl').textContent = `Наценка за ведение ${currentProject.markup_pct||''}%`;
+    document.getElementById('rpt-markup-val').textContent = '+' + fmt(markup) + ' ₽';
+    document.getElementById('rpt-sell').textContent = fmt(totalSell || totalExpense) + ' ₽';
+
+    // Plan block (reuse existing rendering)
+    if (plan) {
+      const today2 = new Date();
+      const daysInMonth = new Date(today2.getFullYear(), today2.getMonth()+1, 0).getDate();
+      let workDays = 0, workLeft = 0;
+      for (let d = 1; d <= daysInMonth; d++) {
+        if (new Date(today2.getFullYear(), today2.getMonth(), d).getDay() % 6 !== 0) workDays++;
+      }
+      for (let d = today2.getDate()+1; d <= daysInMonth; d++) {
+        if (new Date(today2.getFullYear(), today2.getMonth(), d).getDay() % 6 !== 0) workLeft++;
+      }
+      const workPassed = workDays - workLeft;
+      const spentM = parseFloat(plan.spent_monthly);
+      const planM = parseFloat(plan.plan_monthly);
+      const pctM = planM > 0 ? Math.min(spentM / planM * 100, 100) : 0;
+      const behind = spentM < planM * (workPassed / workDays) * 0.9 && planM > 0;
+      const dailyFact = workPassed > 0 ? spentM / workPassed : 0;
+      const needed = workLeft > 0 ? (planM - spentM) / workLeft : 0;
+      const monthNames2 = ['январь','февраль','март','апрель','май','июнь','июль','август','сентябрь','октябрь','ноябрь','декабрь'];
+
+      const planHtml = `<div class="dash-card" style="margin:0 12px 8px">
+        <div class="dash-card-title">
+          <span>📅 ПЛАН НА ${monthNames2[today2.getMonth()].toUpperCase()}</span>
+          ${behind ? '<span class="dash-warn">⚠️ Отстаём</span>' : '<span class="dash-warn" style="background:#e8f5e9;color:#2e7d32">✓ В темпе</span>'}
+        </div>
+        <div><span class="dash-amount-lg">${fmt(spentM)} ₽</span><span class="dash-amount-sub">из ${fmt(planM)} ₽</span></div>
+        <div class="dash-progress"><div class="dash-progress-fill${pctM>=100?' over':''}" style="width:${pctM}%"></div></div>
+        <div class="dash-info">
+          Темп факт: <b>${fmt(dailyFact)} ₽/день</b><br>
+          ${behind && needed>0 ? `⚠️ Чтобы успеть, нужно <b>${fmt(needed)} ₽/день</b><br>` : ''}
+          Прошло ${workPassed} из ${workDays} раб. дней · осталось ${workLeft}
+        </div>
+      </div>`;
+      el.innerHTML = planHtml;
+    } else {
+      el.innerHTML = '';
+    }
+
+    renderRptContent();
+  } catch(e) {
+    console.error(e);
+    el.innerHTML = '<div class="empty">Ошибка загрузки</div>';
+  }
+}
+
+function renderRptContent() {
+  const el = document.getElementById('rpt-content');
+  const existingPlan = el.querySelector('.dash-card');
+  const planHtml = existingPlan ? existingPlan.outerHTML : '';
+
+  if (_rptTab === 'photos') {
+    const photos = _rptAllRecs.flatMap(r => r.photos || []).filter(p => p.url);
+    el.innerHTML = planHtml + (photos.length
+      ? `<div class="rpt-photo-grid">${photos.map(p=>`<img src="${p.url}" loading="lazy">`).join('')}</div>`
+      : '<div class="empty"><div class="icon">🖼</div>Нет фотографий</div>');
+    return;
+  }
+
+  if (_rptTab === 'masters') {
+    const masters = _rptAllRecs.filter(r => r.kind === 'master_payment');
+    el.innerHTML = planHtml + '<div style="padding:8px 0">' + (masters.length ? masters.map(r => {
+      const d = r.operation_date ? r.operation_date.slice(0,10).split('-').reverse().join('.') : '';
+      return `<div class="rpt-masters-item">
+        <div><div style="font-weight:600">${esc(r.name||'—')}</div><div style="font-size:12px;color:var(--text2)">${d}</div></div>
+        <div style="font-weight:700;font-size:16px;color:var(--red)">-${fmt(r.payment_amount||0)} ₽</div>
+      </div>`;
+    }).join('') : '<div class="empty">Нет выплат мастерам</div>') + '</div>';
+    return;
+  }
+
+  if (_rptTab === 'analytics') {
+    const expenses = _rptAllRecs.filter(r => r.kind === 'expense');
+    const byType = {};
+    for (const r of expenses) {
+      const t = r.type || 'Прочее';
+      byType[t] = (byType[t] || 0) + parseFloat(r.sum_buy || 0);
+    }
+    const total = Object.values(byType).reduce((s,v) => s+v, 0);
+    const rows = Object.entries(byType).sort((a,b) => b[1]-a[1]).map(([t,v]) =>
+      `<div class="rpt-an-row"><span>${esc(t)}</span><span><b>${fmt(v)} ₽</b> <span style="color:var(--text2);font-size:12px">${total>0?Math.round(v/total*100):0}%</span></span></div>`
+    ).join('');
+    el.innerHTML = planHtml + `<div class="rpt-analytics-card"><div class="summary-title">По типам</div>${rows||'<div class="empty" style="padding:12px 0">Нет данных</div>'}</div>`;
+    return;
+  }
+
+  // ── Список (default)
+  let recs = [..._rptAllRecs];
+  if (_rptType !== 'all') recs = recs.filter(r => r.kind === _rptType);
+  if (_rptCategory) recs = recs.filter(r => r.category === _rptCategory);
+  recs.sort((a,b) => (b.operation_date||'').localeCompare(a.operation_date||''));
+
+  const listHtml = recs.length ? recs.map(r => {
+    const d = r.operation_date ? r.operation_date.slice(0,10).split('-').reverse().join('.') : '';
+    let title, sub, amt, cls;
+    if (r.kind === 'expense') {
+      title = r.name || '—';
+      sub = [r.type, r.category].filter(Boolean).join(' · ');
+      amt = '-' + fmt(r.sum_buy||0) + ' ₽';
+      cls = 'expense';
+    } else if (r.kind === 'client_payment') {
+      title = 'От клиента' + (r.client_rep_name ? ' · ' + r.client_rep_name : '');
+      sub = 'Платёж клиента';
+      amt = '+' + fmt(r.payment_amount||0) + ' ₽';
+      cls = 'income';
+    } else {
+      title = r.name || 'Выплата мастеру';
+      sub = 'Оплата мастеру';
+      amt = '-' + fmt(r.payment_amount||0) + ' ₽';
+      cls = 'expense';
+    }
+    return `<div class="rpt-rec">
+      <div class="rpt-rec-left">
+        <div class="rpt-rec-title">${esc(title)}</div>
+        <div class="rpt-rec-sub">${esc(sub)}</div>
+      </div>
+      <div>
+        <div class="rpt-rec-amt ${cls}">${amt}</div>
+        <div class="rpt-rec-date">${d}</div>
+      </div>
+    </div>`;
+  }).join('') : '<div class="empty"><div class="icon">📋</div>Нет записей</div>';
+
+  el.innerHTML = planHtml + listHtml;
+}
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 let _dashTab = 'current';
