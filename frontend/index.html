@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#1565c0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>WELL DOM</title>
+<link rel="manifest" href="/manifest.json">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --blue:#1565c0;--blue-light:#1976d2;--blue-dark:#0d47a1;
+  --green:#2e7d32;--red:#c62828;--orange:#e65100;
+  --bg:#f5f6fa;--card:#fff;--text:#212121;--text2:#666;--border:#e0e0e0;
+  --shadow:0 2px 8px rgba(0,0,0,.12);
+  --radius:12px;--h:56px;
+}
+html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);font-size:16px}
+#app{height:100%;display:flex;flex-direction:column;max-width:480px;margin:0 auto;position:relative}
+
+/* ── screens ── */
+.screen{display:none;flex-direction:column;flex:1;overflow:hidden}
+.screen.active{display:flex}
+
+/* ── login ── */
+#login-screen{background:var(--blue);justify-content:center;align-items:center;padding:32px 24px;gap:24px}
+.login-logo{color:#fff;text-align:center}
+.login-logo h1{font-size:28px;font-weight:700;letter-spacing:.5px}
+.login-logo p{font-size:14px;opacity:.8;margin-top:4px}
+.login-card{background:#fff;border-radius:var(--radius);padding:24px;width:100%;max-width:360px;box-shadow:0 8px 32px rgba(0,0,0,.2)}
+.login-card h2{font-size:18px;margin-bottom:20px;color:var(--blue)}
+.field{margin-bottom:16px}
+.field label{display:block;font-size:13px;color:var(--text2);margin-bottom:6px;font-weight:500}
+.field input{width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:16px;outline:none;transition:border-color .2s}
+.field input:focus{border-color:var(--blue-light)}
+.numpad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+.numpad button{padding:16px;border:1.5px solid var(--border);border-radius:8px;font-size:20px;background:#fff;cursor:pointer;transition:background .15s}
+.numpad button:active{background:#e3f2fd}
+.pin-dots{display:flex;justify-content:center;gap:12px;margin:16px 0}
+.pin-dot{width:14px;height:14px;border-radius:50%;border:2px solid var(--blue);background:#fff;transition:background .2s}
+.pin-dot.filled{background:var(--blue)}
+.btn{display:block;width:100%;padding:14px;background:var(--blue);color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;margin-top:8px;transition:background .2s}
+.btn:active{background:var(--blue-dark)}
+.btn-secondary{background:#fff;color:var(--blue);border:1.5px solid var(--blue)}
+.btn-secondary:active{background:#e3f2fd}
+.btn-danger{background:var(--red)}
+.error-msg{color:var(--red);font-size:13px;text-align:center;margin-top:8px;min-height:18px}
+
+/* ── project selector ── */
+#project-screen{padding:24px;gap:16px;overflow-y:auto}
+#project-screen h2{font-size:20px;font-weight:700}
+.project-grid{display:grid;gap:12px}
+.project-card{background:var(--card);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);cursor:pointer;border:2px solid transparent;transition:border-color .2s}
+.project-card:active{border-color:var(--blue)}
+.project-card h3{font-size:17px;font-weight:600}
+.project-card p{font-size:13px;color:var(--text2);margin-top:4px}
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+.badge-foreman{background:#e3f2fd;color:var(--blue)}
+.badge-client{background:#e8f5e9;color:var(--green)}
+.badge-admin{background:#fce4ec;color:#c2185b}
+
+/* ── main app ── */
+#main-screen{flex:1;overflow:hidden}
+.top-bar{background:var(--blue);color:#fff;padding:0 16px;height:var(--h);display:flex;align-items:center;gap:12px;flex-shrink:0}
+.top-bar h1{font-size:17px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.icon-btn{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.content{flex:1;overflow-y:auto;padding:0 0 80px}
+.bottom-nav{height:64px;background:#fff;border-top:1px solid var(--border);display:flex;align-items:stretch;flex-shrink:0}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;border:none;background:none;cursor:pointer;color:var(--text2);font-size:11px;transition:color .2s;padding:8px 4px}
+.nav-btn .icon{font-size:22px;line-height:1}
+.nav-btn.active{color:var(--blue)}
+
+/* ── tab content ── */
+.tab{display:none;flex-direction:column;height:100%}
+.tab.active{display:flex}
+.section-header{padding:16px 16px 8px;display:flex;align-items:center;justify-content:space-between}
+.section-header h2{font-size:17px;font-weight:600}
+.fab{position:fixed;right:16px;bottom:80px;width:56px;height:56px;background:var(--blue);color:#fff;border:none;border-radius:50%;font-size:28px;cursor:pointer;box-shadow:0 4px 16px rgba(21,101,192,.4);display:flex;align-items:center;justify-content:center;z-index:10}
+
+/* ── cards ── */
+.record-card{background:var(--card);margin:0 16px 10px;border-radius:var(--radius);padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.08);cursor:pointer}
+.record-card:active{box-shadow:var(--shadow)}
+.record-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.record-name{font-weight:600;font-size:15px;flex:1}
+.record-amount{font-weight:700;font-size:16px;color:var(--blue);white-space:nowrap}
+.record-meta{font-size:12px;color:var(--text2);margin-top:6px;display:flex;gap:10px;flex-wrap:wrap}
+.tag{background:#f0f0f0;padding:2px 8px;border-radius:20px;font-size:11px}
+.tag-expense{background:#e3f2fd;color:var(--blue)}
+.tag-master{background:#e8f5e9;color:var(--green)}
+.tag-client{background:#fff3e0;color:var(--orange)}
+.record-photos{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.record-photos img{width:56px;height:56px;border-radius:6px;object-fit:cover}
+
+/* ── filters ── */
+.filters{padding:0 16px 8px;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none}
+.filters::-webkit-scrollbar{display:none}
+.filter-chip{white-space:nowrap;padding:6px 14px;border-radius:20px;border:1.5px solid var(--border);background:#fff;font-size:13px;cursor:pointer;transition:all .2s}
+.filter-chip.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+
+/* ── dashboard ── */
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:16px}
+.stat-card{background:var(--card);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
+.stat-card.full{grid-column:1/-1}
+.stat-label{font-size:12px;color:var(--text2);margin-bottom:6px}
+.stat-value{font-size:22px;font-weight:700;color:var(--blue)}
+.stat-value.green{color:var(--green)}
+.stat-value.orange{color:var(--orange)}
+.progress-bar{height:8px;background:#e3f2fd;border-radius:4px;margin-top:8px;overflow:hidden}
+.progress-fill{height:100%;background:var(--blue);border-radius:4px;transition:width .3s}
+.progress-fill.over{background:var(--red)}
+
+/* ── form / bottom sheet ── */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100}
+.overlay.open{display:block}
+.sheet{position:fixed;left:0;right:0;bottom:0;background:#fff;border-radius:20px 20px 0 0;z-index:101;max-height:92vh;overflow-y:auto;transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);max-width:480px;margin:0 auto}
+.sheet.open{transform:translateY(0)}
+.sheet-handle{width:40px;height:4px;background:#e0e0e0;border-radius:2px;margin:12px auto 0}
+.sheet-title{font-size:18px;font-weight:700;padding:16px 16px 0}
+.form-body{padding:16px}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:13px;color:var(--text2);margin-bottom:6px;font-weight:500}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;outline:none;background:#fff;font-family:inherit}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--blue-light)}
+.form-group textarea{min-height:80px;resize:vertical}
+.row-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.calc-sum{background:#e3f2fd;border-radius:8px;padding:12px;text-align:center;margin-bottom:14px}
+.calc-sum span{font-size:13px;color:var(--text2)}
+.calc-sum strong{display:block;font-size:20px;color:var(--blue);font-weight:700}
+.photo-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.photo-thumb{width:72px;height:72px;border-radius:8px;object-fit:cover;position:relative}
+.add-photo-btn{width:72px;height:72px;border-radius:8px;border:2px dashed var(--border);background:#fafafa;display:flex;align-items:center;justify-content:center;font-size:28px;cursor:pointer;color:var(--text2)}
+.type-tabs{display:flex;gap:8px;margin-bottom:16px}
+.type-tab{flex:1;padding:10px;border-radius:8px;border:1.5px solid var(--border);background:#fff;font-size:14px;cursor:pointer;text-align:center;transition:all .2s}
+.type-tab.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+
+/* ── profile ── */
+.profile-section{padding:20px 16px}
+.profile-name{font-size:20px;font-weight:700}
+.profile-role{color:var(--text2);font-size:14px;margin-top:2px}
+.info-list{margin-top:16px;background:var(--card);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+.info-row{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-size:15px}
+.info-row:last-child{border-bottom:none}
+.info-row span{color:var(--text2);font-size:13px}
+
+/* ── admin ── */
+.admin-list{padding:0 16px}
+.admin-item{background:var(--card);border-radius:var(--radius);padding:16px;margin-bottom:10px;box-shadow:var(--shadow)}
+.admin-item-top{display:flex;justify-content:space-between;align-items:center}
+.admin-item h3{font-size:16px;font-weight:600}
+.admin-item p{font-size:13px;color:var(--text2);margin-top:4px}
+.icon-btn-sm{width:32px;height:32px;border-radius:50%;background:#f0f0f0;border:none;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+
+/* ── utils ── */
+.empty{text-align:center;padding:60px 20px;color:var(--text2)}
+.empty .icon{font-size:48px;margin-bottom:12px}
+.loader{display:flex;justify-content:center;padding:40px}
+.spinner{width:32px;height:32px;border:3px solid #e0e0e0;border-top-color:var(--blue);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#323232;color:#fff;padding:10px 20px;border-radius:8px;font-size:14px;z-index:200;opacity:0;transition:opacity .3s;white-space:nowrap}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen" class="screen active">
+  <div class="login-logo">
+    <h1>WELL DOM</h1>
+    <p>Платформа учёта прорабов</p>
+  </div>
+  <div class="login-card">
+    <h2>Вход в систему</h2>
+    <div class="field">
+      <label>Номер телефона</label>
+      <input id="phone-input" type="tel" placeholder="+7 900 000-00-00" inputmode="tel">
+    </div>
+    <div class="field">
+      <label>PIN-код</label>
+      <div class="pin-dots">
+        <div class="pin-dot" id="dot-0"></div>
+        <div class="pin-dot" id="dot-1"></div>
+        <div class="pin-dot" id="dot-2"></div>
+        <div class="pin-dot" id="dot-3"></div>
+      </div>
+      <div class="numpad">
+        <button onclick="padPress('1')">1</button>
+        <button onclick="padPress('2')">2</button>
+        <button onclick="padPress('3')">3</button>
+        <button onclick="padPress('4')">4</button>
+        <button onclick="padPress('5')">5</button>
+        <button onclick="padPress('6')">6</button>
+        <button onclick="padPress('7')">7</button>
+        <button onclick="padPress('8')">8</button>
+        <button onclick="padPress('9')">9</button>
+        <button onclick="padPress('')" style="font-size:14px;color:#999">стереть</button>
+        <button onclick="padPress('0')">0</button>
+        <button onclick="padBackspace()">⌫</button>
+      </div>
+    </div>
+    <div class="error-msg" id="login-error"></div>
+    <button class="btn" onclick="doLogin()">Войти</button>
+  </div>
+</div>
+
+<!-- PROJECT SELECT SCREEN -->
+<div id="project-screen" class="screen">
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <h2>Выберите проект</h2>
+    <button class="icon-btn-sm" onclick="doLogout()" title="Выйти">🚪</button>
+  </div>
+  <div class="project-grid" id="project-list"></div>
+</div>
+
+<!-- MAIN APP SCREEN -->
+<div id="main-screen" class="screen">
+  <div class="top-bar">
+    <button class="icon-btn" onclick="goBack()">←</button>
+    <h1 id="project-title">Проект</h1>
+    <button class="icon-btn" onclick="showTab('profile')">👤</button>
+  </div>
+  <div style="flex:1;overflow:hidden;display:flex;flex-direction:column">
+
+    <!-- EXPENSES TAB -->
+    <div class="tab active" id="tab-expenses">
+      <div class="section-header">
+        <h2>Расходы</h2>
+        <button onclick="openAddForm('expense')" style="background:var(--blue);color:#fff;border:none;border-radius:20px;padding:6px 14px;font-size:13px;cursor:pointer">+ Добавить</button>
+      </div>
+      <div class="filters" id="expense-filters">
+        <div class="filter-chip active" onclick="filterRecords('expense',null,this)">Все</div>
+        <div class="filter-chip" onclick="filterRecords('expense','Материалы',this)">Материалы</div>
+        <div class="filter-chip" onclick="filterRecords('expense','Работы',this)">Работы</div>
+        <div class="filter-chip" onclick="filterRecords('expense','Доставка',this)">Доставка</div>
+        <div class="filter-chip" onclick="filterRecords('expense','Уборка',this)">Уборка</div>
+        <div class="filter-chip" onclick="filterRecords('expense','Прочее',this)">Прочее</div>
+      </div>
+      <div class="content" id="expenses-list"></div>
+    </div>
+
+    <!-- MASTERS TAB -->
+    <div class="tab" id="tab-masters">
+      <div class="section-header">
+        <h2>Оплата мастерам</h2>
+        <button onclick="openAddForm('master_payment')" style="background:var(--blue);color:#fff;border:none;border-radius:20px;padding:6px 14px;font-size:13px;cursor:pointer">+ Добавить</button>
+      </div>
+      <div class="content" id="masters-list"></div>
+    </div>
+
+    <!-- PAYMENTS TAB -->
+    <div class="tab" id="tab-payments">
+      <div class="section-header">
+        <h2>Платежи клиента</h2>
+        <button id="add-payment-btn" onclick="openAddForm('client_payment')" style="background:var(--blue);color:#fff;border:none;border-radius:20px;padding:6px 14px;font-size:13px;cursor:pointer">+ Добавить</button>
+      </div>
+      <div class="content" id="payments-list"></div>
+    </div>
+
+    <!-- DASHBOARD TAB -->
+    <div class="tab" id="tab-dashboard">
+      <div class="content">
+        <div class="stats-grid" id="stats-grid">
+          <div class="loader"><div class="spinner"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PROFILE TAB -->
+    <div class="tab" id="tab-profile">
+      <div class="content">
+        <div class="profile-section" id="profile-info"></div>
+        <div style="padding:0 16px 16px">
+          <button class="btn btn-secondary" onclick="showChangePinForm()">Изменить PIN</button>
+          <button class="btn btn-danger" style="margin-top:10px" onclick="doLogout()">Выйти из системы</button>
+        </div>
+        <!-- Admin panel inside profile -->
+        <div id="admin-panel" style="display:none;padding:0 16px">
+          <div class="section-header" style="padding:8px 0">
+            <h2>Администрирование</h2>
+          </div>
+          <button class="btn btn-secondary" style="margin-bottom:10px" onclick="openAdminUsers()">👥 Пользователи</button>
+          <button class="btn btn-secondary" onclick="openAdminProjects()">🏗️ Проекты</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Bottom nav -->
+  <nav class="bottom-nav">
+    <button class="nav-btn active" onclick="showTab('expenses')" id="nav-expenses">
+      <span class="icon">📋</span>Расходы
+    </button>
+    <button class="nav-btn" onclick="showTab('masters')" id="nav-masters">
+      <span class="icon">👷</span>Мастера
+    </button>
+    <button class="nav-btn" onclick="showTab('payments')" id="nav-payments">
+      <span class="icon">💰</span>Платежи
+    </button>
+    <button class="nav-btn" onclick="showTab('dashboard')" id="nav-dashboard">
+      <span class="icon">📊</span>Дашборд
+    </button>
+    <button class="nav-btn" onclick="showTab('profile')" id="nav-profile">
+      <span class="icon">👤</span>Профиль
+    </button>
+  </nav>
+</div>
+
+</div><!-- /app -->
+
+<!-- OVERLAY -->
+<div class="overlay" id="overlay" onclick="closeSheet()"></div>
+
+<!-- ADD RECORD SHEET -->
+<div class="sheet" id="add-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title" id="sheet-title">Добавить расход</div>
+  <div class="form-body">
+    <div id="form-kind-tabs" class="type-tabs"></div>
+    <div class="form-group">
+      <label>Дата</label>
+      <input type="date" id="f-date">
+    </div>
+    <div id="expense-fields">
+      <div class="form-group">
+        <label>Наименование</label>
+        <input type="text" id="f-name" placeholder="Цемент М500, Плитка, ...">
+      </div>
+      <div class="row-2">
+        <div class="form-group">
+          <label>Тип</label>
+          <select id="f-type"><option value="">— выберите —</option></select>
+        </div>
+        <div class="form-group">
+          <label>Категория</label>
+          <select id="f-category"><option value="">— выберите —</option></select>
+        </div>
+      </div>
+      <div class="row-2">
+        <div class="form-group">
+          <label>Количество</label>
+          <input type="number" id="f-qty" value="1" min="0.001" step="any" oninput="calcSum()">
+        </div>
+        <div class="form-group">
+          <label>Цена (₽)</label>
+          <input type="number" id="f-price" min="0" step="any" placeholder="0" oninput="calcSum()">
+        </div>
+      </div>
+      <div class="calc-sum" id="calc-sum-block">
+        <span>Сумма закупки</span>
+        <strong id="calc-sum-value">0 ₽</strong>
+      </div>
+    </div>
+    <div id="master-fields" style="display:none">
+      <div class="form-group">
+        <label>Имя мастера / получателя</label>
+        <input type="text" id="f-master-name" placeholder="Иван Петров">
+      </div>
+      <div class="form-group">
+        <label>Сумма (₽)</label>
+        <input type="number" id="f-payment-amount" min="0" step="any" placeholder="0">
+      </div>
+    </div>
+    <div id="client-fields" style="display:none">
+      <div class="form-group">
+        <label>Представитель клиента</label>
+        <input type="text" id="f-rep-name" placeholder="Имя представителя">
+      </div>
+      <div class="form-group">
+        <label>Сумма платежа (₽)</label>
+        <input type="number" id="f-client-amount" min="0" step="any" placeholder="0">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Комментарий</label>
+      <textarea id="f-comment" placeholder="Необязательно..."></textarea>
+    </div>
+    <div class="form-group">
+      <label>Фотографии (чеки, работы)</label>
+      <div class="photo-row" id="photo-row">
+        <div class="add-photo-btn" onclick="pickPhoto()">📷</div>
+      </div>
+      <input type="file" id="photo-input" accept="image/*" capture="environment" style="display:none" onchange="onPhotoSelected(event)" multiple>
+    </div>
+    <button class="btn" onclick="saveRecord()" id="save-btn">Сохранить</button>
+    <div class="error-msg" id="form-error"></div>
+  </div>
+</div>
+
+<!-- RECORD DETAIL SHEET -->
+<div class="sheet" id="detail-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title" id="detail-title">Запись</div>
+  <div class="form-body" id="detail-body"></div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script type="module">
+import { Auth, Records, Photos, Earnings, Admin } from '/api.js';
+window._api = { Auth, Records, Photos, Earnings, Admin };
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let currentProject = null;
+let currentKind = 'expense';
+let pendingPhotoIds = [];
+let dictionaries = { type: [], category: [] };
+let activeFilter = null;
+
+// ── Boot ─────────────────────────────────────────────────────────────────────
+(async function boot() {
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
+  if (Auth.isLoggedIn) {
+    try {
+      const user = await Auth.me();
+      window._user = user;
+      if (user.projects.length === 1) {
+        selectProject(user.projects[0]);
+      } else {
+        renderProjectSelect(user);
+        showScreen('project-screen');
+      }
+    } catch (_) {
+      showScreen('login-screen');
+    }
+  }
+})();
+
+// ── Login ─────────────────────────────────────────────────────────────────────
+let pinBuffer = '';
+
+window.padPress = function(digit) {
+  if (!digit) return;
+  if (pinBuffer.length >= 4) return;
+  pinBuffer += digit;
+  updateDots();
+  if (pinBuffer.length === 4) setTimeout(doLogin, 120);
+};
+
+window.padBackspace = function() {
+  pinBuffer = pinBuffer.slice(0, -1);
+  updateDots();
+};
+
+function updateDots() {
+  for (let i = 0; i < 4; i++) {
+    document.getElementById('dot-' + i).classList.toggle('filled', i < pinBuffer.length);
+  }
+}
+
+window.doLogin = async function() {
+  const phone = document.getElementById('phone-input').value.trim();
+  const pin = pinBuffer;
+  if (!phone) { setLoginError('Введите номер телефона'); return; }
+  if (pin.length < 4) { setLoginError('Введите PIN из 4 цифр'); return; }
+  setLoginError('');
+  try {
+    const user = await Auth.login(phone, pin);
+    window._user = user;
+    pinBuffer = ''; updateDots();
+    if (user.projects.length === 1) {
+      selectProject(user.projects[0]);
+    } else if (user.projects.length === 0 && user.role === 'admin') {
+      selectProject(null);
+      showScreen('main-screen');
+      showTab('profile');
+    } else {
+      renderProjectSelect(user);
+      showScreen('project-screen');
+    }
+  } catch (e) {
+    pinBuffer = ''; updateDots();
+    const msg = e?.detail?.detail || e?.detail || 'Ошибка входа';
+    setLoginError(typeof msg === 'string' ? msg : 'Неверный телефон или PIN');
+  }
+};
+
+function setLoginError(msg) {
+  document.getElementById('login-error').textContent = msg;
+}
+
+window.doLogout = async function() {
+  await Auth.logout();
+  currentProject = null;
+  showScreen('login-screen');
+};
+
+// ── Project select ────────────────────────────────────────────────────────────
+function renderProjectSelect(user) {
+  const list = document.getElementById('project-list');
+  list.innerHTML = user.projects.map(p => `
+    <div class="project-card" onclick="selectProjectById('${p.id}','${p.code}','${p.name}','${p.role}')">
+      <h3>${p.name}</h3>
+      <p><span class="badge badge-${p.role}">${roleLabel(p.role)}</span></p>
+    </div>
+  `).join('');
+}
+
+window.selectProjectById = function(id, code, name, role) {
+  selectProject({ id, code, name, role });
+};
+
+function selectProject(project) {
+  currentProject = project;
+  if (project) {
+    document.getElementById('project-title').textContent = project.name;
+    document.getElementById('add-payment-btn').style.display =
+      (_user && _user.role === 'client') ? 'none' : '';
+    setupProfile();
+    loadDictionaries();
+    loadTab('expenses');
+  }
+  showScreen('main-screen');
+  showTab('expenses');
+}
+
+window.goBack = function() {
+  if (_user && _user.projects.length > 1) {
+    showScreen('project-screen');
+  }
+};
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+window.showTab = function(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  const nb = document.getElementById('nav-' + tab);
+  if (nb) nb.classList.add('active');
+  if (tab === 'expenses') loadTab('expenses');
+  else if (tab === 'masters') loadTab('masters');
+  else if (tab === 'payments') loadTab('payments');
+  else if (tab === 'dashboard') loadDashboard();
+};
+
+// ── Load records ──────────────────────────────────────────────────────────────
+async function loadTab(kind) {
+  if (!currentProject) return;
+  const containerId = kind === 'expense' ? 'expenses-list' :
+                      kind === 'master_payment' ? 'masters-list' : 'payments-list';
+  const el = document.getElementById(containerId);
+  el.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+  try {
+    const params = { kind, limit: 100 };
+    if (activeFilter && kind === 'expense') params.type = activeFilter;
+    const data = await Records.list(currentProject.code, params);
+    renderRecords(el, data.items, kind);
+  } catch (_) {
+    el.innerHTML = '<div class="empty"><div class="icon">⚠️</div>Ошибка загрузки</div>';
+  }
+}
+
+function renderRecords(el, items, kind) {
+  if (!items.length) {
+    el.innerHTML = `<div class="empty"><div class="icon">${kind === 'expense' ? '🛒' : kind === 'master_payment' ? '👷' : '💰'}</div>Записей пока нет</div>`;
+    return;
+  }
+  el.innerHTML = items.map(r => {
+    const amount = r.kind === 'expense' ? r.sum_buy : r.payment_amount;
+    const amountStr = amount ? fmt(amount) + ' ₽' : '';
+    const tagClass = r.kind === 'expense' ? 'tag-expense' : r.kind === 'master_payment' ? 'tag-master' : 'tag-client';
+    const photos = (r.photos || []).slice(0, 3).map(p =>
+      `<img src="${p.thumb_url || p.url}" loading="lazy">`
+    ).join('');
+    return `
+      <div class="record-card" onclick="openDetail('${r.id}')">
+        <div class="record-top">
+          <div class="record-name">${esc(r.name || r.client_rep_name || '—')}</div>
+          <div class="record-amount">${amountStr}</div>
+        </div>
+        <div class="record-meta">
+          <span>${formatDate(r.operation_date)}</span>
+          ${r.type ? `<span class="tag ${tagClass}">${esc(r.type)}</span>` : ''}
+          ${r.category ? `<span class="tag">${esc(r.category)}</span>` : ''}
+          ${r.author ? `<span>${esc(r.author.name)}</span>` : ''}
+        </div>
+        ${photos ? `<div class="record-photos">${photos}</div>` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+window.filterRecords = function(kind, type, el) {
+  document.querySelectorAll('#expense-filters .filter-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  activeFilter = type;
+  loadTab(kind);
+};
+
+// ── Detail ────────────────────────────────────────────────────────────────────
+window.openDetail = async function(id) {
+  if (!currentProject) return;
+  openSheet('detail-sheet');
+  document.getElementById('detail-body').innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+  try {
+    const r = await Records.get(currentProject.code, id);
+    document.getElementById('detail-title').textContent =
+      r.kind === 'expense' ? 'Расход' : r.kind === 'master_payment' ? 'Оплата мастеру' : 'Платёж клиента';
+    const rows = [
+      ['Дата', formatDate(r.operation_date)],
+      r.name && ['Наименование', r.name],
+      r.type && ['Тип', r.type],
+      r.category && ['Категория', r.category],
+      r.qty && r.price && ['Кол-во × Цена', `${r.qty} × ${fmt(r.price)} ₽`],
+      r.sum_buy && ['Сумма закупки', `${fmt(r.sum_buy)} ₽`],
+      r.sum_sell && ['Сумма с наценкой', `${fmt(r.sum_sell)} ₽`],
+      r.commission && ['Комиссия прораба', `${fmt(r.commission)} ₽`],
+      r.payment_amount && ['Сумма платежа', `${fmt(r.payment_amount)} ₽`],
+      r.client_rep_name && ['Представитель', r.client_rep_name],
+      r.comment && ['Комментарий', r.comment],
+      r.author && ['Автор', r.author.name],
+    ].filter(Boolean);
+
+    const canDelete = _user && (_user.role === 'admin' || (r.author && r.author.id === _user.id));
+
+    document.getElementById('detail-body').innerHTML = `
+      <div class="info-list">
+        ${rows.map(([k, v]) => `<div class="info-row"><span>${k}</span><strong>${esc(String(v))}</strong></div>`).join('')}
+      </div>
+      ${r.photos && r.photos.length ? `
+        <div style="margin-top:16px">
+          <div class="record-photos" style="flex-wrap:wrap;gap:8px">
+            ${r.photos.map(p => `<img src="${p.url}" style="width:100px;height:100px;border-radius:8px;object-fit:cover">`).join('')}
+          </div>
+        </div>` : ''}
+      ${canDelete ? `
+        <div style="margin-top:20px">
+          <button class="btn btn-danger" onclick="deleteRecord('${r.id}','${r.kind}')">Удалить запись</button>
+        </div>` : ''}
+    `;
+  } catch (_) {
+    document.getElementById('detail-body').innerHTML = '<p>Ошибка загрузки</p>';
+  }
+};
+
+window.deleteRecord = async function(id, kind) {
+  if (!confirm('Удалить запись?')) return;
+  try {
+    await Records.delete(currentProject.code, id);
+    closeSheet();
+    toast('Запись удалена');
+    loadTab(kind === 'expense' ? 'expense' : kind === 'master_payment' ? 'master_payment' : 'client_payment');
+  } catch (_) {
+    toast('Ошибка удаления');
+  }
+};
+
+// ── Add form ──────────────────────────────────────────────────────────────────
+window.openAddForm = function(kind) {
+  currentKind = kind;
+  pendingPhotoIds = [];
+  document.getElementById('photo-row').innerHTML = '<div class="add-photo-btn" onclick="pickPhoto()">📷</div>';
+  document.getElementById('form-error').textContent = '';
+
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('f-date').value = today;
+  document.getElementById('f-name').value = '';
+  document.getElementById('f-qty').value = '1';
+  document.getElementById('f-price').value = '';
+  document.getElementById('f-comment').value = '';
+  document.getElementById('f-master-name').value = '';
+  document.getElementById('f-payment-amount').value = '';
+  document.getElementById('f-rep-name').value = '';
+  document.getElementById('f-client-amount').value = '';
+  document.getElementById('calc-sum-value').textContent = '0 ₽';
+
+  document.getElementById('expense-fields').style.display = kind === 'expense' ? '' : 'none';
+  document.getElementById('master-fields').style.display = kind === 'master_payment' ? '' : 'none';
+  document.getElementById('client-fields').style.display = kind === 'client_payment' ? '' : 'none';
+
+  const titles = { expense: 'Добавить расход', master_payment: 'Оплата мастеру', client_payment: 'Платёж клиента' };
+  document.getElementById('sheet-title').textContent = titles[kind];
+  document.getElementById('form-kind-tabs').innerHTML = '';
+
+  openSheet('add-sheet');
+};
+
+window.calcSum = function() {
+  const qty = parseFloat(document.getElementById('f-qty').value) || 0;
+  const price = parseFloat(document.getElementById('f-price').value) || 0;
+  document.getElementById('calc-sum-value').textContent = fmt(qty * price) + ' ₽';
+};
+
+window.saveRecord = async function() {
+  const btn = document.getElementById('save-btn');
+  btn.disabled = true;
+  btn.textContent = 'Сохранение...';
+  document.getElementById('form-error').textContent = '';
+  try {
+    const date = document.getElementById('f-date').value;
+    if (!date) throw new Error('Укажите дату');
+
+    const data = {
+      kind: currentKind,
+      operation_date: date,
+      comment: document.getElementById('f-comment').value || undefined,
+      photo_ids: pendingPhotoIds,
+    };
+
+    if (currentKind === 'expense') {
+      data.name = document.getElementById('f-name').value || undefined;
+      data.type = document.getElementById('f-type').value || undefined;
+      data.category = document.getElementById('f-category').value || undefined;
+      const qty = document.getElementById('f-qty').value;
+      const price = document.getElementById('f-price').value;
+      if (qty) data.qty = parseFloat(qty);
+      if (price) data.price = parseFloat(price);
+    } else if (currentKind === 'master_payment') {
+      data.name = document.getElementById('f-master-name').value || undefined;
+      const amt = document.getElementById('f-payment-amount').value;
+      if (amt) data.payment_amount = parseFloat(amt);
+    } else {
+      data.client_rep_name = document.getElementById('f-rep-name').value || undefined;
+      const amt = document.getElementById('f-client-amount').value;
+      if (amt) data.payment_amount = parseFloat(amt);
+    }
+
+    await Records.create(currentProject.code, data);
+    closeSheet();
+    toast('Запись добавлена');
+    loadTab(currentKind);
+  } catch (e) {
+    const msg = e?.detail || e?.message || 'Ошибка сохранения';
+    document.getElementById('form-error').textContent = typeof msg === 'string' ? msg : JSON.stringify(msg);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Сохранить';
+  }
+};
+
+// ── Photos ────────────────────────────────────────────────────────────────────
+window.pickPhoto = function() {
+  document.getElementById('photo-input').click();
+};
+
+window.onPhotoSelected = async function(e) {
+  const files = Array.from(e.target.files);
+  e.target.value = '';
+  for (const file of files) {
+    const temp = URL.createObjectURL(file);
+    const idx = pendingPhotoIds.length;
+    const row = document.getElementById('photo-row');
+    const img = document.createElement('img');
+    img.src = temp; img.className = 'photo-thumb';
+    img.style.opacity = '0.5';
+    row.insertBefore(img, row.querySelector('.add-photo-btn'));
+
+    try {
+      const photoId = await Photos.upload(file);
+      await Photos.confirm(photoId);
+      pendingPhotoIds.push(photoId);
+      img.style.opacity = '1';
+    } catch (_) {
+      img.remove();
+      toast('Ошибка загрузки фото');
+    }
+  }
+};
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+async function loadDashboard() {
+  if (!currentProject) return;
+  const grid = document.getElementById('stats-grid');
+  grid.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+  try {
+    const [plan, earnings] = await Promise.all([
+      Earnings.plan(currentProject.code).catch(() => null),
+      _user.role !== 'client' ? Earnings.project(currentProject.code).catch(() => null) : Promise.resolve(null),
+    ]);
+
+    let html = '';
+    if (plan) {
+      const pct = Math.min(parseFloat(plan.progress_total_pct), 100);
+      const pctM = Math.min(parseFloat(plan.progress_monthly_pct), 100);
+      html += `
+        <div class="stat-card full">
+          <div class="stat-label">Потрачено всего</div>
+          <div class="stat-value">${fmt(plan.spent_total)} ₽</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:4px">план: ${fmt(plan.plan_total)} ₽</div>
+          <div class="progress-bar"><div class="progress-fill ${pct >= 100 ? 'over' : ''}" style="width:${pct}%"></div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">В этом месяце</div>
+          <div class="stat-value orange">${fmt(plan.spent_monthly)} ₽</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:4px">план: ${fmt(plan.plan_monthly)} ₽</div>
+          <div class="progress-bar"><div class="progress-fill ${pctM >= 100 ? 'over' : ''}" style="width:${pctM}%"></div></div>
+        </div>
+      `;
+    }
+    if (earnings) {
+      html += `
+        <div class="stat-card">
+          <div class="stat-label">Моя комиссия</div>
+          <div class="stat-value green">${fmt(earnings.commission)} ₽</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Рантье (моя доля)</div>
+          <div class="stat-value green">${fmt(earnings.rentier_foreman)} ₽</div>
+        </div>
+        <div class="stat-card full">
+          <div class="stat-label">Итого заработок</div>
+          <div class="stat-value green">${fmt(earnings.total)} ₽</div>
+        </div>
+      `;
+    }
+    grid.innerHTML = html || '<div class="empty">Нет данных</div>';
+  } catch (_) {
+    grid.innerHTML = '<div class="empty">Ошибка загрузки</div>';
+  }
+}
+
+// ── Profile ───────────────────────────────────────────────────────────────────
+function setupProfile() {
+  const u = _user;
+  if (!u) return;
+  document.getElementById('profile-info').innerHTML = `
+    <div class="profile-name">${esc(u.name)}</div>
+    <div class="profile-role">${roleLabel(u.role)}</div>
+    <div class="info-list" style="margin-top:16px">
+      <div class="info-row"><span>Роль</span><strong>${roleLabel(u.role)}</strong></div>
+      ${currentProject ? `<div class="info-row"><span>Проект</span><strong>${esc(currentProject.name)}</strong></div>` : ''}
+    </div>
+  `;
+  document.getElementById('admin-panel').style.display = u.role === 'admin' ? '' : 'none';
+}
+
+window.showChangePinForm = function() {
+  const old = prompt('Текущий PIN:');
+  if (!old) return;
+  const neu = prompt('Новый PIN (4 цифры):');
+  if (!neu || neu.length !== 4) { toast('PIN должен быть 4 цифры'); return; }
+  Auth.changePin(old, neu).then(() => toast('PIN изменён')).catch(() => toast('Ошибка смены PIN'));
+};
+
+// ── Admin ─────────────────────────────────────────────────────────────────────
+window.openAdminUsers = async function() {
+  openSheet('detail-sheet');
+  document.getElementById('detail-title').textContent = 'Пользователи';
+  document.getElementById('detail-body').innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+  try {
+    const users = await Admin.users.list();
+    document.getElementById('detail-body').innerHTML = `
+      <div class="admin-list">
+        ${users.map(u => `
+          <div class="admin-item">
+            <div class="admin-item-top">
+              <div>
+                <h3>${esc(u.name)}</h3>
+                <p>${esc(u.phone)} · <span class="badge badge-${u.role}">${roleLabel(u.role)}</span></p>
+              </div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+      <div style="padding:16px">
+        <button class="btn" onclick="openCreateUser()">+ Добавить пользователя</button>
+      </div>
+    `;
+  } catch (_) {
+    document.getElementById('detail-body').innerHTML = '<p style="padding:16px">Ошибка</p>';
+  }
+};
+
+window.openCreateUser = function() {
+  const phone = prompt('Телефон (+7...):');
+  if (!phone) return;
+  const name = prompt('Имя:');
+  if (!name) return;
+  const pin = prompt('PIN (4 цифры):');
+  if (!pin) return;
+  const role = prompt('Роль (admin/foreman/client):') || 'foreman';
+  Admin.users.create({ phone, name, pin, role })
+    .then(() => { toast('Пользователь создан'); openAdminUsers(); })
+    .catch(e => toast('Ошибка: ' + (e?.detail || 'unknown')));
+};
+
+window.openAdminProjects = async function() {
+  openSheet('detail-sheet');
+  document.getElementById('detail-title').textContent = 'Проекты';
+  document.getElementById('detail-body').innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+  try {
+    const projects = await Admin.projects.list();
+    document.getElementById('detail-body').innerHTML = `
+      <div class="admin-list">
+        ${projects.map(p => `
+          <div class="admin-item">
+            <h3>${esc(p.name)}</h3>
+            <p>${esc(p.code)} · наценка ${p.markup_pct}% · ставка прораба ${p.foreman_rate_pct}%</p>
+          </div>
+        `).join('')}
+      </div>
+      <div style="padding:16px">
+        <button class="btn" onclick="openCreateProject()">+ Создать проект</button>
+      </div>
+    `;
+  } catch (_) {
+    document.getElementById('detail-body').innerHTML = '<p style="padding:16px">Ошибка</p>';
+  }
+};
+
+window.openCreateProject = function() {
+  const code = prompt('Код проекта (латиницей, напр. house1):');
+  if (!code) return;
+  const name = prompt('Название проекта:');
+  if (!name) return;
+  Admin.projects.create({ code, name })
+    .then(() => { toast('Проект создан'); openAdminProjects(); })
+    .catch(e => toast('Ошибка: ' + (e?.detail || 'unknown')));
+};
+
+// ── Dictionaries ──────────────────────────────────────────────────────────────
+async function loadDictionaries() {
+  if (!currentProject) return;
+  try {
+    const items = await Records.dictionaries(currentProject.code);
+    dictionaries.type = items.filter(i => i.kind === 'type').map(i => i.value);
+    dictionaries.category = items.filter(i => i.kind === 'category').map(i => i.value);
+    const typeEl = document.getElementById('f-type');
+    const catEl = document.getElementById('f-category');
+    typeEl.innerHTML = '<option value="">— тип —</option>' + dictionaries.type.map(v => `<option>${v}</option>`).join('');
+    catEl.innerHTML = '<option value="">— категория —</option>' + dictionaries.category.map(v => `<option>${v}</option>`).join('');
+  } catch (_) {}
+}
+
+// ── Sheet helpers ─────────────────────────────────────────────────────────────
+window.openSheet = function(id) {
+  document.getElementById('overlay').classList.add('open');
+  document.getElementById(id).classList.add('open');
+};
+
+window.closeSheet = function() {
+  document.getElementById('overlay').classList.remove('open');
+  document.querySelectorAll('.sheet').forEach(s => s.classList.remove('open'));
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function fmt(n) {
+  return Number(n).toLocaleString('ru-RU', { maximumFractionDigits: 2 });
+}
+function formatDate(d) {
+  if (!d) return '';
+  const [y, m, day] = d.split('-');
+  return `${day}.${m}.${y}`;
+}
+function esc(str) {
+  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function roleLabel(role) {
+  return { admin: 'Администратор', foreman: 'Прораб', client: 'Клиент' }[role] || role;
+}
+window.toast = function(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2500);
+};
+</script>
+</body>
+</html>
