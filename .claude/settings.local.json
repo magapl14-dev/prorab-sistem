@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git commit -m ' *)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\111\\\\Documents\\\\GitHub\\\\prorab-sistem\" -Force)",
+      "Bash(Select-Object FullName, PSIsContainer)",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\111\\\\Documents\\\\GitHub\\\\prorab-sistem\" -Force | Select-Object Name, @{Name=\"Type\";Expression={if\\($_.PSIsContainer\\){\"Dir\"}else{\"File\"}}} | Format-Table -AutoSize)",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\111\\\\Documents\\\\GitHub\\\\prorab-sistem\" -Directory -Force | ForEach-Object { Write-Host \"Directory: $\\($_.Name\\)\"; Get-ChildItem -Path $_.FullName -Force | Write-Host })",
+      "PowerShell(@\\(Get-ChildItem -Path \"c:\\\\Users\\\\111\\\\Documents\\\\GitHub\\\\prorab-sistem\\\\app\" -Force\\), @\\(Get-ChildItem -Path \"c:\\\\Users\\\\111\\\\Documents\\\\GitHub\\\\prorab-sistem\\\\approuters\" -Force\\), @\\(Get-ChildItem -Path \"c:\\\\Users\\\\111\\\\Documents\\\\GitHub\\\\prorab-sistem\\\\static\" -Force\\) | Measure-Object | Select-Object Count)",
+      "Bash(git add *)",
+      "Bash(git push *)",
+      "Bash(docker compose *)",
+      "PowerShell(docker compose -f \"c:\\\\Users\\\\111\\\\Documents\\\\GitHub\\\\prorab-sistem\\\\infra\\\\docker-compose.yml\" ps 2>&1)",
+      "Bash(git commit -m 'Update deploy workflow for Docker Compose *)",
+      "Bash(git commit -m 'Configure domain welldom05.duckdns.org *)",
+      "Bash(git commit -m 'Simplify prod deploy: standalone compose, no secrets files *)",
+      "Bash(git commit -m 'Remove Docker: local storage, optional Redis, systemd+nginx deploy *)"
+    ]
+  }
+}

@@ -2,7 +2,8 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request, status
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -11,7 +12,7 @@ from ...core.deps import current_user
 from ...core.config import settings
 from ...models.models import User, Photo
 from ...schemas.schemas import UploadUrlRequest, UploadUrlResponse, ConfirmUploadRequest, PhotoOut
-from ...services.s3 import generate_presigned_put, create_thumbnail, public_url, delete_object
+from ...services.s3 import generate_presigned_put, create_thumbnail, public_url, delete_object, save_local
 
 router = APIRouter(tags=["photos"])
 _executor = ThreadPoolExecutor(max_workers=4)
@@ -44,7 +45,7 @@ async def get_upload_url(
     s3_key, upload_url = generate_presigned_put(data.filename, data.mime_type, data.size)
 
     photo = Photo(
-        s3_bucket=settings.s3_bucket,
+        s3_bucket=settings.s3_bucket if settings.storage_type == "s3" else "local",
         s3_key=s3_key,
         mime_type=data.mime_type,
         size_bytes=data.size,
@@ -56,6 +57,16 @@ async def get_upload_url(
     await db.commit()
 
     return UploadUrlResponse(photo_id=photo.id, upload_url=upload_url, expires_in=300)
+
+
+@router.put("/photos/local-upload/{path:path}")
+async def local_upload(path: str, request: Request):
+    """Receive file upload for local storage (replaces S3 presigned PUT)."""
+    if settings.storage_type != "local":
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
+    data = await request.body()
+    save_local(path, data)
+    return Response(status_code=200)
 
 
 @router.post("/photos/confirm", response_model=PhotoOut)
@@ -103,7 +114,6 @@ async def delete_photo(
 
     photo.deleted_at = datetime.now(timezone.utc)
     await db.commit()
-
     delete_object(photo.s3_key)
     if photo.thumb_key:
         delete_object(photo.thumb_key)

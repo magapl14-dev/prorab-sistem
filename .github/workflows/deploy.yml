@@ -20,7 +20,21 @@ jobs:
             set -e
             cd /opt/prorab-sistem
             git pull origin main
-            docker compose -f infra/docker-compose.prod.yml up -d --build
-            sleep 5
-            docker compose -f infra/docker-compose.prod.yml exec -T api alembic upgrade head
+
+            # Create venv if not exists
+            if [ ! -d venv ]; then
+              python3 -m venv venv
+            fi
+
+            # Install dependencies
+            venv/bin/pip install -q --upgrade pip
+            venv/bin/pip install -q -e backend/
+
+            # Apply DB migrations
+            cd backend
+            ../venv/bin/alembic upgrade head
+            cd ..
+
+            # Restart service
+            sudo systemctl restart welldom
             echo "Deploy completed at $(date)"
