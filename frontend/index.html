@@ -12,9 +12,10 @@
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{
   --blue:#1565c0;--blue-light:#1976d2;--blue-dark:#0d47a1;
-  --green:#2e7d32;--red:#c62828;--orange:#e65100;
-  --bg:#f5f6fa;--card:#fff;--text:#212121;--text2:#666;--border:#e0e0e0;
-  --shadow:0 2px 8px rgba(0,0,0,.12);
+  --green:#2e7d32;--red:#c62828;
+  --orange:#e07820;--orange-dark:#c86418;--orange-light:#f5a04a;
+  --bg:#f5f0ea;--card:#fff;--text:#2c2416;--text2:#7a6a55;--border:#e0d5c8;
+  --shadow:0 2px 8px rgba(0,0,0,.10);
   --radius:12px;--h:56px;
 }
 html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);font-size:16px}
@@ -25,27 +26,29 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
 .screen.active{display:flex}
 
 /* ── login ── */
-#login-screen{background:var(--blue);justify-content:center;align-items:center;padding:32px 24px;gap:24px}
-.login-logo{color:#fff;text-align:center}
-.login-logo h1{font-size:28px;font-weight:700;letter-spacing:.5px}
-.login-logo p{font-size:14px;opacity:.8;margin-top:4px}
-.login-card{background:#fff;border-radius:var(--radius);padding:24px;width:100%;max-width:360px;box-shadow:0 8px 32px rgba(0,0,0,.2)}
-.login-card h2{font-size:18px;margin-bottom:20px;color:var(--blue)}
+#login-screen{background:linear-gradient(160deg,#faf3e8 0%,#f0e4cf 100%);justify-content:center;align-items:center;padding:32px 24px;gap:20px}
+.login-logo{text-align:center}
+.login-logo .logo-icon{font-size:48px;line-height:1;margin-bottom:8px}
+.login-logo h1{font-size:22px;font-weight:700;color:#2c2416;letter-spacing:.5px}
+.login-logo h1 span{color:var(--orange)}
+.login-logo p{font-size:13px;color:var(--text2);margin-top:4px}
+.login-card{background:#fff;border-radius:16px;padding:28px 24px;width:100%;max-width:360px;box-shadow:0 8px 32px rgba(180,130,80,.15)}
 .field{margin-bottom:16px}
-.field label{display:block;font-size:13px;color:var(--text2);margin-bottom:6px;font-weight:500}
-.field input{width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:16px;outline:none;transition:border-color .2s}
-.field input:focus{border-color:var(--blue-light)}
+.field label{display:block;font-size:11px;color:var(--text2);margin-bottom:6px;font-weight:600;letter-spacing:.5px;text-transform:uppercase}
+.field input{width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:16px;outline:none;transition:border-color .2s;color:var(--text);background:#fff}
+.field input:focus{border-color:var(--orange)}
 .numpad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
 .numpad button{padding:16px;border:1.5px solid var(--border);border-radius:8px;font-size:20px;background:#fff;cursor:pointer;transition:background .15s}
-.numpad button:active{background:#e3f2fd}
+.numpad button:active{background:#fdf0e0}
 .pin-dots{display:flex;justify-content:center;gap:12px;margin:16px 0}
-.pin-dot{width:14px;height:14px;border-radius:50%;border:2px solid var(--blue);background:#fff;transition:background .2s}
-.pin-dot.filled{background:var(--blue)}
-.btn{display:block;width:100%;padding:14px;background:var(--blue);color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;margin-top:8px;transition:background .2s}
-.btn:active{background:var(--blue-dark)}
-.btn-secondary{background:#fff;color:var(--blue);border:1.5px solid var(--blue)}
-.btn-secondary:active{background:#e3f2fd}
+.pin-dot{width:14px;height:14px;border-radius:50%;border:2px solid var(--orange);background:#fff;transition:background .2s}
+.pin-dot.filled{background:var(--orange)}
+.btn{display:block;width:100%;padding:14px;background:var(--orange);color:#fff;border:none;border-radius:8px;font-size:16px;font-weight:600;cursor:pointer;margin-top:8px;transition:background .2s}
+.btn:active{background:var(--orange-dark)}
+.btn-secondary{background:#fff;color:var(--orange);border:1.5px solid var(--orange)}
+.btn-secondary:active{background:#fdf0e0}
 .btn-danger{background:var(--red)}
+.login-footer{font-size:12px;color:var(--text2);text-align:center}
 .error-msg{color:var(--red);font-size:13px;text-align:center;margin-top:8px;min-height:18px}
 
 /* ── project selector ── */
@@ -53,87 +56,93 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
 #project-screen h2{font-size:20px;font-weight:700}
 .project-grid{display:grid;gap:12px}
 .project-card{background:var(--card);border-radius:var(--radius);padding:20px;box-shadow:var(--shadow);cursor:pointer;border:2px solid transparent;transition:border-color .2s}
-.project-card:active{border-color:var(--blue)}
+.project-card:active{border-color:var(--orange)}
 .project-card h3{font-size:17px;font-weight:600}
 .project-card p{font-size:13px;color:var(--text2);margin-top:4px}
 .badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
-.badge-foreman{background:#e3f2fd;color:var(--blue)}
+.badge-foreman{background:#fff3e0;color:var(--orange)}
 .badge-client{background:#e8f5e9;color:var(--green)}
 .badge-admin{background:#fce4ec;color:#c2185b}
 
 /* ── main app ── */
-#main-screen{flex:1;overflow:hidden}
-.top-bar{background:var(--blue);color:#fff;padding:0 16px;height:var(--h);display:flex;align-items:center;gap:12px;flex-shrink:0}
-.top-bar h1{font-size:17px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.icon-btn{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.15);border:none;color:#fff;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+#main-screen{flex:1;overflow:hidden;display:flex;flex-direction:column}
+.top-bar{background:#fff;color:var(--text);padding:0 14px;height:60px;display:flex;align-items:center;gap:10px;flex-shrink:0;border-bottom:1px solid var(--border);box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.top-bar-logo{font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;display:flex;align-items:center;gap:5px;flex-shrink:0}
+.top-bar-logo .logo-house{font-size:22px}
+.project-pill{background:var(--orange);color:#fff;border:none;border-radius:20px;padding:6px 12px 6px 10px;font-size:13px;font-weight:600;cursor:pointer;flex:1;min-width:0;display:flex;align-items:center;gap:5px;overflow:hidden}
+.project-pill span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.project-pill .pill-dot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.7);flex-shrink:0}
+.icon-btn{width:38px;height:38px;border-radius:50%;background:#f5f0ea;border:none;color:var(--text);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.user-avatar{width:36px;height:36px;border-radius:50%;background:var(--orange);color:#fff;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:none}
 .content{flex:1;overflow-y:auto;padding:0 0 80px}
 .bottom-nav{height:64px;background:#fff;border-top:1px solid var(--border);display:flex;align-items:stretch;flex-shrink:0}
-.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;border:none;background:none;cursor:pointer;color:var(--text2);font-size:11px;transition:color .2s;padding:8px 4px}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:none;background:none;cursor:pointer;color:#aaa;font-size:10px;font-weight:500;transition:color .2s;padding:8px 2px}
 .nav-btn .icon{font-size:22px;line-height:1}
-.nav-btn.active{color:var(--blue)}
+.nav-btn.active{color:var(--orange)}
 
 /* ── tab content ── */
-.tab{display:none;flex-direction:column;height:100%}
+.tab{display:none;flex-direction:column;flex:1;overflow:hidden}
 .tab.active{display:flex}
-.section-header{padding:16px 16px 8px;display:flex;align-items:center;justify-content:space-between}
-.section-header h2{font-size:17px;font-weight:600}
-.fab{position:fixed;right:16px;bottom:80px;width:56px;height:56px;background:var(--blue);color:#fff;border:none;border-radius:50%;font-size:28px;cursor:pointer;box-shadow:0 4px 16px rgba(21,101,192,.4);display:flex;align-items:center;justify-content:center;z-index:10}
+.section-header{padding:14px 16px 8px;display:flex;align-items:center;justify-content:space-between}
+.section-header h2{font-size:16px;font-weight:700;color:var(--text)}
+.add-btn{background:var(--orange);color:#fff;border:none;border-radius:20px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer}
+.fab{position:fixed;right:16px;bottom:80px;width:56px;height:56px;background:var(--orange);color:#fff;border:none;border-radius:50%;font-size:28px;cursor:pointer;box-shadow:0 4px 16px rgba(224,120,32,.4);display:flex;align-items:center;justify-content:center;z-index:10}
 
 /* ── cards ── */
-.record-card{background:var(--card);margin:0 16px 10px;border-radius:var(--radius);padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.08);cursor:pointer}
+.record-card{background:var(--card);margin:0 12px 8px;border-radius:var(--radius);padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.07);cursor:pointer;border:1px solid rgba(0,0,0,.04)}
 .record-card:active{box-shadow:var(--shadow)}
 .record-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
-.record-name{font-weight:600;font-size:15px;flex:1}
-.record-amount{font-weight:700;font-size:16px;color:var(--blue);white-space:nowrap}
-.record-meta{font-size:12px;color:var(--text2);margin-top:6px;display:flex;gap:10px;flex-wrap:wrap}
-.tag{background:#f0f0f0;padding:2px 8px;border-radius:20px;font-size:11px}
-.tag-expense{background:#e3f2fd;color:var(--blue)}
+.record-name{font-weight:600;font-size:15px;flex:1;color:var(--text)}
+.record-amount{font-weight:700;font-size:16px;color:var(--orange);white-space:nowrap}
+.record-meta{font-size:12px;color:var(--text2);margin-top:6px;display:flex;gap:8px;flex-wrap:wrap}
+.tag{background:#f0ebe3;padding:2px 8px;border-radius:20px;font-size:11px;color:var(--text2)}
+.tag-expense{background:#fff3e0;color:var(--orange)}
 .tag-master{background:#e8f5e9;color:var(--green)}
-.tag-client{background:#fff3e0;color:var(--orange)}
+.tag-client{background:#e8f0fe;color:#3c5fa8}
 .record-photos{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
 .record-photos img{width:56px;height:56px;border-radius:6px;object-fit:cover}
 
 /* ── filters ── */
-.filters{padding:0 16px 8px;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none}
+.filters{padding:0 12px 8px;display:flex;gap:8px;overflow-x:auto;scrollbar-width:none}
 .filters::-webkit-scrollbar{display:none}
-.filter-chip{white-space:nowrap;padding:6px 14px;border-radius:20px;border:1.5px solid var(--border);background:#fff;font-size:13px;cursor:pointer;transition:all .2s}
-.filter-chip.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+.filter-chip{white-space:nowrap;padding:5px 14px;border-radius:20px;border:1.5px solid var(--border);background:#fff;font-size:13px;cursor:pointer;transition:all .2s;color:var(--text2)}
+.filter-chip.active{background:var(--orange);color:#fff;border-color:var(--orange)}
 
 /* ── dashboard ── */
 .stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:16px}
 .stat-card{background:var(--card);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
 .stat-card.full{grid-column:1/-1}
 .stat-label{font-size:12px;color:var(--text2);margin-bottom:6px}
-.stat-value{font-size:22px;font-weight:700;color:var(--blue)}
+.stat-value{font-size:22px;font-weight:700;color:var(--orange)}
 .stat-value.green{color:var(--green)}
 .stat-value.orange{color:var(--orange)}
-.progress-bar{height:8px;background:#e3f2fd;border-radius:4px;margin-top:8px;overflow:hidden}
-.progress-fill{height:100%;background:var(--blue);border-radius:4px;transition:width .3s}
+.progress-bar{height:8px;background:#f0ebe3;border-radius:4px;margin-top:8px;overflow:hidden}
+.progress-fill{height:100%;background:var(--orange);border-radius:4px;transition:width .3s}
 .progress-fill.over{background:var(--red)}
 
 /* ── form / bottom sheet ── */
-.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100}
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100}
 .overlay.open{display:block}
 .sheet{position:fixed;left:0;right:0;bottom:0;background:#fff;border-radius:20px 20px 0 0;z-index:101;max-height:92vh;overflow-y:auto;transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);max-width:480px;margin:0 auto}
 .sheet.open{transform:translateY(0)}
-.sheet-handle{width:40px;height:4px;background:#e0e0e0;border-radius:2px;margin:12px auto 0}
-.sheet-title{font-size:18px;font-weight:700;padding:16px 16px 0}
+.sheet-handle{width:40px;height:4px;background:#e0d5c8;border-radius:2px;margin:12px auto 0}
+.sheet-title{font-size:17px;font-weight:700;padding:16px 16px 0;color:var(--text);display:flex;align-items:center;gap:8px}
 .form-body{padding:16px}
 .form-group{margin-bottom:14px}
-.form-group label{display:block;font-size:13px;color:var(--text2);margin-bottom:6px;font-weight:500}
-.form-group input,.form-group select,.form-group textarea{width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;outline:none;background:#fff;font-family:inherit}
-.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--blue-light)}
+.form-group label{display:block;font-size:11px;color:var(--text2);margin-bottom:6px;font-weight:600;letter-spacing:.4px;text-transform:uppercase}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;outline:none;background:#fff;font-family:inherit;color:var(--text)}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--orange)}
 .form-group textarea{min-height:80px;resize:vertical}
 .row-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.calc-sum{background:#e3f2fd;border-radius:8px;padding:12px;text-align:center;margin-bottom:14px}
+.calc-sum{background:#fff8f0;border:1px solid #fde0bc;border-radius:8px;padding:12px;text-align:center;margin-bottom:14px}
 .calc-sum span{font-size:13px;color:var(--text2)}
-.calc-sum strong{display:block;font-size:20px;color:var(--blue);font-weight:700}
+.calc-sum strong{display:block;font-size:20px;color:var(--orange);font-weight:700}
 .photo-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
 .photo-thumb{width:72px;height:72px;border-radius:8px;object-fit:cover;position:relative}
 .add-photo-btn{width:72px;height:72px;border-radius:8px;border:2px dashed var(--border);background:#fafafa;display:flex;align-items:center;justify-content:center;font-size:28px;cursor:pointer;color:var(--text2)}
 .type-tabs{display:flex;gap:8px;margin-bottom:16px}
-.type-tab{flex:1;padding:10px;border-radius:8px;border:1.5px solid var(--border);background:#fff;font-size:14px;cursor:pointer;text-align:center;transition:all .2s}
-.type-tab.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+.type-tab{flex:1;padding:10px;border-radius:8px;border:1.5px solid var(--border);background:#fff;font-size:14px;cursor:pointer;text-align:center;transition:all .2s;color:var(--text2)}
+.type-tab.active{background:var(--orange);color:#fff;border-color:var(--orange)}
 
 /* ── profile ── */
 .profile-section{padding:20px 16px}
@@ -168,17 +177,17 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
 <!-- LOGIN SCREEN -->
 <div id="login-screen" class="screen active">
   <div class="login-logo">
-    <h1>WELL DOM</h1>
-    <p>Платформа учёта прорабов</p>
+    <div class="logo-icon">🏠</div>
+    <h1>WELL <span>DOM</span></h1>
+    <p>WELL DOM — учёт строительства</p>
   </div>
   <div class="login-card">
-    <h2>Вход в систему</h2>
     <div class="field">
-      <label>Номер телефона</label>
-      <input id="phone-input" type="tel" placeholder="+7 900 000-00-00" inputmode="tel">
+      <label>Ваш телефон</label>
+      <input id="phone-input" type="tel" placeholder="+7 ___ ___" inputmode="tel">
     </div>
     <div class="field">
-      <label>PIN-код</label>
+      <label>Личный PIN</label>
       <div class="pin-dots">
         <div class="pin-dot" id="dot-0"></div>
         <div class="pin-dot" id="dot-1"></div>
@@ -195,14 +204,15 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
         <button onclick="padPress('7')">7</button>
         <button onclick="padPress('8')">8</button>
         <button onclick="padPress('9')">9</button>
-        <button onclick="padPress('')" style="font-size:14px;color:#999">стереть</button>
+        <button onclick="padPress('')" style="font-size:13px;color:#bbb">стереть</button>
         <button onclick="padPress('0')">0</button>
         <button onclick="padBackspace()">⌫</button>
       </div>
     </div>
     <div class="error-msg" id="login-error"></div>
-    <button class="btn" onclick="doLogin()">Войти</button>
+    <button class="btn" onclick="doLogin()">→ Войти</button>
   </div>
+  <div class="login-footer">welldom05.duckdns.org</div>
 </div>
 
 <!-- PROJECT SELECT SCREEN -->
@@ -217,9 +227,16 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
 <!-- MAIN APP SCREEN -->
 <div id="main-screen" class="screen">
   <div class="top-bar">
-    <button class="icon-btn" onclick="goBack()">←</button>
-    <h1 id="project-title">Проект</h1>
-    <button class="icon-btn" onclick="showTab('profile')">👤</button>
+    <div class="top-bar-logo">
+      <span class="logo-house">🏠</span>
+      <span>WELL DOM</span>
+    </div>
+    <button class="project-pill" onclick="goBack()" id="project-pill-btn">
+      <span class="pill-dot"></span>
+      <span id="project-title">Проект</span>
+      <span style="margin-left:auto;opacity:.8">▾</span>
+    </button>
+    <button class="user-avatar" onclick="showTab('profile')" id="user-avatar-btn">М</button>
   </div>
   <div style="flex:1;overflow:hidden;display:flex;flex-direction:column">
 
@@ -227,7 +244,7 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
     <div class="tab active" id="tab-expenses">
       <div class="section-header">
         <h2>Расходы</h2>
-        <button onclick="openAddForm('expense')" style="background:var(--blue);color:#fff;border:none;border-radius:20px;padding:6px 14px;font-size:13px;cursor:pointer">+ Добавить</button>
+        <button class="add-btn" onclick="openAddForm('expense')">+ Добавить</button>
       </div>
       <div class="filters" id="expense-filters">
         <div class="filter-chip active" onclick="filterRecords('expense',null,this)">Все</div>
@@ -244,7 +261,7 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
     <div class="tab" id="tab-masters">
       <div class="section-header">
         <h2>Оплата мастерам</h2>
-        <button onclick="openAddForm('master_payment')" style="background:var(--blue);color:#fff;border:none;border-radius:20px;padding:6px 14px;font-size:13px;cursor:pointer">+ Добавить</button>
+        <button class="add-btn" onclick="openAddForm('master_payment')">+ Добавить</button>
       </div>
       <div class="content" id="masters-list"></div>
     </div>
@@ -253,7 +270,7 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
     <div class="tab" id="tab-payments">
       <div class="section-header">
         <h2>Платежи клиента</h2>
-        <button id="add-payment-btn" onclick="openAddForm('client_payment')" style="background:var(--blue);color:#fff;border:none;border-radius:20px;padding:6px 14px;font-size:13px;cursor:pointer">+ Добавить</button>
+        <button class="add-btn" id="add-payment-btn" onclick="openAddForm('client_payment')">+ Добавить</button>
       </div>
       <div class="content" id="payments-list"></div>
     </div>
@@ -291,16 +308,16 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
   <!-- Bottom nav -->
   <nav class="bottom-nav">
     <button class="nav-btn active" onclick="showTab('expenses')" id="nav-expenses">
-      <span class="icon">📋</span>Расходы
+      <span class="icon">🛒</span>Закупка
     </button>
     <button class="nav-btn" onclick="showTab('masters')" id="nav-masters">
       <span class="icon">👷</span>Мастера
     </button>
     <button class="nav-btn" onclick="showTab('payments')" id="nav-payments">
-      <span class="icon">💰</span>Платежи
+      <span class="icon">💳</span>Клиент
     </button>
     <button class="nav-btn" onclick="showTab('dashboard')" id="nav-dashboard">
-      <span class="icon">📊</span>Дашборд
+      <span class="icon">📊</span>Доход
     </button>
     <button class="nav-btn" onclick="showTab('profile')" id="nav-profile">
       <span class="icon">👤</span>Профиль
@@ -509,6 +526,10 @@ function selectProject(project) {
     document.getElementById('project-title').textContent = project.name;
     document.getElementById('add-payment-btn').style.display =
       (_user && _user.role === 'client') ? 'none' : '';
+    if (_user) {
+      const initials = (_user.name || 'U').split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+      document.getElementById('user-avatar-btn').textContent = initials;
+    }
     setupProfile();
     loadDictionaries();
     loadTab('expenses');
