@@ -184,7 +184,7 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
   <div class="login-card">
     <div class="field">
       <label>Ваш телефон</label>
-      <input id="phone-input" type="tel" placeholder="+7 ___ ___" inputmode="tel">
+      <input id="phone-input" type="tel" placeholder="+7 900 000-00-00" inputmode="tel" autocomplete="tel">
     </div>
     <div class="field">
       <label>Личный PIN</label>
@@ -448,6 +448,27 @@ let activeFilter = null;
 
 // ── Login ─────────────────────────────────────────────────────────────────────
 let pinBuffer = '';
+
+// Phone mask: formats input as +7 XXX XXX-XX-XX
+(function() {
+  const inp = document.getElementById('phone-input');
+  inp.addEventListener('input', function() {
+    let digits = this.value.replace(/\D/g, '');
+    if (digits.startsWith('8')) digits = '7' + digits.slice(1);
+    if (!digits.startsWith('7')) digits = '7' + digits;
+    digits = digits.slice(0, 11);
+    const d = digits.slice(1); // after the 7
+    let formatted = '+7';
+    if (d.length > 0) formatted += ' ' + d.slice(0, 3);
+    if (d.length > 3) formatted += ' ' + d.slice(3, 6);
+    if (d.length > 6) formatted += '-' + d.slice(6, 8);
+    if (d.length > 8) formatted += '-' + d.slice(8, 10);
+    this.value = formatted;
+  });
+  inp.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') window.doLogin();
+  });
+})();
 
 window.padPress = function(digit) {
   if (!digit) return;
