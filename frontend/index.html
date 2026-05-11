@@ -238,6 +238,15 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
 /* ── formula fields ── */
 .formula-hint-lbl{font-size:10px;color:var(--text2);font-weight:400;margin-left:4px}
 .formula-result{font-size:12px;color:var(--orange);font-weight:600;min-height:16px;margin-top:3px;padding-left:2px}
+/* ── voice input ── */
+.voice-wrap{position:relative}
+.voice-wrap input,.voice-wrap textarea{padding-right:38px!important}
+.mic-btn{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:none;background:none;font-size:20px;cursor:pointer;line-height:1;padding:4px;color:var(--text2);border-radius:50%;transition:color .2s}
+.voice-wrap textarea~.mic-btn{top:12px;transform:none}
+.mic-btn.listening{color:var(--red);animation:mic-pulse 1s ease-in-out infinite}
+@keyframes mic-pulse{0%,100%{opacity:1;transform:translateY(-50%) scale(1)}50%{opacity:.5;transform:translateY(-50%) scale(1.15)}}
+.voice-wrap textarea~.mic-btn.listening{transform:none;animation:mic-pulse-ta 1s ease-in-out infinite}
+@keyframes mic-pulse-ta{0%,100%{opacity:1}50%{opacity:.5}}
 
 /* ── form / bottom sheet ── */
 .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100}
@@ -504,7 +513,7 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
     <div id="expense-fields">
       <div class="form-group">
         <label>Наименование</label>
-        <input type="text" id="f-name" placeholder="Цемент М500, Плитка, ...">
+        <input type="text" id="f-name" placeholder="Цемент М500, Плитка, ..." data-voice>
       </div>
       <div class="row-2">
         <div class="form-group">
@@ -519,12 +528,12 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
       <div class="row-2">
         <div class="form-group">
           <label>Количество <span class="formula-hint-lbl">= формула</span></label>
-          <input type="text" id="f-qty" value="1" inputmode="decimal" autocomplete="off" placeholder="1 или 2+3" oninput="calcSum()">
+          <input type="text" id="f-qty" value="1" inputmode="decimal" autocomplete="off" placeholder="1 или 2+3" oninput="calcSum()" data-voice="calc">
           <div class="formula-result" id="f-qty-result"></div>
         </div>
         <div class="form-group">
           <label>Цена (₽) <span class="formula-hint-lbl">= формула</span></label>
-          <input type="text" id="f-price" inputmode="decimal" autocomplete="off" placeholder="0 или 1500+200" oninput="calcSum()">
+          <input type="text" id="f-price" inputmode="decimal" autocomplete="off" placeholder="0 или 1500+200" oninput="calcSum()" data-voice="calc">
           <div class="formula-result" id="f-price-result"></div>
         </div>
       </div>
@@ -536,7 +545,7 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
     <div id="master-fields" style="display:none">
       <div class="form-group">
         <label>Имя мастера / получателя</label>
-        <input type="text" id="f-master-name" placeholder="Иван Петров">
+        <input type="text" id="f-master-name" placeholder="Иван Петров" data-voice>
       </div>
       <div class="form-group">
         <label>Сумма (₽)</label>
@@ -546,7 +555,7 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
     <div id="client-fields" style="display:none">
       <div class="form-group">
         <label>Представитель клиента</label>
-        <input type="text" id="f-rep-name" placeholder="Имя представителя">
+        <input type="text" id="f-rep-name" placeholder="Имя представителя" data-voice>
       </div>
       <div class="form-group">
         <label>Сумма платежа (₽)</label>
@@ -555,7 +564,7 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
     </div>
     <div class="form-group">
       <label>Комментарий</label>
-      <textarea id="f-comment" placeholder="Необязательно..."></textarea>
+      <textarea id="f-comment" placeholder="Необязательно..." data-voice></textarea>
     </div>
     <div class="form-group">
       <label>Фотографии (чеки, работы)</label>
@@ -1841,6 +1850,72 @@ window.closeSheet = function() {
   document.getElementById('overlay').classList.remove('open');
   document.querySelectorAll('.sheet').forEach(s => s.classList.remove('open'));
 };
+
+// ── Voice input ───────────────────────────────────────────────────────────────
+(function initVoiceInputs() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return;
+
+  let activeRec = null;
+  let activeBtn = null;
+
+  function stopActive() {
+    if (activeRec) { try { activeRec.stop(); } catch(_) {} activeRec = null; }
+    if (activeBtn) { activeBtn.textContent = '🎤'; activeBtn.classList.remove('listening'); activeBtn = null; }
+  }
+
+  function attachMic(el) {
+    if (el._micAttached) return;
+    el._micAttached = true;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'voice-wrap';
+    el.parentNode.insertBefore(wrap, el);
+    wrap.appendChild(el);
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'mic-btn';
+    btn.title = 'Голосовой ввод';
+    btn.textContent = '🎤';
+    wrap.appendChild(btn);
+
+    btn.addEventListener('click', () => {
+      if (activeRec) { stopActive(); return; }
+
+      const r = new SR();
+      r.lang = 'ru-RU';
+      r.interimResults = false;
+      r.maxAlternatives = 1;
+
+      activeRec = r;
+      activeBtn = btn;
+      btn.textContent = '⏹';
+      btn.classList.add('listening');
+
+      r.onresult = (e) => {
+        const text = e.results[0][0].transcript;
+        el.value = text;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        if (el.dataset.voice === 'calc') calcSum();
+      };
+
+      r.onerror = () => { toast('Ошибка голосового ввода'); stopActive(); };
+      r.onend = () => stopActive();
+
+      try { r.start(); } catch(e) { toast('Не удалось запустить микрофон'); stopActive(); }
+    });
+  }
+
+  function scanAndAttach() {
+    document.querySelectorAll('[data-voice]').forEach(attachMic);
+  }
+
+  document.addEventListener('DOMContentLoaded', scanAndAttach);
+  // Re-scan when sheets open (form may not have been in DOM on first scan)
+  const origOpenSheet = window.openSheet;
+  window.openSheet = function(id) { origOpenSheet(id); scanAndAttach(); };
+})();
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmt(n) {
