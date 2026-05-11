@@ -232,8 +232,15 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
 .rpt-photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:8px 12px}
 .rpt-photo-grid img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px}
 .rpt-analytics-card{background:#fff;border-radius:var(--radius);margin:0 12px 8px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
-.rpt-an-row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px}
+.rpt-an-row{padding:10px 0;border-bottom:1px solid var(--border)}
 .rpt-an-row:last-child{border-bottom:none}
+.rpt-an-header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px}
+.rpt-an-name{font-size:14px;font-weight:600;color:var(--text)}
+.rpt-an-right{text-align:right;flex-shrink:0}
+.rpt-an-amt{font-size:14px;font-weight:700;color:var(--text)}
+.rpt-an-pct{font-size:12px;color:var(--text2);margin-left:6px}
+.rpt-an-bar-wrap{height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin-top:2px}
+.rpt-an-bar{height:100%;border-radius:3px;transition:width .4s ease}
 
 /* ── formula fields ── */
 .formula-hint-lbl{font-size:10px;color:var(--text2);font-weight:400;margin-left:4px}
@@ -1234,16 +1241,62 @@ function renderRptContent() {
 
   if (_rptTab === 'analytics') {
     const expenses = _rptAllRecs.filter(r => r.kind === 'expense');
+
+    // Group by type
     const byType = {};
     for (const r of expenses) {
       const t = r.type || 'Прочее';
       byType[t] = (byType[t] || 0) + parseFloat(r.sum_buy || 0);
     }
-    const total = Object.values(byType).reduce((s,v) => s+v, 0);
-    const rows = Object.entries(byType).sort((a,b) => b[1]-a[1]).map(([t,v]) =>
-      `<div class="rpt-an-row"><span>${esc(t)}</span><span><b>${fmt(v)} ₽</b> <span style="color:var(--text2);font-size:12px">${total>0?Math.round(v/total*100):0}%</span></span></div>`
-    ).join('');
-    el.innerHTML = planHtml + `<div class="rpt-analytics-card"><div class="summary-title">По типам</div>${rows||'<div class="empty" style="padding:12px 0">Нет данных</div>'}</div>`;
+    const totalType = Object.values(byType).reduce((s,v) => s+v, 0);
+    const barColors = ['#e07820','#2196f3','#4caf50','#9c27b0','#f44336','#ff9800','#00bcd4','#795548'];
+    const typeRows = Object.entries(byType).sort((a,b) => b[1]-a[1]).map(([t,v], i) => {
+      const pct = totalType > 0 ? Math.round(v / totalType * 100) : 0;
+      const color = barColors[i % barColors.length];
+      return `<div class="rpt-an-row">
+        <div class="rpt-an-header">
+          <span class="rpt-an-name">${esc(t)}</span>
+          <span class="rpt-an-right">
+            <span class="rpt-an-amt">${fmt(v)} ₽</span>
+            <span class="rpt-an-pct">${pct}%</span>
+          </span>
+        </div>
+        <div class="rpt-an-bar-wrap"><div class="rpt-an-bar" style="width:${pct}%;background:${color}"></div></div>
+      </div>`;
+    }).join('');
+
+    // Group by category
+    const byCategory = {};
+    for (const r of expenses) {
+      const c = r.category || 'Прочее';
+      byCategory[c] = (byCategory[c] || 0) + parseFloat(r.sum_buy || 0);
+    }
+    const totalCat = Object.values(byCategory).reduce((s,v) => s+v, 0);
+    const catRows = Object.entries(byCategory).sort((a,b) => b[1]-a[1]).map(([c,v], i) => {
+      const pct = totalCat > 0 ? Math.round(v / totalCat * 100) : 0;
+      const color = barColors[i % barColors.length];
+      return `<div class="rpt-an-row">
+        <div class="rpt-an-header">
+          <span class="rpt-an-name">${esc(c)}</span>
+          <span class="rpt-an-right">
+            <span class="rpt-an-amt">${fmt(v)} ₽</span>
+            <span class="rpt-an-pct">${pct}%</span>
+          </span>
+        </div>
+        <div class="rpt-an-bar-wrap"><div class="rpt-an-bar" style="width:${pct}%;background:${color}"></div></div>
+      </div>`;
+    }).join('');
+
+    const noData = '<div class="empty" style="padding:12px 0">Нет данных</div>';
+    el.innerHTML = planHtml +
+      `<div class="rpt-analytics-card">
+        <div class="summary-title" style="margin-bottom:4px">По типам</div>
+        ${typeRows || noData}
+      </div>` +
+      `<div class="rpt-analytics-card">
+        <div class="summary-title" style="margin-bottom:4px">По категориям</div>
+        ${catRows || noData}
+      </div>`;
     return;
   }
 
