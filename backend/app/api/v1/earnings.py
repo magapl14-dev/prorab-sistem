@@ -6,7 +6,7 @@ from ...core.database import get_db
 from ...core.deps import current_user
 from ...models.models import User, Project, UserProject
 from ...schemas.schemas import EarningsOut, PlanOut
-from ...services.earnings import calc_project_earnings, calc_plan
+from ...services.earnings import calc_project_earnings, calc_plan, calc_period_stats, calc_monthly_breakdown, calc_chart14
 
 router = APIRouter(tags=["earnings"])
 
@@ -69,6 +69,30 @@ async def all_earnings(
         data = await calc_project_earnings(db, project, user.id)
         results.append(EarningsOut(**data))
     return results
+
+
+@router.get("/projects/{code}/period-stats")
+async def period_stats(code: str, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    if user.role == "client":
+        raise HTTPException(status.HTTP_403_FORBIDDEN)
+    project = await _get_user_project(code, user, db)
+    return await calc_period_stats(db, project, user.id)
+
+
+@router.get("/projects/{code}/monthly")
+async def monthly_breakdown(code: str, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    if user.role == "client":
+        raise HTTPException(status.HTTP_403_FORBIDDEN)
+    project = await _get_user_project(code, user, db)
+    return await calc_monthly_breakdown(db, project, user.id)
+
+
+@router.get("/projects/{code}/chart14")
+async def chart14(code: str, user: User = Depends(current_user), db: AsyncSession = Depends(get_db)):
+    if user.role == "client":
+        raise HTTPException(status.HTTP_403_FORBIDDEN)
+    project = await _get_user_project(code, user, db)
+    return await calc_chart14(db, project, user.id)
 
 
 @router.get("/projects/{code}/plan", response_model=PlanOut)

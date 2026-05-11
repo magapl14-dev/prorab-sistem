@@ -109,16 +109,67 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
 .filter-chip.active{background:var(--orange);color:#fff;border-color:var(--orange)}
 
 /* ── dashboard ── */
-.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:16px}
-.stat-card{background:var(--card);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
-.stat-card.full{grid-column:1/-1}
-.stat-label{font-size:12px;color:var(--text2);margin-bottom:6px}
-.stat-value{font-size:22px;font-weight:700;color:var(--orange)}
-.stat-value.green{color:var(--green)}
-.stat-value.orange{color:var(--orange)}
-.progress-bar{height:8px;background:#f0ebe3;border-radius:4px;margin-top:8px;overflow:hidden}
-.progress-fill{height:100%;background:var(--orange);border-radius:4px;transition:width .3s}
-.progress-fill.over{background:var(--red)}
+.dash-subtabs{display:flex;background:#fff;border-bottom:1px solid var(--border);flex-shrink:0}
+.dash-subtab{flex:1;padding:11px 8px;border:none;background:none;font-size:13px;font-weight:600;cursor:pointer;color:var(--text2);border-bottom:3px solid transparent;transition:all .2s}
+.dash-subtab.active{color:var(--orange);border-bottom-color:var(--orange)}
+.earn-card{background:linear-gradient(135deg,#1a7a4e 0%,#27b571 100%);color:#fff;border-radius:16px;padding:18px;margin:12px 12px 8px}
+.earn-label{font-size:10px;font-weight:700;letter-spacing:.6px;opacity:.75;margin-bottom:2px;text-transform:uppercase}
+.earn-project{font-size:13px;font-weight:600;margin-bottom:10px;opacity:.9}
+.earn-total{font-size:34px;font-weight:800;margin-bottom:10px;line-height:1}
+.earn-badges{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.earn-badge{background:rgba(255,255,255,.2);border-radius:6px;padding:4px 10px;font-size:12px;font-weight:600;white-space:nowrap}
+.earn-badge.blue{background:rgba(60,100,220,.35)}
+.earn-formula{font-size:11px;opacity:.65}
+.dash-card{background:#fff;border-radius:var(--radius);margin:0 12px 8px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.dash-card-title{font-size:10px;font-weight:700;letter-spacing:.5px;color:var(--text2);display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;text-transform:uppercase}
+.dash-warn{background:#fff8e1;color:#e65100;border-radius:6px;padding:2px 8px;font-size:10px;font-weight:700}
+.dash-amount-lg{font-size:26px;font-weight:800;color:var(--orange)}
+.dash-amount-sub{font-size:13px;color:var(--text2);font-weight:400;margin-left:4px}
+.dash-progress{height:6px;background:#f0ebe3;border-radius:3px;margin:8px 0 4px;overflow:hidden}
+.dash-progress-fill{height:100%;background:var(--orange);border-radius:3px}
+.dash-progress-fill.over{background:var(--red)}
+.dash-info{font-size:12px;color:var(--text2);margin-top:6px;line-height:1.9}
+.dash-info b{color:var(--text);font-weight:600}
+.period-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 12px 8px}
+.period-card{background:#fff;border-radius:var(--radius);padding:10px 8px;box-shadow:0 1px 3px rgba(0,0,0,.07);text-align:center}
+.period-label{font-size:9px;color:var(--text2);font-weight:700;letter-spacing:.4px;text-transform:uppercase;margin-bottom:4px}
+.period-total{font-size:15px;font-weight:800;color:var(--orange);margin-bottom:3px}
+.period-detail{font-size:10px;color:var(--text2);line-height:1.7;text-align:left}
+.metric-2{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 12px 8px}
+.metric-card{background:#fff;border-radius:var(--radius);padding:12px;box-shadow:0 1px 3px rgba(0,0,0,.07);text-align:center}
+.metric-label{font-size:9px;color:var(--text2);font-weight:700;letter-spacing:.4px;text-transform:uppercase;margin-bottom:6px}
+.metric-value{font-size:22px;font-weight:800;color:var(--text)}
+.metric-card.green-b{border:1.5px solid #c8e6c9}
+.metric-card.red-b{border:1.5px solid #ffcdd2}.metric-card.red-b .metric-value{color:var(--red)}
+.metric-card.blue-full{background:#ede7f6;border:1.5px solid #d1c4e9;grid-column:1/-1}
+.metric-card.blue-full .metric-value{color:#5e35b1;font-size:26px}
+.metric-card.lilac{background:#f3e5f5;border:1.5px solid #e1bee7}
+.metric-card.lilac .metric-value{color:#7b1fa2}
+.bar-section{background:#fff;border-radius:var(--radius);margin:0 12px 8px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.bar-title{font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text);margin-bottom:12px}
+.bar-wrap{display:flex;align-items:flex-end;gap:2px;height:56px}
+.bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px}
+.bar-fill{width:100%;border-radius:2px 2px 0 0;min-height:2px}
+.bar-fill.green{background:#27b571}
+.bar-fill.orange{background:var(--orange)}
+.bar-date{font-size:7.5px;color:var(--text2);white-space:nowrap}
+.summary-card{background:#fff;border-radius:var(--radius);margin:0 12px 8px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.summary-title{font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--text);margin-bottom:10px}
+.summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.summary-cell{background:#f8f4ef;border-radius:8px;padding:10px 12px}
+.summary-cell-label{font-size:9px;color:var(--text2);font-weight:700;letter-spacing:.3px;text-transform:uppercase;margin-bottom:4px}
+.summary-cell-value{font-size:18px;font-weight:800;color:var(--text)}
+.monthly-item{padding:12px 0;border-bottom:1px solid var(--border)}
+.monthly-item:last-child{border-bottom:none}
+.monthly-top{display:flex;justify-content:space-between;align-items:center}
+.monthly-name{font-size:14px;font-weight:700}
+.monthly-total{font-size:14px;font-weight:700;color:var(--green)}
+.monthly-sub{font-size:11px;color:var(--text2);margin:3px 0 6px}
+.monthly-badges{display:flex;gap:6px;flex-wrap:wrap}
+.mbadge{background:#f0ebe3;border-radius:6px;padding:3px 8px;font-size:11px;color:var(--text2)}
+.mbadge.g{color:var(--green);background:#e8f5e9}
+.mbadge.b{color:#5e35b1;background:#ede7f6}
+.dash-notice{background:#fff8e1;border-radius:var(--radius);margin:0 12px 16px;padding:12px 14px;font-size:12px;color:#7a5c00;line-height:1.6}
 
 /* ── form / bottom sheet ── */
 .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100}
@@ -277,10 +328,12 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
 
     <!-- DASHBOARD TAB -->
     <div class="tab" id="tab-dashboard">
-      <div class="content">
-        <div class="stats-grid" id="stats-grid">
-          <div class="loader"><div class="spinner"></div></div>
-        </div>
+      <div class="dash-subtabs">
+        <button class="dash-subtab active" id="dsubtab-current" onclick="switchDashTab('current')">🏗️ Текущий проект</button>
+        <button class="dash-subtab" id="dsubtab-all" onclick="switchDashTab('all')">⊞ Все проекты</button>
+      </div>
+      <div class="content" id="dash-content">
+        <div class="loader"><div class="spinner"></div></div>
       </div>
     </div>
 
@@ -808,54 +861,233 @@ window.onPhotoSelected = async function(e) {
 };
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
+let _dashTab = 'current';
+window.switchDashTab = function(tab) {
+  _dashTab = tab;
+  document.getElementById('dsubtab-current').classList.toggle('active', tab === 'current');
+  document.getElementById('dsubtab-all').classList.toggle('active', tab === 'all');
+  loadDashboard();
+};
+
+const MONTHS_RU = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+function monthName(ym) {
+  const [y, m] = ym.split('-');
+  return MONTHS_RU[parseInt(m) - 1] + ' ' + y;
+}
+
 async function loadDashboard() {
   if (!currentProject) return;
-  const grid = document.getElementById('stats-grid');
-  grid.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+  const el = document.getElementById('dash-content');
+  el.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+
+  if (_dashTab === 'all') {
+    try {
+      const all = await Earnings.all().catch(() => []);
+      if (!all.length) { el.innerHTML = '<div class="empty"><div class="icon">📊</div>Нет данных по проектам</div>'; return; }
+      let html = '';
+      for (const e of all) {
+        html += `<div class="dash-card">
+          <div class="dash-card-title">${esc(e.project_name)}</div>
+          <div class="earn-total" style="font-size:22px;color:var(--green)">${fmt(e.total)} ₽</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:6px">
+            Комиссия: ${fmt(e.commission)} ₽ &nbsp;·&nbsp; Рантье: ${fmt(e.rentier_foreman)} ₽
+          </div>
+        </div>`;
+      }
+      el.innerHTML = html;
+    } catch(_) { el.innerHTML = '<div class="empty">Ошибка загрузки</div>'; }
+    return;
+  }
+
   try {
-    const [plan, earnings] = await Promise.all([
-      Earnings.plan(currentProject.code).catch(() => null),
-      _user.role !== 'client' ? Earnings.project(currentProject.code).catch(() => null) : Promise.resolve(null),
+    const code = currentProject.code;
+    const [earnings, plan, ps, monthly, chart] = await Promise.all([
+      Earnings.project(code).catch(() => null),
+      Earnings.plan(code).catch(() => null),
+      Earnings.periodStats(code).catch(() => null),
+      Earnings.monthly(code).catch(() => []),
+      Earnings.chart14(code).catch(() => []),
     ]);
 
     let html = '';
-    if (plan) {
-      const pct = Math.min(parseFloat(plan.progress_total_pct), 100);
-      const pctM = Math.min(parseFloat(plan.progress_monthly_pct), 100);
-      html += `
-        <div class="stat-card full">
-          <div class="stat-label">Потрачено всего</div>
-          <div class="stat-value">${fmt(plan.spent_total)} ₽</div>
-          <div style="font-size:12px;color:var(--text2);margin-top:4px">план: ${fmt(plan.plan_total)} ₽</div>
-          <div class="progress-bar"><div class="progress-fill ${pct >= 100 ? 'over' : ''}" style="width:${pct}%"></div></div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">В этом месяце</div>
-          <div class="stat-value orange">${fmt(plan.spent_monthly)} ₽</div>
-          <div style="font-size:12px;color:var(--text2);margin-top:4px">план: ${fmt(plan.plan_monthly)} ₽</div>
-          <div class="progress-bar"><div class="progress-fill ${pctM >= 100 ? 'over' : ''}" style="width:${pctM}%"></div></div>
-        </div>
-      `;
-    }
+
+    // ── Earnings card
     if (earnings) {
-      html += `
-        <div class="stat-card">
-          <div class="stat-label">Моя комиссия</div>
-          <div class="stat-value green">${fmt(earnings.commission)} ₽</div>
+      const total = parseFloat(earnings.total);
+      const fix = parseFloat(earnings.fixed_monthly);
+      const com = parseFloat(earnings.commission);
+      const rent = parseFloat(earnings.rentier_foreman);
+      const buy = parseFloat(earnings.total_expenses);
+      const rate = ps ? ps.rate_pct : '';
+      const eff = ps ? ps.efficiency_pct : '';
+      html += `<div class="earn-card">
+        <div class="earn-label">💰 Мой заработок по проекту</div>
+        <div class="earn-project">${esc(earnings.project_name)}</div>
+        <div class="earn-total">${fmt(total)} ₽</div>
+        <div class="earn-badges">
+          ${fix > 0 ? `<span class="earn-badge">Фикс: ${fmt(fix)} ₽</span>` : ''}
+          ${com > 0 ? `<span class="earn-badge">Премия: ${fmt(com)} ₽</span>` : ''}
+          ${rent > 0 ? `<span class="earn-badge blue">🔵 Раньте: ${fmt(rent)} ₽</span>` : ''}
         </div>
-        <div class="stat-card">
-          <div class="stat-label">Рантье (моя доля)</div>
-          <div class="stat-value green">${fmt(earnings.rentier_foreman)} ₽</div>
-        </div>
-        <div class="stat-card full">
-          <div class="stat-label">Итого заработок</div>
-          <div class="stat-value green">${fmt(earnings.total)} ₽</div>
-        </div>
-      `;
+        ${rate ? `<div class="earn-formula">Фикс ${fmt(fix)} ₽/мес + ${fmt(buy)} ₽ × ${rate}% × ${eff}%</div>` : ''}
+      </div>`;
     }
-    grid.innerHTML = html || '<div class="empty">Нет данных</div>';
-  } catch (_) {
-    grid.innerHTML = '<div class="empty">Ошибка загрузки</div>';
+
+    // ── Plan month card
+    if (plan) {
+      const today = new Date();
+      const monthNames = ['январь','февраль','март','апрель','май','июнь','июль','август','сентябрь','октябрь','ноябрь','декабрь'];
+      const mname = monthNames[today.getMonth()];
+      const daysInMonth = new Date(today.getFullYear(), today.getMonth()+1, 0).getDate();
+      let workDays = 0, workLeft = 0;
+      for (let d = 1; d <= daysInMonth; d++) {
+        if (new Date(today.getFullYear(), today.getMonth(), d).getDay() % 6 !== 0) workDays++;
+      }
+      for (let d = today.getDate()+1; d <= daysInMonth; d++) {
+        if (new Date(today.getFullYear(), today.getMonth(), d).getDay() % 6 !== 0) workLeft++;
+      }
+      const workPassed = workDays - workLeft;
+      const pctM = Math.min(parseFloat(plan.progress_monthly_pct), 100);
+      const pctT = Math.min(parseFloat(plan.progress_total_pct), 100);
+      const spentM = parseFloat(plan.spent_monthly);
+      const planM = parseFloat(plan.plan_monthly);
+      const dailyFact = workPassed > 0 ? spentM / workPassed : 0;
+      const needed = workLeft > 0 ? (planM - spentM) / workLeft : 0;
+      const behind = spentM < planM * (workPassed / workDays) * 0.9;
+
+      html += `<div class="dash-card">
+        <div class="dash-card-title">
+          <span>📅 ПЛАН НА ${mname.toUpperCase()}</span>
+          ${behind ? '<span class="dash-warn">⚠️ Отстаём</span>' : '<span class="dash-warn" style="background:#e8f5e9;color:#2e7d32">✓ В темпе</span>'}
+        </div>
+        <div><span class="dash-amount-lg">${fmt(spentM)} ₽</span><span class="dash-amount-sub">из ${fmt(planM)} ₽</span></div>
+        <div class="dash-progress"><div class="dash-progress-fill ${pctM>=100?'over':''}" style="width:${pctM}%"></div></div>
+        <div style="text-align:right;font-size:11px;color:var(--text2)">${Math.round(pctM)}%</div>
+        <div class="dash-info">
+          Темп факт: <b>${fmt(dailyFact)} ₽/день</b><br>
+          ${behind && needed > 0 ? `⚠️ Чтобы успеть, нужно <b>${fmt(needed)} ₽/день</b><br>` : ''}
+          Прошло ${workPassed} из ${workDays} раб. дней · осталось ${workLeft}
+        </div>
+      </div>`;
+
+      html += `<div class="dash-card">
+        <div class="dash-card-title"><span>🔄 ОБЩИЙ ПЛАН ПРОЕКТА</span><span style="font-weight:700;color:var(--orange)">${Math.round(pctT)}%</span></div>
+        <div style="font-size:13px;color:var(--text2)">${fmt(plan.spent_total)} / ${fmt(plan.plan_total)} ₽ · осталось ${fmt(parseFloat(plan.plan_total)-parseFloat(plan.spent_total))}</div>
+        <div class="dash-progress" style="margin-top:8px"><div class="dash-progress-fill ${pctT>=100?'over':''}" style="width:${pctT}%"></div></div>
+      </div>`;
+    }
+
+    // ── Period stats
+    if (ps) {
+      const periods = [
+        { label: 'СЕГОДНЯ', d: ps.today },
+        { label: 'НЕДЕЛЯ',  d: ps.week },
+        { label: 'ЭТОТ МЕСЯЦ', d: ps.month },
+      ];
+      html += '<div class="period-grid">';
+      for (const { label, d } of periods) {
+        const total = d.fixed + d.commission + d.rentier;
+        html += `<div class="period-card">
+          <div class="period-label">${label}</div>
+          <div class="period-total">${fmt(total)} ₽</div>
+          <div class="period-detail">
+            ${d.fixed > 0 ? `Фикс ${fmt(d.fixed)}<br>` : ''}
+            ${d.commission > 0 ? `+${fmt(d.commission)}<br>` : ''}
+            ${d.rentier > 0 ? `🔵 ${fmt(d.rentier)}` : ''}
+            ${d.fixed===0&&d.commission===0&&d.rentier===0 ? '—' : ''}
+          </div>
+        </div>`;
+      }
+      html += '</div>';
+
+      // ── Metrics
+      html += `<div class="metric-2">
+        <div class="metric-card green-b">
+          <div class="metric-label">Ставка от закупа</div>
+          <div class="metric-value">${ps.rate_pct}%</div>
+        </div>
+        <div class="metric-card red-b">
+          <div class="metric-label">Эффективность</div>
+          <div class="metric-value" style="color:var(--red)">${ps.efficiency_pct}%</div>
+        </div>
+        ${ps.fixed_monthly > 0 ? `
+        <div class="metric-card blue-full">
+          <div class="metric-label">Фикс / месяц</div>
+          <div class="metric-value">${fmt(ps.fixed_monthly)} ₽</div>
+        </div>` : ''}
+        ${earnings && parseFloat(earnings.rentier_gross) > 0 ? `
+        <div class="metric-card lilac">
+          <div class="metric-label">Доля от раньте</div>
+          <div class="metric-value">${ps.rentier_share_pct}%</div>
+        </div>
+        <div class="metric-card lilac">
+          <div class="metric-label">Раньте брутто</div>
+          <div class="metric-value">${fmt(earnings.rentier_gross)} ₽</div>
+        </div>` : ''}
+      </div>`;
+    }
+
+    // ── Bar chart
+    if (chart && chart.length) {
+      const maxVal = Math.max(...chart.map(c => c.amount), 1);
+      const today = new Date().toISOString().slice(0,10);
+      html += `<div class="bar-section">
+        <div class="bar-title">Последние 14 дней</div>
+        <div class="bar-wrap">`;
+      for (const c of chart) {
+        const h = Math.round((c.amount / maxVal) * 52);
+        const isToday = c.date === today;
+        const label = c.date.slice(5).replace('-', '.');
+        html += `<div class="bar-col">
+          <div class="bar-fill ${isToday ? 'orange' : 'green'}" style="height:${Math.max(h,2)}px"></div>
+          <div class="bar-date" style="${isToday?'color:var(--orange);font-weight:700':''}">${label}</div>
+        </div>`;
+      }
+      html += '</div></div>';
+    }
+
+    // ── Summary
+    if (plan) {
+      const buy = parseFloat(plan.spent_total);
+      const mCount = monthly.length;
+      const avgMonth = mCount > 0 ? (earnings ? parseFloat(earnings.total) / mCount : 0) : 0;
+      html += `<div class="summary-card">
+        <div class="summary-title">Сводка</div>
+        <div class="summary-grid">
+          <div class="summary-cell"><div class="summary-cell-label">Оборот закупа</div><div class="summary-cell-value" style="font-size:15px">${fmt(buy)} ₽</div></div>
+          <div class="summary-cell"><div class="summary-cell-label">Записей</div><div class="summary-cell-value">${monthly.reduce((s,m)=>s+m.count,0)}</div></div>
+          <div class="summary-cell"><div class="summary-cell-label">Месяцев работы</div><div class="summary-cell-value">${mCount}</div></div>
+          <div class="summary-cell"><div class="summary-cell-label">В среднем/месяц</div><div class="summary-cell-value" style="font-size:15px">${fmt(avgMonth)} ₽</div></div>
+        </div>
+      </div>`;
+    }
+
+    // ── Monthly breakdown
+    if (monthly.length) {
+      let mhtml = '';
+      for (const m of monthly) {
+        mhtml += `<div class="monthly-item">
+          <div class="monthly-top">
+            <span class="monthly-name">${monthName(m.month)}</span>
+            <span class="monthly-total">${fmt(m.total)} ₽</span>
+          </div>
+          <div class="monthly-sub">Оборот ${fmt(m.buy)} ₽ · ${m.count} записей</div>
+          <div class="monthly-badges">
+            ${m.fixed > 0 ? `<span class="mbadge">фикс ${fmt(m.fixed)} ₽</span>` : ''}
+            ${m.commission > 0 ? `<span class="mbadge g">+ премия ${fmt(m.commission)} ₽</span>` : ''}
+            ${m.rentier > 0 ? `<span class="mbadge b">+ раньте ${fmt(m.rentier)} ₽</span>` : ''}
+          </div>
+        </div>`;
+      }
+      html += `<div class="dash-card"><div class="summary-title">По месяцам</div>${mhtml}</div>`;
+    }
+
+    html += `<div class="dash-notice">ℹ️ Только ваш персональный заработок по этому проекту. Другие прорабы вас не видят. Ставку и эффективность настраивает администратор.</div>`;
+
+    el.innerHTML = html || '<div class="empty">Нет данных</div>';
+  } catch(e) {
+    console.error(e);
+    el.innerHTML = '<div class="empty">Ошибка загрузки</div>';
   }
 }
 

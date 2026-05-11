@@ -74,6 +74,9 @@ export const Earnings = {
   project: (code) => _get(`/projects/${code}/earnings`),
   all: () => _get("/earnings/all"),
   plan: (code) => _get(`/projects/${code}/plan`),
+  periodStats: (code) => _get(`/projects/${code}/period-stats`),
+  monthly: (code) => _get(`/projects/${code}/monthly`),
+  chart14: (code) => _get(`/projects/${code}/chart14`),
 };
 
 export const Admin = {
