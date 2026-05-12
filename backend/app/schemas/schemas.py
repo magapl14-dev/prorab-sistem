@@ -138,6 +138,7 @@ class RecordCreate(BaseModel):
     client_rep_name: Optional[str] = None
     payment_amount: Optional[Decimal] = None
     payment_date: Optional[date] = None
+    is_advance: bool = False
     photo_ids: List[UUID] = []
 
 
@@ -153,6 +154,7 @@ class RecordUpdate(BaseModel):
     client_rep_name: Optional[str] = None
     payment_amount: Optional[Decimal] = None
     payment_date: Optional[date] = None
+    is_advance: Optional[bool] = None
 
 
 class AuthorBrief(BaseModel):
@@ -193,6 +195,7 @@ class RecordOut(BaseModel):
     client_rep_name: Optional[str] = None
     payment_amount: Optional[Decimal] = None
     payment_date: Optional[date] = None
+    is_advance: bool = False
     author: Optional[AuthorBrief] = None
     photos: List[PhotoOut] = []
     created_at: datetime

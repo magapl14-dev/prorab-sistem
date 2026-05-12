@@ -56,7 +56,7 @@ def _sync_sync(project, records: list) -> dict:
     headers = [
         "Дата", "Вид", "Наименование", "Тип", "Категория", "Касса",
         "Кол-во", "Цена (₽)", "Сумма закупки (₽)", "Сумма с наценкой (₽)",
-        "Комиссия прораба (₽)", "Сумма платежа (₽)", "Представитель клиента",
+        "Комиссия прораба (₽)", "Сумма платежа (₽)", "Аванс?", "Представитель клиента",
         "Автор", "Комментарий",
     ]
 
@@ -75,6 +75,7 @@ def _sync_sync(project, records: list) -> dict:
             float(r.sum_sell or 0),
             float(r.commission or 0),
             float(r.payment_amount or 0),
+            "Да" if (r.kind == "client_payment" and getattr(r, "is_advance", False)) else "",
             r.client_rep_name or "",
             r.author.name if r.author else "",
             r.comment or "",
@@ -85,7 +86,7 @@ def _sync_sync(project, records: list) -> dict:
 
     # Bold header row
     try:
-        ws.format("A1:O1", {"textFormat": {"bold": True}, "backgroundColor": {"red": 0.95, "green": 0.88, "blue": 0.76}})
+        ws.format("A1:P1", {"textFormat": {"bold": True}, "backgroundColor": {"red": 0.95, "green": 0.88, "blue": 0.76}})
     except Exception:
         pass
 

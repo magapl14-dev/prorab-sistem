@@ -1,4 +1,4 @@
-const CACHE = "welldom-v1";
+const CACHE = "welldom-v2";
 const STATIC = ["/", "/index.html", "/api.js", "/manifest.json"];
 
 self.addEventListener("install", e => {
@@ -14,8 +14,28 @@ self.addEventListener("activate", e => {
 });
 
 self.addEventListener("fetch", e => {
-  if (e.request.url.includes("/api/")) return;
+  const req = e.request;
+  if (req.method !== "GET") return;
+  if (req.url.includes("/api/")) return;
+
+  // Network-first for HTML (so updates are picked up), cache fallback for offline
+  if (req.mode === "navigate" || req.destination === "document") {
+    e.respondWith(
+      fetch(req).then(r => {
+        const copy = r.clone();
+        caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {});
+        return r;
+      }).catch(() => caches.match(req).then(r => r || caches.match("/index.html")))
+    );
+    return;
+  }
+
+  // Cache-first for static assets
   e.respondWith(
-    fetch(e.request).catch(() => caches.match(e.request))
+    caches.match(req).then(cached => cached || fetch(req).then(r => {
+      const copy = r.clone();
+      caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {});
+      return r;
+    }).catch(() => cached))
   );
 });

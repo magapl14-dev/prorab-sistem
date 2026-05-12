@@ -63,7 +63,7 @@ def _record_out(r: Record) -> RecordOut:
         markup_pct_snapshot=r.markup_pct_snapshot, sum_sell=r.sum_sell,
         commission=r.commission, rentier_gross=r.rentier_gross,
         client_rep_name=r.client_rep_name, payment_amount=r.payment_amount,
-        payment_date=r.payment_date,
+        payment_date=r.payment_date, is_advance=bool(r.is_advance),
         author=r.author, photos=photos, created_at=r.created_at,
     )
 

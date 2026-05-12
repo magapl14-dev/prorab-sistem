@@ -15,9 +15,40 @@
   --green:#2e7d32;--red:#c62828;
   --orange:#e07820;--orange-dark:#c86418;--orange-light:#f5a04a;
   --bg:#f5f0ea;--card:#fff;--text:#2c2416;--text2:#7a6a55;--border:#e0d5c8;
+  --input-bg:#fff;--chip-bg:#f0ebe3;--icon-bg:#f5f0ea;--tag-bg:#fff3e0;
   --shadow:0 2px 8px rgba(0,0,0,.10);
   --radius:12px;--h:56px;
 }
+[data-theme="dark"]{
+  --bg:#0f1419;--card:#1a2027;--text:#e8e3da;--text2:#8a9099;--border:#2a3340;
+  --input-bg:#1a2027;--chip-bg:#222b35;--icon-bg:#222b35;--tag-bg:#3a2818;
+  --shadow:0 2px 8px rgba(0,0,0,.45);
+}
+[data-theme="dark"] .top-bar,
+[data-theme="dark"] .login-card,
+[data-theme="dark"] .numpad button,
+[data-theme="dark"] .pin-dot,
+[data-theme="dark"] .btn-secondary,
+[data-theme="dark"] .bottom-nav,
+[data-theme="dark"] .filter-chip,
+[data-theme="dark"] .dash-subtabs,
+[data-theme="dark"] .dash-card,
+[data-theme="dark"] .period-card,
+[data-theme="dark"] .metric-card,
+[data-theme="dark"] .bar-section,
+[data-theme="dark"] .summary-card,
+[data-theme="dark"] .modal,
+[data-theme="dark"] .admin-item-actions button,
+[data-theme="dark"] .rpt-summary,
+[data-theme="dark"] .rpt-price,
+[data-theme="dark"] .rpt-subtabs,
+[data-theme="dark"] .rpt-filters,
+[data-theme="dark"] .rpt-chip{background:var(--card)}
+[data-theme="dark"] .badge-foreman,[data-theme="dark"] .tag-expense{background:var(--tag-bg)}
+[data-theme="dark"] .tag,[data-theme="dark"] .mbadge,[data-theme="dark"] .dash-progress{background:var(--chip-bg)}
+[data-theme="dark"] .icon-btn,[data-theme="dark"] .modal-close{background:var(--icon-bg)}
+[data-theme="dark"] input,[data-theme="dark"] textarea,[data-theme="dark"] select{background:var(--input-bg);color:var(--text);border-color:var(--border)}
+[data-theme="dark"] .dash-warn,[data-theme="dark"] .dash-notice{background:#2a2208;color:#ffb74d}
 html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);font-size:16px}
 #app{height:100%;display:flex;flex-direction:column;max-width:480px;margin:0 auto;position:relative}
 
@@ -425,7 +456,7 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
     <div class="tab" id="tab-report">
       <div class="rpt-summary" id="rpt-summary">
         <div class="rpt-sum"><div class="rpt-sum-val" id="rpt-expense">—</div><div class="rpt-sum-lbl">Расход</div></div>
-        <div class="rpt-sum"><div class="rpt-sum-val green" id="rpt-income">—</div><div class="rpt-sum-lbl">Оплаты</div></div>
+        <div class="rpt-sum"><div class="rpt-sum-val green" id="rpt-income">—</div><div class="rpt-sum-lbl" id="rpt-income-lbl">Оплаты</div></div>
         <div class="rpt-sum"><div class="rpt-sum-val" id="rpt-balance">—</div><div class="rpt-sum-lbl">Баланс</div></div>
       </div>
       <div class="rpt-price" id="rpt-price-card" style="display:none">
@@ -466,6 +497,7 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
       <div class="content">
         <div class="profile-section" id="profile-info"></div>
         <div style="padding:0 16px 16px">
+          <button class="btn btn-secondary" onclick="toggleTheme()" id="theme-btn" style="margin-bottom:10px">🌙 Тёмная тема</button>
           <button class="btn btn-secondary" onclick="showChangePinForm()">Изменить PIN</button>
           <button class="btn btn-danger" style="margin-top:10px" onclick="doLogout()">Выйти из системы</button>
         </div>
@@ -513,6 +545,7 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
   <div class="sheet-handle"></div>
   <div class="sheet-title" id="sheet-title">Добавить расход</div>
   <div class="form-body">
+    <button type="button" id="voice-form-btn" onclick="startVoiceForm()" style="width:100%;padding:12px;background:var(--orange-light);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;margin-bottom:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">🎙 Сказать всё голосом</button>
     <div id="form-kind-tabs" class="type-tabs"></div>
     <div class="form-group">
       <label>Дата</label>
@@ -573,6 +606,10 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
         <label>Сумма платежа (₽)</label>
         <input type="number" id="f-client-amount" min="0" step="any" placeholder="0">
       </div>
+      <div class="form-group" style="display:flex;align-items:center;gap:10px;background:var(--tag-bg);padding:10px 12px;border-radius:8px">
+        <input type="checkbox" id="f-is-advance" style="width:20px;height:20px;cursor:pointer;flex-shrink:0">
+        <label for="f-is-advance" style="cursor:pointer;font-size:14px;margin:0">💰 Это аванс (не оплата за работу)</label>
+      </div>
     </div>
     <div class="form-group">
       <label>Комментарий</label>
@@ -599,6 +636,11 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
 
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
+
+<!-- OFFLINE INDICATOR -->
+<div id="offline-bar" style="display:none;position:fixed;top:0;left:50%;transform:translateX(-50%);max-width:480px;width:100%;background:#d32f2f;color:#fff;padding:6px 12px;text-align:center;font-size:12px;font-weight:600;z-index:1000">
+  📡 Нет связи — записи сохраняются локально (<span id="queue-count">0</span>)
+</div>
 
 <!-- LIGHTBOX -->
 <div id="lightbox" onclick="closeLightbox()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:999;align-items:center;justify-content:center;cursor:zoom-out">
@@ -628,9 +670,64 @@ let pendingPhotoIds = [];
 let dictionaries = { type: [], category: [] };
 let activeFilter = null;
 
+// ── Offline queue ────────────────────────────────────────────────────────────
+const OfflineQueue = {
+  KEY: 'offline_records_queue',
+  get list() { return JSON.parse(localStorage.getItem(this.KEY) || '[]'); },
+  set list(v) { localStorage.setItem(this.KEY, JSON.stringify(v)); },
+  add(projectCode, data) {
+    const q = this.list;
+    q.push({ id: 'tmp-' + Date.now() + '-' + Math.random().toString(36).slice(2,7), projectCode, data, queuedAt: Date.now() });
+    this.list = q;
+    this.updateUI();
+  },
+  remove(id) {
+    this.list = this.list.filter(x => x.id !== id);
+    this.updateUI();
+  },
+  updateUI() {
+    const n = this.list.length;
+    const el = document.getElementById('queue-count');
+    if (el) el.textContent = n;
+  },
+  async flush() {
+    const q = this.list;
+    if (!q.length) return;
+    let ok = 0, fail = 0;
+    for (const item of q) {
+      try {
+        await Records.create(item.projectCode, item.data);
+        this.remove(item.id);
+        ok++;
+      } catch(e) {
+        fail++;
+        break;
+      }
+    }
+    if (ok) toast(`Синхронизировано ${ok} записей${fail ? ', осталось ' + fail : ''}`);
+    if (typeof loadTab === 'function' && currentKind) loadTab(currentKind);
+  },
+};
+
+function updateOnlineStatus() {
+  const bar = document.getElementById('offline-bar');
+  if (!bar) return;
+  if (navigator.onLine) {
+    bar.style.display = 'none';
+    OfflineQueue.flush();
+  } else {
+    bar.style.display = 'block';
+    OfflineQueue.updateUI();
+  }
+}
+window.addEventListener('online', updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+
 // ── Boot ─────────────────────────────────────────────────────────────────────
 (async function boot() {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
+  updateOnlineStatus();
+  if (OfflineQueue.list.length && navigator.onLine) setTimeout(() => OfflineQueue.flush(), 2000);
   if (Auth.isLoggedIn) {
     try {
       const user = await Auth.me();
@@ -720,6 +817,21 @@ window.doLogin = async function() {
 function setLoginError(msg) {
   document.getElementById('login-error').textContent = msg;
 }
+
+window.toggleTheme = function() {
+  const cur = document.documentElement.getAttribute('data-theme');
+  const next = cur === 'dark' ? 'light' : 'dark';
+  if (next === 'dark') document.documentElement.setAttribute('data-theme','dark');
+  else document.documentElement.removeAttribute('data-theme');
+  localStorage.setItem('theme', next);
+  const btn = document.getElementById('theme-btn');
+  if (btn) btn.textContent = next === 'dark' ? '☀️ Светлая тема' : '🌙 Тёмная тема';
+};
+
+(function applyTheme(){
+  const t = localStorage.getItem('theme');
+  if (t === 'dark') document.documentElement.setAttribute('data-theme','dark');
+})();
 
 window.doLogout = async function() {
   await Auth.logout();
@@ -826,6 +938,7 @@ function renderRecords(el, items, kind) {
         </div>
         <div class="record-meta">
           <span>${formatDate(r.operation_date)}</span>
+          ${r.is_advance ? `<span class="tag" style="background:#fff3e0;color:var(--orange);font-weight:600">💰 Аванс</span>` : ''}
           ${r.type ? `<span class="tag ${tagClass}">${esc(r.type)}</span>` : ''}
           ${r.category ? `<span class="tag">${esc(r.category)}</span>` : ''}
           ${r.author ? `<span>${esc(r.author.name)}</span>` : ''}
@@ -863,6 +976,7 @@ window.openDetail = async function(id) {
       r.sum_sell && ['Сумма с наценкой', `${fmt(r.sum_sell)} ₽`],
       r.commission && ['Комиссия прораба', `${fmt(r.commission)} ₽`],
       r.payment_amount && ['Сумма платежа', `${fmt(r.payment_amount)} ₽`],
+      r.kind === 'client_payment' && ['Тип платежа', r.is_advance ? '💰 Аванс' : '✅ Оплата за работу'],
       r.client_rep_name && ['Представитель', r.client_rep_name],
       r.comment && ['Комментарий', r.comment],
       r.author && ['Автор', r.author.name],
@@ -951,6 +1065,7 @@ window.openAddForm = function(kind) {
   document.getElementById('f-payment-amount').value = '';
   document.getElementById('f-rep-name').value = '';
   document.getElementById('f-client-amount').value = '';
+  document.getElementById('f-is-advance').checked = false;
   document.getElementById('calc-sum-value').textContent = '0 ₽';
 
   document.getElementById('expense-fields').style.display = kind === 'expense' ? '' : 'none';
@@ -1024,12 +1139,23 @@ window.saveRecord = async function() {
       data.client_rep_name = document.getElementById('f-rep-name').value || undefined;
       const amt = document.getElementById('f-client-amount').value;
       if (amt) data.payment_amount = parseFloat(amt);
+      data.is_advance = document.getElementById('f-is-advance').checked;
     }
 
-    await Records.create(currentProject.code, data);
-    closeSheet();
-    toast('Запись добавлена');
-    loadTab(currentKind);
+    try {
+      await Records.create(currentProject.code, data);
+      closeSheet();
+      toast('Запись добавлена');
+      loadTab(currentKind);
+    } catch (netErr) {
+      if (!navigator.onLine || (netErr && /Failed to fetch|NetworkError|net::/i.test(String(netErr.message || netErr)))) {
+        OfflineQueue.add(currentProject.code, data);
+        closeSheet();
+        toast('Сохранено локально, отправится при появлении связи');
+      } else {
+        throw netErr;
+      }
+    }
   } catch (e) {
     const msg = e?.detail || e?.message || 'Ошибка сохранения';
     document.getElementById('form-error').textContent = typeof msg === 'string' ? msg : JSON.stringify(msg);
@@ -1141,14 +1267,24 @@ async function loadReport() {
     // Summary numbers
     const expenses = _rptAllRecs.filter(r => r.kind === 'expense');
     const clientPays = _rptAllRecs.filter(r => r.kind === 'client_payment');
+    const advances = clientPays.filter(r => r.is_advance);
+    const realPayments = clientPays.filter(r => !r.is_advance);
     const totalExpense = expenses.reduce((s,r) => s + parseFloat(r.sum_buy||0), 0);
-    const totalIncome = clientPays.reduce((s,r) => s + parseFloat(r.payment_amount||0), 0);
+    const totalAdvances = advances.reduce((s,r) => s + parseFloat(r.payment_amount||0), 0);
+    const totalRealPayments = realPayments.reduce((s,r) => s + parseFloat(r.payment_amount||0), 0);
+    const totalIncome = totalAdvances + totalRealPayments;
     const balance = totalIncome - totalExpense;
     const totalSell = expenses.reduce((s,r) => s + parseFloat(r.sum_sell||0), 0);
     const markup = totalSell - totalExpense;
 
     document.getElementById('rpt-expense').textContent = fmt(totalExpense) + ' ₽';
     document.getElementById('rpt-income').textContent = fmt(totalIncome) + ' ₽';
+    const incLbl = document.getElementById('rpt-income-lbl');
+    if (incLbl && totalAdvances > 0) {
+      incLbl.innerHTML = `Оплаты<br><span style="font-size:10px;color:var(--orange)">из них аванс: ${fmt(totalAdvances)} ₽</span>`;
+    } else if (incLbl) {
+      incLbl.textContent = 'Оплаты';
+    }
     const balEl = document.getElementById('rpt-balance');
     balEl.textContent = (balance >= 0 ? '+' : '') + fmt(balance) + ' ₽';
     balEl.className = 'rpt-sum-val ' + (balance >= 0 ? 'green' : 'red');
@@ -1619,6 +1755,8 @@ function setupProfile() {
     </div>
   `;
   document.getElementById('admin-panel').style.display = u.role === 'admin' ? '' : 'none';
+  const tb = document.getElementById('theme-btn');
+  if (tb) tb.textContent = document.documentElement.getAttribute('data-theme') === 'dark' ? '☀️ Светлая тема' : '🌙 Тёмная тема';
 }
 
 window.showChangePinForm = function() {
@@ -2097,6 +2235,68 @@ window.closeSheet = function() {
 };
 
 // ── Voice input ───────────────────────────────────────────────────────────────
+window.startVoiceForm = function() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { toast('Голосовой ввод не поддерживается'); return; }
+  const btn = document.getElementById('voice-form-btn');
+  const r = new SR();
+  r.lang = 'ru-RU';
+  r.interimResults = false;
+  r.maxAlternatives = 1;
+  btn.textContent = '⏹ Слушаю...';
+  btn.style.background = 'var(--red)';
+  r.onresult = (e) => {
+    const text = e.results[0][0].transcript.toLowerCase();
+    parseVoiceCommand(text);
+  };
+  r.onerror = () => { toast('Ошибка распознавания'); resetVoiceBtn(); };
+  r.onend = resetVoiceBtn;
+  try { r.start(); } catch(_) { resetVoiceBtn(); }
+};
+
+function resetVoiceBtn() {
+  const btn = document.getElementById('voice-form-btn');
+  if (btn) { btn.textContent = '🎙 Сказать всё голосом'; btn.style.background = 'var(--orange-light)'; }
+}
+
+function parseVoiceCommand(text) {
+  let kind = null;
+  if (/мастер|выплат|зарплат|работник/i.test(text)) kind = 'master_payment';
+  else if (/клиент|поступл|приш[лё]о|внес/i.test(text)) kind = 'client_payment';
+  else if (/расход|закуп|материал|купил|приобр/i.test(text)) kind = 'expense';
+
+  if (kind && kind !== currentKind) {
+    openAddForm(kind);
+  }
+  const useKind = kind || currentKind;
+
+  const numMatch = text.match(/(\d[\d\s.,]*)\s*(?:руб|₽|тыс|т\.?р)?/i);
+  let amount = null;
+  if (numMatch) {
+    let s = numMatch[1].replace(/\s/g,'').replace(',','.');
+    amount = parseFloat(s);
+    if (/тыс|т\.?р/i.test(text)) amount *= 1000;
+  }
+
+  let name = text
+    .replace(/расход\w*|закуп\w*|материал\w*|купил\w*|приобр\w*|мастер\w*|выплат\w*|зарплат\w*|работник\w*|клиент\w*|поступл\w*|приш[лё]о|внес\w*|на сумму|сумма|руб\w*|₽|тыс\.?\s*руб\w*|т\.?р\.?/gi, '')
+    .replace(/\d[\d\s.,]*/g, '')
+    .replace(/\s+/g,' ').trim();
+  if (name) name = name.charAt(0).toUpperCase() + name.slice(1);
+
+  if (useKind === 'expense') {
+    if (amount) { document.getElementById('f-price').value = amount; calcSum(); }
+    if (name) document.getElementById('f-name').value = name;
+  } else if (useKind === 'master_payment') {
+    if (amount) document.getElementById('f-payment-amount').value = amount;
+    if (name) document.getElementById('f-master-name').value = name;
+  } else if (useKind === 'client_payment') {
+    if (amount) document.getElementById('f-client-amount').value = amount;
+    if (name) document.getElementById('f-rep-name').value = name;
+  }
+  toast(`Распознано: ${useKind || '?'} · ${amount ? fmt(amount)+' ₽' : '?'} · ${name || '—'}`);
+}
+
 (function initVoiceInputs() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) return;

@@ -96,6 +96,7 @@ class Record(Base):
     client_rep_name = Column(String(200), nullable=True)
     payment_amount = Column(Numeric(12, 2), nullable=True)
     payment_date = Column(Date, nullable=True)
+    is_advance = Column(Boolean, default=False, nullable=False)  # only for client_payment
     author_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     metadata_ = Column("metadata", JSONB, default={})
     created_at = Column(DateTime(timezone=True), server_default=func.now())
