@@ -53,7 +53,9 @@
 [data-theme="dark"] .sheet{background:var(--card)}
 [data-theme="dark"] .add-photo-btn{background:var(--input-bg);border-color:var(--border)}
 [data-theme="dark"] .rpt-rec,[data-theme="dark"] .record-card,[data-theme="dark"] .admin-item,[data-theme="dark"] .project-card{background:var(--card)}
-[data-theme="dark"] .rpt-rec-title,[data-theme="dark"] .record-name,[data-theme="dark"] .tx-name,[data-theme="dark"] h1,[data-theme="dark"] h2,[data-theme="dark"] h3,[data-theme="dark"] h4,[data-theme="dark"] strong,[data-theme="dark"] label,[data-theme="dark"] .profile-name,[data-theme="dark"] .sheet-title{color:var(--text)}
+[data-theme="dark"] .rpt-rec-title,[data-theme="dark"] .record-name,[data-theme="dark"] .tx-name,[data-theme="dark"] h1,[data-theme="dark"] h2,[data-theme="dark"] h3,[data-theme="dark"] h4,[data-theme="dark"] label,[data-theme="dark"] .profile-name,[data-theme="dark"] .sheet-title{color:var(--text)}
+[data-theme="dark"] #f-rentier-distrib,[data-theme="dark"] #f-exp-rentier-distrib{background:#3a2e6b;color:#fff}
+[data-theme="dark"] #f-rentier-distrib strong,[data-theme="dark"] #f-exp-rentier-distrib strong{color:#fff}
 html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);font-size:16px}
 #app{height:100%;display:flex;flex-direction:column;max-width:480px;margin:0 auto;position:relative}
 
@@ -604,7 +606,7 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div>
-            <label style="font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase">Скидка / откат, ₽</label>
+            <label id="f-exp-rentier-input-lbl" style="font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase">Скидка / откат, ₽</label>
             <input type="number" id="f-exp-rentier" min="0" step="any" placeholder="0" oninput="updateExpRentierDistribution()" style="margin-top:4px">
           </div>
           <div>
@@ -645,7 +647,7 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
           <div>
-            <label style="font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase">Сколько мастер дал, ₽</label>
+            <label id="f-rentier-input-lbl" style="font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase">Сколько мастер дал, ₽</label>
             <input type="number" id="f-master-rentier" min="0" step="any" placeholder="0" oninput="updateRentierDistribution()" style="margin-top:4px">
           </div>
           <div>
@@ -902,7 +904,9 @@ window.setExpRentierMode = function(mode) {
   sumBtn.style.color = mode === 'sum' ? '#fff' : 'var(--text2)';
   pctBtn.style.background = mode === 'pct' ? 'var(--orange)' : 'transparent';
   pctBtn.style.color = mode === 'pct' ? '#fff' : 'var(--text2)';
-  document.getElementById('f-exp-rentier').placeholder = mode === 'sum' ? '0' : '% от закупки';
+  document.getElementById('f-exp-rentier').placeholder = mode === 'sum' ? '0' : 'напр. 10';
+  const lbl = document.getElementById('f-exp-rentier-input-lbl');
+  if (lbl) lbl.textContent = mode === 'sum' ? 'Скидка / откат, ₽' : 'Процент от закупки, %';
   updateExpRentierDistribution();
 };
 
@@ -944,7 +948,9 @@ window.setRentierMode = function(mode) {
   pctBtn.style.background = mode === 'pct' ? orange : 'transparent';
   pctBtn.style.color = mode === 'pct' ? '#fff' : 'var(--text2)';
   const input = document.getElementById('f-master-rentier');
-  input.placeholder = mode === 'sum' ? '0' : '% от суммы';
+  input.placeholder = mode === 'sum' ? '0' : 'напр. 10';
+  const lbl = document.getElementById('f-rentier-input-lbl');
+  if (lbl) lbl.textContent = mode === 'sum' ? 'Сколько мастер дал, ₽' : 'Процент от суммы, %';
   updateRentierDistribution();
 };
 

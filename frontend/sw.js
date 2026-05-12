@@ -1,4 +1,4 @@
-const CACHE = "welldom-v8";
+const CACHE = "welldom-v10";
 const STATIC = ["/", "/index.html", "/api.js", "/manifest.json"];
 
 self.addEventListener("install", e => {
