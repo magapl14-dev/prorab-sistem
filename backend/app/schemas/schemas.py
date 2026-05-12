@@ -139,6 +139,7 @@ class RecordCreate(BaseModel):
     payment_amount: Optional[Decimal] = None
     payment_date: Optional[date] = None
     is_advance: bool = False
+    rentier_gross: Optional[Decimal] = None
     photo_ids: List[UUID] = []
 
 
@@ -155,6 +156,7 @@ class RecordUpdate(BaseModel):
     payment_amount: Optional[Decimal] = None
     payment_date: Optional[date] = None
     is_advance: Optional[bool] = None
+    rentier_gross: Optional[Decimal] = None
 
 
 class AuthorBrief(BaseModel):

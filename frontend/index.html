@@ -597,7 +597,7 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
       </div>
       <div class="form-group">
         <label>Сумма (₽)</label>
-        <input type="number" id="f-payment-amount" min="0" step="any" placeholder="0">
+        <input type="number" id="f-payment-amount" min="0" step="any" placeholder="0" oninput="updateRentierDistribution&&updateRentierDistribution()">
       </div>
       <div class="form-group">
         <label>Тип выплаты</label>
@@ -607,6 +607,28 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
           <option value="bonus">⭐ Премия</option>
           <option value="debt">💸 Возврат долга</option>
         </select>
+      </div>
+      <button type="button" id="f-rentier-toggle" onclick="toggleRentierBlock()" class="btn btn-secondary" style="margin-bottom:10px;padding:10px;font-size:13px">💼 Добавить раньтье от мастера</button>
+      <div id="f-rentier-block" style="display:none;background:var(--tag-bg);padding:12px;border-radius:10px;margin-bottom:12px;border:1px solid var(--border)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <strong style="font-size:13px">📝 РАНЬТЬЕ ОТ МАСТЕРА <span style="background:#1976d2;color:#fff;font-size:9px;padding:2px 5px;border-radius:4px;vertical-align:middle">NEW</span></strong>
+          <button type="button" onclick="toggleRentierBlock()" style="background:var(--text2);color:#fff;border:none;border-radius:14px;padding:4px 10px;font-size:11px;cursor:pointer">Убрать</button>
+        </div>
+        <div style="display:flex;gap:0;margin-bottom:10px;background:#fff;border-radius:8px;padding:3px">
+          <button type="button" id="f-rentier-mode-sum" onclick="setRentierMode('sum')" style="flex:1;padding:8px;border:none;background:var(--orange);color:#fff;border-radius:6px;font-weight:600;cursor:pointer;font-size:13px">Сумма ₽</button>
+          <button type="button" id="f-rentier-mode-pct" onclick="setRentierMode('pct')" style="flex:1;padding:8px;border:none;background:transparent;color:var(--text2);border-radius:6px;font-weight:600;cursor:pointer;font-size:13px">% от контракта</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div>
+            <label style="font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase">Сколько мастер дал, ₽</label>
+            <input type="number" id="f-master-rentier" min="0" step="any" placeholder="0" oninput="updateRentierDistribution()" style="margin-top:4px">
+          </div>
+          <div>
+            <label style="font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase">Распределение</label>
+            <div id="f-rentier-distrib" style="margin-top:4px;background:#ebe7f9;border-radius:8px;padding:11px;text-align:center;color:#5e35b1;font-weight:600">—</div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text2);margin-top:8px;line-height:1.4">Раньтье — это бонус, который мастер платит вам за контракт. Видно только вам.</div>
       </div>
     </div>
     <div id="client-fields" style="display:none">
@@ -829,6 +851,50 @@ window.doLogin = async function() {
 function setLoginError(msg) {
   document.getElementById('login-error').textContent = msg;
 }
+
+let _rentierMode = 'sum'; // 'sum' or 'pct'
+
+window.toggleRentierBlock = function() {
+  const block = document.getElementById('f-rentier-block');
+  const btn = document.getElementById('f-rentier-toggle');
+  if (block.style.display === 'none') {
+    block.style.display = '';
+    btn.style.display = 'none';
+  } else {
+    block.style.display = 'none';
+    btn.style.display = '';
+    document.getElementById('f-master-rentier').value = '';
+    document.getElementById('f-rentier-distrib').textContent = '—';
+  }
+};
+
+window.setRentierMode = function(mode) {
+  _rentierMode = mode;
+  const sumBtn = document.getElementById('f-rentier-mode-sum');
+  const pctBtn = document.getElementById('f-rentier-mode-pct');
+  const orange = 'var(--orange)';
+  sumBtn.style.background = mode === 'sum' ? orange : 'transparent';
+  sumBtn.style.color = mode === 'sum' ? '#fff' : 'var(--text2)';
+  pctBtn.style.background = mode === 'pct' ? orange : 'transparent';
+  pctBtn.style.color = mode === 'pct' ? '#fff' : 'var(--text2)';
+  const input = document.getElementById('f-master-rentier');
+  input.placeholder = mode === 'sum' ? '0' : '% от суммы';
+  updateRentierDistribution();
+};
+
+window.updateRentierDistribution = function() {
+  const v = parseFloat(document.getElementById('f-master-rentier').value || 0);
+  const amt = parseFloat(document.getElementById('f-payment-amount').value || 0);
+  let rentier = 0;
+  if (_rentierMode === 'pct' && amt) rentier = amt * v / 100;
+  else rentier = v;
+  const share = currentProject && currentProject.rentier_foreman_share != null
+    ? parseFloat(currentProject.rentier_foreman_share) : 100;
+  const foremanCut = rentier * share / 100;
+  const el = document.getElementById('f-rentier-distrib');
+  if (!rentier) { el.textContent = '—'; return; }
+  el.innerHTML = `Вам: <strong>${fmt(foremanCut)} ₽</strong>`;
+};
 
 function _syncThemeIcons() {
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
@@ -1087,6 +1153,11 @@ window.openAddForm = function(kind) {
   document.getElementById('f-master-name').value = '';
   document.getElementById('f-payment-amount').value = '';
   document.getElementById('f-master-paytype').value = 'salary';
+  document.getElementById('f-master-rentier').value = '';
+  document.getElementById('f-rentier-block').style.display = 'none';
+  document.getElementById('f-rentier-toggle').style.display = '';
+  document.getElementById('f-rentier-distrib').textContent = '—';
+  setRentierMode('sum');
   document.getElementById('f-rep-name').value = '';
   document.getElementById('f-client-amount').value = '';
   document.getElementById('f-is-advance').checked = false;
@@ -1162,6 +1233,10 @@ window.saveRecord = async function() {
       const pt = document.getElementById('f-master-paytype').value;
       data.type = { salary: 'Зарплата', advance: 'Аванс', bonus: 'Премия', debt: 'Возврат долга' }[pt] || pt;
       data.is_advance = pt === 'advance';
+      const rent = parseFloat(document.getElementById('f-master-rentier').value || 0);
+      if (rent) {
+        data.rentier_gross = _rentierMode === 'pct' ? (parseFloat(amt || 0) * rent / 100) : rent;
+      }
     } else {
       data.client_rep_name = document.getElementById('f-rep-name').value || undefined;
       const amt = document.getElementById('f-client-amount').value;
