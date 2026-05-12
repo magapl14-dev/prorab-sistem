@@ -1847,16 +1847,22 @@ async function loadDashboard() {
       html += '</div></div>';
     }
 
-    // ── Summary
+    // ── Summary (calculate from records when monthly endpoint returns empty)
     if (plan) {
       const buy = parseFloat(plan.spent_total);
-      const mCount = monthly.length;
-      const avgMonth = mCount > 0 ? (earnings ? parseFloat(earnings.total) / mCount : 0) : 0;
+      const allRecs = recsResp?.items || [];
+      const totalRecs = recsResp?.total ?? allRecs.length;
+      let mCount = monthly.length;
+      if (!mCount && allRecs.length) {
+        const monthsSet = new Set(allRecs.map(r => (r.operation_date || '').slice(0,7)).filter(Boolean));
+        mCount = monthsSet.size;
+      }
+      const avgMonth = mCount > 0 && earnings ? parseFloat(earnings.total) / mCount : 0;
       html += `<div class="summary-card">
         <div class="summary-title">Сводка</div>
         <div class="summary-grid">
           <div class="summary-cell"><div class="summary-cell-label">Оборот закупа</div><div class="summary-cell-value" style="font-size:15px">${fmt(buy)} ₽</div></div>
-          <div class="summary-cell"><div class="summary-cell-label">Записей</div><div class="summary-cell-value">${monthly.reduce((s,m)=>s+m.count,0)}</div></div>
+          <div class="summary-cell"><div class="summary-cell-label">Записей</div><div class="summary-cell-value">${totalRecs}</div></div>
           <div class="summary-cell"><div class="summary-cell-label">Месяцев работы</div><div class="summary-cell-value">${mCount}</div></div>
           <div class="summary-cell"><div class="summary-cell-label">В среднем/месяц</div><div class="summary-cell-value" style="font-size:15px">${fmt(avgMonth)} ₽</div></div>
         </div>
