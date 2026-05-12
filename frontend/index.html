@@ -402,6 +402,7 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
       <span id="project-title">Проект</span>
       <span style="margin-left:auto;opacity:.8">▾</span>
     </button>
+    <button class="icon-btn" onclick="toggleTheme()" id="theme-btn-top" title="Тема" style="margin-right:4px">🌙</button>
     <button class="user-avatar" onclick="showTab('profile')" id="user-avatar-btn">М</button>
   </div>
   <div style="flex:1;overflow:hidden;display:flex;flex-direction:column">
@@ -818,19 +819,27 @@ function setLoginError(msg) {
   document.getElementById('login-error').textContent = msg;
 }
 
+function _syncThemeIcons() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const top = document.getElementById('theme-btn-top');
+  if (top) top.textContent = isDark ? '☀️' : '🌙';
+  const inProfile = document.getElementById('theme-btn');
+  if (inProfile) inProfile.textContent = isDark ? '☀️ Светлая тема' : '🌙 Тёмная тема';
+}
+
 window.toggleTheme = function() {
   const cur = document.documentElement.getAttribute('data-theme');
   const next = cur === 'dark' ? 'light' : 'dark';
   if (next === 'dark') document.documentElement.setAttribute('data-theme','dark');
   else document.documentElement.removeAttribute('data-theme');
   localStorage.setItem('theme', next);
-  const btn = document.getElementById('theme-btn');
-  if (btn) btn.textContent = next === 'dark' ? '☀️ Светлая тема' : '🌙 Тёмная тема';
+  _syncThemeIcons();
 };
 
 (function applyTheme(){
   const t = localStorage.getItem('theme');
   if (t === 'dark') document.documentElement.setAttribute('data-theme','dark');
+  document.addEventListener('DOMContentLoaded', _syncThemeIcons);
 })();
 
 window.doLogout = async function() {
@@ -1755,8 +1764,7 @@ function setupProfile() {
     </div>
   `;
   document.getElementById('admin-panel').style.display = u.role === 'admin' ? '' : 'none';
-  const tb = document.getElementById('theme-btn');
-  if (tb) tb.textContent = document.documentElement.getAttribute('data-theme') === 'dark' ? '☀️ Светлая тема' : '🌙 Тёмная тема';
+  if (typeof _syncThemeIcons === 'function') _syncThemeIcons();
 }
 
 window.showChangePinForm = function() {
