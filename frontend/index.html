@@ -413,6 +413,10 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
     <button class="icon-btn" onclick="toggleTheme()" id="theme-btn-top" title="Тема" style="margin-right:4px">🌙</button>
     <button class="user-avatar" onclick="showTab('profile')" id="user-avatar-btn">М</button>
   </div>
+  <div id="motivation-bar" onclick="showTab('dashboard')" style="display:none;cursor:pointer;background:linear-gradient(90deg,#2e7d32,#43a047);color:#fff;padding:8px 14px;display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:600;gap:10px;flex-shrink:0">
+    <span>💰 Сегодня: <span id="mot-today">+0 ₽</span></span>
+    <span style="opacity:.95;white-space:nowrap"><span id="mot-streak">🔥 0</span></span>
+  </div>
   <div style="flex:1;overflow:hidden;display:flex;flex-direction:column">
 
     <!-- EXPENSES TAB -->
@@ -999,6 +1003,8 @@ window.toggleTheme = function() {
 window.doLogout = async function() {
   await Auth.logout();
   currentProject = null;
+  const mb = document.getElementById('motivation-bar');
+  if (mb) mb.style.display = 'none';
   showScreen('login-screen');
 };
 
@@ -1030,6 +1036,7 @@ function selectProject(project) {
     setupProfile();
     loadDictionaries();
     loadTab('expenses');
+    loadMotivation();
   }
   showScreen('main-screen');
   showTab('expenses');
@@ -1229,6 +1236,75 @@ window.repeatRecord = async function(id) {
     }, 50);
   } catch(e) { toast('Не удалось загрузить запись'); }
 };
+
+// ── Motivation: earned-today + streak ────────────────────────────────────────
+function _streakKey() { return `streak_${currentProject?.code}_${_user?.id}`; }
+
+function calcStreakFromRecords(records) {
+  // Unique days where user has any record, sorted desc
+  const myId = _user?.id;
+  const days = new Set(
+    records.filter(r => !myId || (r.author && r.author.id === myId))
+      .map(r => (r.operation_date || '').slice(0,10))
+      .filter(Boolean)
+  );
+  const today = new Date();
+  let cur = 0;
+  for (let i = 0; i < 365; i++) {
+    const d = new Date(today); d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0,10);
+    if (days.has(key)) cur++;
+    else if (i > 0) break;
+    else continue; // allow 1 day grace today
+  }
+  return cur;
+}
+
+window.setEarningsGoal = function(code) {
+  const key = `goal_${code}_${_user?.id}`;
+  const cur = parseFloat(localStorage.getItem(key) || 0);
+  const val = prompt('Ваша цель заработка за месяц, ₽:', cur > 0 ? cur : '100000');
+  if (val == null) return;
+  const num = parseFloat(val);
+  if (!num || num < 0) { toast('Некорректное число'); return; }
+  localStorage.setItem(key, String(num));
+  toast(`Цель установлена: ${fmt(num)} ₽`);
+  if (typeof loadDashboard === 'function') loadDashboard();
+};
+
+async function loadMotivation() {
+  if (!currentProject || !_user || _user.role === 'client') return;
+  const bar = document.getElementById('motivation-bar');
+  if (!bar) return;
+  try {
+    const [ps, recs] = await Promise.all([
+      Earnings.periodStats(currentProject.code).catch(() => null),
+      Records.list(currentProject.code, { limit: 200 }).catch(() => ({ items: [] })),
+    ]);
+    let today = 0;
+    if (ps?.today) {
+      today = (parseFloat(ps.today.commission || 0)) +
+              (parseFloat(ps.today.rentier || 0)) +
+              (parseFloat(ps.today.fixed || 0));
+    }
+    document.getElementById('mot-today').textContent = `+${fmt(today)} ₽`;
+
+    const streak = calcStreakFromRecords(recs.items || []);
+    const stored = JSON.parse(localStorage.getItem(_streakKey()) || '{}');
+    if (streak > (stored.best || 0)) { stored.best = streak; localStorage.setItem(_streakKey(), JSON.stringify(stored)); }
+    const best = stored.best || streak;
+    document.getElementById('mot-streak').textContent = streak > 0
+      ? `🔥 ${streak} дн${best > streak ? ' (рекорд '+best+')' : ''}`
+      : '🔥 0';
+    bar.style.display = 'flex';
+    // Colour: green if earned today, neutral if not
+    bar.style.background = today > 0
+      ? 'linear-gradient(90deg,#2e7d32,#43a047)'
+      : 'linear-gradient(90deg,#5d4037,#795548)';
+  } catch (_) {
+    bar.style.display = 'none';
+  }
+}
 
 // Smart defaults: remember last values per kind+project
 function _defaultsKey(kind) { return `defaults_${currentProject?.code}_${kind}`; }
@@ -1535,16 +1611,22 @@ window.saveRecord = async function() {
     }
 
     try {
-      await Records.create(currentProject.code, data);
-      // Remember last used values per kind+project
+      const created = await Records.create(currentProject.code, data);
       if (currentKind === 'expense') {
         saveDefaults('expense', { type: data.type, category: data.category, kassa: data.kassa });
       } else if (currentKind === 'master_payment') {
         saveDefaults('master_payment', { master_paytype: document.getElementById('f-master-paytype').value });
       }
+      // Calculate earnings delta from this record
+      const share = currentProject?.rentier_foreman_share != null ? parseFloat(currentProject.rentier_foreman_share)/100 : 1;
+      const com = parseFloat(created?.commission || 0);
+      const rent = parseFloat(created?.rentier_gross || 0) * share;
+      const delta = com + rent;
       closeSheet();
-      toast('Запись добавлена');
+      if (delta > 0) toast(`+${fmt(delta)} ₽ к вашему заработку 💪`);
+      else toast('Запись добавлена ✅');
       loadTab(currentKind);
+      loadMotivation();
     } catch (netErr) {
       if (!navigator.onLine || (netErr && /Failed to fetch|NetworkError|net::/i.test(String(netErr.message || netErr)))) {
         OfflineQueue.add(currentProject.code, data);
@@ -1929,6 +2011,48 @@ async function loadDashboard() {
     ]);
 
     let html = '';
+
+    // ── Personal earnings goal (motivation card)
+    if (ps && earnings) {
+      const monthEarned = parseFloat(ps.month?.commission || 0) + parseFloat(ps.month?.rentier || 0) + parseFloat(ps.month?.fixed || 0);
+      const goalKey = `goal_${code}_${_user?.id}`;
+      const savedGoal = parseFloat(localStorage.getItem(goalKey) || 0);
+      const goal = savedGoal > 0 ? savedGoal : Math.max(parseFloat(earnings.total)*1.5, 100000);
+      const pct = goal > 0 ? Math.min(monthEarned / goal * 100, 999) : 0;
+      const left = Math.max(goal - monthEarned, 0);
+      const today2 = new Date();
+      const daysInMonth = new Date(today2.getFullYear(), today2.getMonth()+1, 0).getDate();
+      const dayOfMonth = today2.getDate();
+      const dailyRate = dayOfMonth > 0 ? monthEarned / dayOfMonth : 0;
+      const daysToGoal = dailyRate > 0 ? Math.ceil(left / dailyRate) : 999;
+      const forecastDay = Math.min(dayOfMonth + daysToGoal, daysInMonth);
+      const forecastDate = `${String(forecastDay).padStart(2,'0')}.${String(today2.getMonth()+1).padStart(2,'0')}`;
+      let barColor = '#c62828', barEmoji = '🎯';
+      if (pct >= 100) { barColor = '#ffb300'; barEmoji = '🌟'; }
+      else if (pct >= 67) { barColor = '#43a047'; barEmoji = '🚀'; }
+      else if (pct >= 33) { barColor = '#fb8c00'; barEmoji = '📈'; }
+
+      html += `<div class="dash-card" style="background:linear-gradient(135deg,var(--card),var(--tag-bg))">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase">${barEmoji} Цель месяца</div>
+          <button onclick="setEarningsGoal('${code}')" style="background:transparent;border:1.5px solid var(--border);color:var(--text2);padding:3px 10px;border-radius:14px;font-size:11px;cursor:pointer">✏️ Изменить</button>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:6px">
+          <span style="font-size:26px;font-weight:800;color:${barColor}">${fmt(monthEarned)} ₽</span>
+          <span style="font-size:13px;color:var(--text2)">из ${fmt(goal)} ₽</span>
+        </div>
+        <div style="height:10px;background:var(--chip-bg);border-radius:6px;overflow:hidden;margin-bottom:6px">
+          <div style="height:100%;width:${Math.min(pct,100)}%;background:${barColor};transition:width .5s"></div>
+        </div>
+        <div style="font-size:11px;color:var(--text2);text-align:right;font-weight:600">${Math.round(pct)}%</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:6px;line-height:1.6">
+          ${pct >= 100 ? '🎉 Цель выполнена! Перевыполнение: <b>+'+fmt(monthEarned-goal)+' ₽</b>' : `
+          🚀 До цели: <b>${fmt(left)} ₽</b> или ~${daysToGoal} дней<br>
+          📈 При текущем темпе достигнете цели <b>${forecastDate}</b>${daysToGoal > (daysInMonth - dayOfMonth) ? ' <span style="color:var(--red)">(может не успеть)</span>' : ''}
+          `}
+        </div>
+      </div>`;
+    }
 
     // ── Earnings card
     if (earnings) {
