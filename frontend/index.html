@@ -2218,8 +2218,14 @@ async function loadDashboard() {
       const buy = parseFloat(earnings.total_expenses);
       const rate = ps ? ps.rate_pct : '';
       const eff = ps ? ps.efficiency_pct : '';
-      const rentierShare = currentProject?.rentier_foreman_share != null ? parseFloat(currentProject.rentier_foreman_share) : 100;
       const rentGross = parseFloat(earnings.rentier_gross || 0);
+      // Effective values derived from actual saved records (immune to settings changes)
+      const effRate = buy > 0 ? (com / buy * 100) : 0;          // commission/buy × 100 (already includes efficiency)
+      const effShare = rentGross > 0 ? (rent / rentGross * 100) : 0;
+      const curRate = ps?.rate_pct ?? rate;
+      const curEff = ps?.efficiency_pct ?? eff;
+      const expectedRate = (parseFloat(curRate||0) * parseFloat(curEff||0)) / 100;
+      const ratesDiffer = Math.abs(effRate - expectedRate) > 0.1;
       html += `<div class="earn-card" onclick="this.querySelector('.earn-breakdown').style.display=this.querySelector('.earn-breakdown').style.display==='none'?'block':'none';this.querySelector('.earn-toggle').textContent=this.querySelector('.earn-breakdown').style.display==='none'?'▼ Показать формулу':'▲ Скрыть формулу'" style="cursor:pointer">
         <div class="earn-label">💰 Мой заработок по проекту</div>
         <div class="earn-project">${esc(earnings.project_name)}</div>
@@ -2232,12 +2238,15 @@ async function loadDashboard() {
         <div class="earn-toggle" style="margin-top:10px;font-size:12px;opacity:.85;cursor:pointer">▼ Показать формулу</div>
         <div class="earn-breakdown" style="display:none;margin-top:10px;background:rgba(0,0,0,.18);border-radius:10px;padding:12px;font-size:12px;line-height:1.7;font-family:monospace">
           <div>Фикс в месяц: <b>${fmt(fix)} ₽</b></div>
-          <div>+ Премия (закупки × ставка × эфф.):<br>&nbsp;&nbsp;${fmt(buy)} ₽ × ${rate}% × ${eff}% = <b>${fmt(com)} ₽</b></div>
-          <div>+ Раньте (маржа × доля прораба):<br>&nbsp;&nbsp;${fmt(rentGross)} ₽ × ${rentierShare}% = <b>${fmt(rent)} ₽</b></div>
+          <div>+ Премия (по фактическим записям):<br>&nbsp;&nbsp;${fmt(buy)} ₽ × ${effRate.toFixed(2)}% = <b>${fmt(com)} ₽</b></div>
+          <div>+ Раньте (ваша доля от маржи):<br>&nbsp;&nbsp;${fmt(rentGross)} ₽ × ${effShare.toFixed(2)}% = <b>${fmt(rent)} ₽</b></div>
           <div style="border-top:1px dashed rgba(255,255,255,.4);margin-top:6px;padding-top:6px">
             ИТОГО: <b style="font-size:14px">${fmt(total)} ₽</b>
           </div>
-          ${currentProject?.updated_at ? `<div style="margin-top:8px;opacity:.7;font-size:11px;font-family:system-ui">📋 Ставки последний раз менялись: ${new Date(currentProject.updated_at).toLocaleDateString('ru-RU')}</div>` : ''}
+          <div style="margin-top:10px;font-family:system-ui;font-size:11px;opacity:.85;line-height:1.5">
+            <div>📋 Текущие настройки проекта: ставка <b>${curRate}%</b> × эффективность <b>${curEff}%</b> = <b>${expectedRate.toFixed(2)}%</b></div>
+            ${ratesDiffer ? `<div style="color:#ffc107;margin-top:3px">⚠️ Фактическая ставка по записям (${effRate.toFixed(2)}%) отличается от текущих настроек — значит ставки менялись и старые записи сохранили свои значения.</div>` : ''}
+          </div>
         </div>
       </div>`;
     }
