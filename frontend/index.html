@@ -2153,7 +2153,7 @@ window.openAdminProjects = async function() {
             <h3>${esc(p.name)} ${p.active ? '' : '<em style="font-size:12px;color:var(--red)">неактивен</em>'}</h3>
             <p style="font-size:13px;color:var(--text2);margin-top:3px">${esc(p.code)} · наценка ${p.markup_pct}% · ставка ${p.foreman_rate_pct}%</p>
             <div class="admin-item-actions">
-              <button onclick="openEditProject('${esc(p.code)}',${p.markup_pct},${p.foreman_rate_pct},${p.foreman_efficiency},${p.foreman_fixed},${p.plan_total},${p.plan_monthly},'${esc(p.name)}','${esc(p.gsheet_id||'')}')">✏️ Изм.</button>
+              <button onclick="openEditProject('${esc(p.code)}',${p.markup_pct},${p.foreman_rate_pct},${p.foreman_efficiency},${p.foreman_fixed},${p.plan_total},${p.plan_monthly},'${esc(p.name)}','${esc(p.gsheet_id||'')}',${p.rentier_foreman_share ?? 100})">✏️ Изм.</button>
               ${p.gsheet_id ? `<button onclick="syncSheets('${esc(p.code)}')" title="Синхронизировать с Google Sheets">📊 Sheets</button>` : ''}
               <button onclick="toggleProject('${esc(p.code)}',${p.active})">${p.active ? '🔴 Откл.' : '🟢 Вкл.'}</button>
               <button onclick="confirmDeleteProject('${esc(p.code)}','${esc(p.name)}')" style="color:var(--red)">🗑️</button>
@@ -2225,6 +2225,7 @@ window.openCreateProject = function() {
     <div class="form-group"><label>Ставка прораба %</label><input id="m-rate" type="number" value="2.5" step="0.5"></div>
     <div class="form-group"><label>Эффективность %</label><input id="m-eff" type="number" value="100" step="1"></div>
     <div class="form-group"><label>Фикс в месяц ₽</label><input id="m-fixed" type="number" value="0" step="1000"></div>
+    <div class="form-group"><label>Доля прораба от раньтье %</label><input id="m-rentshare" type="number" value="100" step="1" min="0" max="100"></div>
     <div class="form-group"><label>Бюджет проекта ₽</label><input id="m-plan" type="number" value="0" step="10000"></div>
     <div class="form-group"><label>План на месяц ₽</label><input id="m-planm" type="number" value="0" step="10000"></div>
     <div class="modal-actions">
@@ -2244,6 +2245,7 @@ window.submitCreateProject = async function() {
     foreman_rate_pct: parseFloat(document.getElementById('m-rate').value) || 2.5,
     foreman_efficiency: parseFloat(document.getElementById('m-eff').value) || 100,
     foreman_fixed: parseFloat(document.getElementById('m-fixed').value) || 0,
+    rentier_foreman_share: parseFloat(document.getElementById('m-rentshare').value) || 100,
     plan_total: parseFloat(document.getElementById('m-plan').value) || 0,
     plan_monthly: parseFloat(document.getElementById('m-planm').value) || 0,
   };
@@ -2253,13 +2255,17 @@ window.submitCreateProject = async function() {
   } catch(e) { toast('Ошибка: ' + (e?.detail || JSON.stringify(e))); }
 };
 
-window.openEditProject = function(code, markup, rate, eff, fixed, plan, planm, name, gsheet) {
+window.openEditProject = function(code, markup, rate, eff, fixed, plan, planm, name, gsheet, rentShare) {
   openModal('Редактировать проект', `
     <div class="form-group"><label>Название</label><input id="m-epname" type="text" value="${esc(name)}"></div>
     <div class="form-group"><label>Наценка %</label><input id="m-emarkup" type="number" value="${markup}" step="0.5"></div>
     <div class="form-group"><label>Ставка прораба %</label><input id="m-erate" type="number" value="${rate}" step="0.5"></div>
     <div class="form-group"><label>Эффективность %</label><input id="m-eeff" type="number" value="${eff}" step="1"></div>
     <div class="form-group"><label>Фикс в месяц ₽</label><input id="m-efixed" type="number" value="${fixed}" step="1000"></div>
+    <div class="form-group">
+      <label>Доля прораба от раньтье %  <span style="font-size:11px;color:var(--text2)">(остаток уходит компании)</span></label>
+      <input id="m-erentshare" type="number" value="${rentShare ?? 100}" step="1" min="0" max="100">
+    </div>
     <div class="form-group"><label>Бюджет проекта ₽</label><input id="m-eplan" type="number" value="${plan}" step="10000"></div>
     <div class="form-group"><label>План на месяц ₽</label><input id="m-eplanm" type="number" value="${planm}" step="10000"></div>
     <div class="form-group">
@@ -2283,6 +2289,7 @@ window.submitEditProject = async function(code) {
     foreman_fixed: parseFloat(document.getElementById('m-efixed').value),
     plan_total: parseFloat(document.getElementById('m-eplan').value),
     plan_monthly: parseFloat(document.getElementById('m-eplanm').value),
+    rentier_foreman_share: parseFloat(document.getElementById('m-erentshare').value),
     gsheet_id: gsheet || null,
   };
   try {
