@@ -597,6 +597,15 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
         <label>Сумма (₽)</label>
         <input type="number" id="f-payment-amount" min="0" step="any" placeholder="0">
       </div>
+      <div class="form-group">
+        <label>Тип выплаты</label>
+        <select id="f-master-paytype">
+          <option value="salary">Зарплата / окончательный расчёт</option>
+          <option value="advance">💰 Аванс</option>
+          <option value="bonus">⭐ Премия</option>
+          <option value="debt">💸 Возврат долга</option>
+        </select>
+      </div>
     </div>
     <div id="client-fields" style="display:none">
       <div class="form-group">
@@ -1072,6 +1081,7 @@ window.openAddForm = function(kind) {
   document.getElementById('f-comment').value = '';
   document.getElementById('f-master-name').value = '';
   document.getElementById('f-payment-amount').value = '';
+  document.getElementById('f-master-paytype').value = 'salary';
   document.getElementById('f-rep-name').value = '';
   document.getElementById('f-client-amount').value = '';
   document.getElementById('f-is-advance').checked = false;
@@ -1144,6 +1154,9 @@ window.saveRecord = async function() {
       data.name = document.getElementById('f-master-name').value || undefined;
       const amt = document.getElementById('f-payment-amount').value;
       if (amt) data.payment_amount = parseFloat(amt);
+      const pt = document.getElementById('f-master-paytype').value;
+      data.type = { salary: 'Зарплата', advance: 'Аванс', bonus: 'Премия', debt: 'Возврат долга' }[pt] || pt;
+      data.is_advance = pt === 'advance';
     } else {
       data.client_rep_name = document.getElementById('f-rep-name').value || undefined;
       const amt = document.getElementById('f-client-amount').value;
