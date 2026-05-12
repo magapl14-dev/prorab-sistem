@@ -515,6 +515,7 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
         <div class="profile-section" id="profile-info"></div>
         <div style="padding:0 16px 16px">
           <button class="btn btn-secondary" onclick="toggleTheme()" id="theme-btn" style="margin-bottom:10px">🌙 Тёмная тема</button>
+          <button class="btn btn-secondary" onclick="toggleSound()" id="sound-btn" style="margin-bottom:10px">🔊 Звуки</button>
           <button class="btn btn-secondary" onclick="showChangePinForm()">Изменить PIN</button>
           <button class="btn btn-danger" style="margin-top:10px" onclick="doLogout()">Выйти из системы</button>
         </div>
@@ -983,7 +984,16 @@ function _syncThemeIcons() {
   if (top) top.textContent = isDark ? '☀️' : '🌙';
   const inProfile = document.getElementById('theme-btn');
   if (inProfile) inProfile.textContent = isDark ? '☀️ Светлая тема' : '🌙 Тёмная тема';
+  const sb = document.getElementById('sound-btn');
+  if (sb) sb.textContent = localStorage.getItem('sound_off') === '1' ? '🔇 Звуки выключены' : '🔊 Звуки включены';
 }
+
+window.toggleSound = function() {
+  const off = localStorage.getItem('sound_off') === '1';
+  if (off) { localStorage.removeItem('sound_off'); toast('Звуки включены'); playCashSound(); }
+  else { localStorage.setItem('sound_off','1'); toast('Звуки отключены'); }
+  _syncThemeIcons();
+};
 
 window.toggleTheme = function() {
   const cur = document.documentElement.getAttribute('data-theme');
@@ -1237,6 +1247,104 @@ window.repeatRecord = async function(id) {
   } catch(e) { toast('Не удалось загрузить запись'); }
 };
 
+// ── Cash register sound ──────────────────────────────────────────────────────
+function playCashSound() {
+  if (localStorage.getItem('sound_off') === '1') return;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+    [880, 1320].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const t0 = now + i*0.09;
+      gain.gain.setValueAtTime(0, t0);
+      gain.gain.linearRampToValueAtTime(0.18, t0 + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.35);
+      osc.start(t0); osc.stop(t0 + 0.35);
+    });
+  } catch(_) {}
+}
+
+// ── Floating "+N ₽" animation over today counter ─────────────────────────────
+function animateEarning(delta) {
+  const target = document.getElementById('mot-today');
+  if (!target || !delta) return;
+  const rect = target.getBoundingClientRect();
+  const float = document.createElement('div');
+  float.textContent = `+${fmt(delta)} ₽`;
+  float.style.cssText = `position:fixed;left:${rect.left}px;top:${rect.top}px;color:#ffeb3b;font-weight:800;font-size:18px;text-shadow:0 2px 8px rgba(0,0,0,.5);pointer-events:none;z-index:9999;transition:transform 1.4s ease-out,opacity 1.4s ease-out`;
+  document.body.appendChild(float);
+  requestAnimationFrame(() => {
+    float.style.transform = 'translateY(-60px) scale(1.4)';
+    float.style.opacity = '0';
+  });
+  setTimeout(() => float.remove(), 1500);
+  // Pulse the counter itself
+  target.style.transition = 'transform .3s';
+  target.style.transform = 'scale(1.25)';
+  setTimeout(() => target.style.transform = 'scale(1)', 300);
+}
+
+// ── Confetti ─────────────────────────────────────────────────────────────────
+function fireConfetti() {
+  const canvas = document.createElement('canvas');
+  canvas.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:99999';
+  canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+  const colors = ['#e07820','#43a047','#1976d2','#ffb300','#d32f2f','#7b1fa2'];
+  const parts = Array.from({length: 120}, () => ({
+    x: canvas.width/2 + (Math.random()-0.5)*120,
+    y: canvas.height/2,
+    vx: (Math.random()-0.5)*12,
+    vy: Math.random()*-14 - 4,
+    g: 0.3, size: 6 + Math.random()*6,
+    color: colors[Math.floor(Math.random()*colors.length)],
+    rot: Math.random()*Math.PI*2, vr: (Math.random()-0.5)*0.3,
+  }));
+  let frame = 0;
+  function tick() {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    parts.forEach(p => {
+      p.x += p.vx; p.y += p.vy; p.vy += p.g; p.rot += p.vr;
+      ctx.save();
+      ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.size/2, -p.size/2, p.size, p.size*0.5);
+      ctx.restore();
+    });
+    frame++;
+    if (frame < 180) requestAnimationFrame(tick);
+    else canvas.remove();
+  }
+  tick();
+}
+
+// ── Goal celebration: confetti + toast when goal hit ─────────────────────────
+function checkGoalReached(prevEarned, newEarned) {
+  if (!currentProject || !_user) return;
+  const key = `goal_${currentProject.code}_${_user.id}`;
+  const goal = parseFloat(localStorage.getItem(key) || 0);
+  if (!goal) return;
+  if (prevEarned < goal && newEarned >= goal) {
+    fireConfetti();
+    setTimeout(() => toast('🎉 Цель месяца выполнена! Поздравляем!'), 400);
+  }
+}
+
+// ── Mood tint on body background ─────────────────────────────────────────────
+function applyMoodTint(pctOfGoal) {
+  const html = document.documentElement;
+  html.style.transition = 'background .8s';
+  if (pctOfGoal >= 100) html.style.background = 'linear-gradient(180deg,rgba(67,160,71,.06),transparent 200px)';
+  else if (pctOfGoal >= 67) html.style.background = 'linear-gradient(180deg,rgba(67,160,71,.03),transparent 200px)';
+  else if (pctOfGoal < 33 && pctOfGoal > 0) html.style.background = 'linear-gradient(180deg,rgba(255,193,7,.04),transparent 200px)';
+  else html.style.background = '';
+}
+
 // ── Motivation: earned-today + streak ────────────────────────────────────────
 function _streakKey() { return `streak_${currentProject?.code}_${_user?.id}`; }
 
@@ -1281,13 +1389,25 @@ async function loadMotivation() {
       Earnings.periodStats(currentProject.code).catch(() => null),
       Records.list(currentProject.code, { limit: 200 }).catch(() => ({ items: [] })),
     ]);
-    let today = 0;
+    let today = 0, monthEarned = 0;
     if (ps?.today) {
       today = (parseFloat(ps.today.commission || 0)) +
               (parseFloat(ps.today.rentier || 0)) +
               (parseFloat(ps.today.fixed || 0));
     }
-    document.getElementById('mot-today').textContent = `+${fmt(today)} ₽`;
+    if (ps?.month) {
+      monthEarned = (parseFloat(ps.month.commission || 0)) +
+                    (parseFloat(ps.month.rentier || 0)) +
+                    (parseFloat(ps.month.fixed || 0));
+    }
+    const todayEl = document.getElementById('mot-today');
+    todayEl.textContent = `+${fmt(today)} ₽`;
+    todayEl.dataset.monthEarned = String(monthEarned);
+    // Apply mood tint based on monthly goal progress
+    const goalKey = `goal_${currentProject.code}_${_user.id}`;
+    const goal = parseFloat(localStorage.getItem(goalKey) || 0);
+    if (goal > 0) applyMoodTint(monthEarned / goal * 100);
+    else applyMoodTint(0);
 
     const streak = calcStreakFromRecords(recs.items || []);
     const stored = JSON.parse(localStorage.getItem(_streakKey()) || '{}');
@@ -1617,16 +1737,25 @@ window.saveRecord = async function() {
       } else if (currentKind === 'master_payment') {
         saveDefaults('master_payment', { master_paytype: document.getElementById('f-master-paytype').value });
       }
-      // Calculate earnings delta from this record
       const share = currentProject?.rentier_foreman_share != null ? parseFloat(currentProject.rentier_foreman_share)/100 : 1;
       const com = parseFloat(created?.commission || 0);
       const rent = parseFloat(created?.rentier_gross || 0) * share;
       const delta = com + rent;
       closeSheet();
-      if (delta > 0) toast(`+${fmt(delta)} ₽ к вашему заработку 💪`);
-      else toast('Запись добавлена ✅');
+      if (delta > 0) {
+        toast(`+${fmt(delta)} ₽ к вашему заработку 💪`);
+        playCashSound();
+        animateEarning(delta);
+      } else {
+        toast('Запись добавлена ✅');
+      }
+      // Track goal crossing for confetti
+      const prev = parseFloat(document.getElementById('mot-today')?.dataset?.monthEarned || 0);
       loadTab(currentKind);
-      loadMotivation();
+      loadMotivation().then(() => {
+        const cur = parseFloat(document.getElementById('mot-today')?.dataset?.monthEarned || 0);
+        checkGoalReached(prev, cur);
+      });
     } catch (netErr) {
       if (!navigator.onLine || (netErr && /Failed to fetch|NetworkError|net::/i.test(String(netErr.message || netErr)))) {
         OfflineQueue.add(currentProject.code, data);
@@ -2063,7 +2192,9 @@ async function loadDashboard() {
       const buy = parseFloat(earnings.total_expenses);
       const rate = ps ? ps.rate_pct : '';
       const eff = ps ? ps.efficiency_pct : '';
-      html += `<div class="earn-card">
+      const rentierShare = currentProject?.rentier_foreman_share != null ? parseFloat(currentProject.rentier_foreman_share) : 100;
+      const rentGross = parseFloat(earnings.rentier_gross || 0);
+      html += `<div class="earn-card" onclick="this.querySelector('.earn-breakdown').style.display=this.querySelector('.earn-breakdown').style.display==='none'?'block':'none';this.querySelector('.earn-toggle').textContent=this.querySelector('.earn-breakdown').style.display==='none'?'▼ Показать формулу':'▲ Скрыть формулу'" style="cursor:pointer">
         <div class="earn-label">💰 Мой заработок по проекту</div>
         <div class="earn-project">${esc(earnings.project_name)}</div>
         <div class="earn-total">${fmt(total)} ₽</div>
@@ -2072,7 +2203,16 @@ async function loadDashboard() {
           ${com > 0 ? `<span class="earn-badge">Премия: ${fmt(com)} ₽</span>` : ''}
           ${rent > 0 ? `<span class="earn-badge blue">🔵 Раньте: ${fmt(rent)} ₽</span>` : ''}
         </div>
-        ${rate ? `<div class="earn-formula">Фикс ${fmt(fix)} ₽/мес + ${fmt(buy)} ₽ × ${rate}% × ${eff}%</div>` : ''}
+        <div class="earn-toggle" style="margin-top:10px;font-size:12px;opacity:.85;cursor:pointer">▼ Показать формулу</div>
+        <div class="earn-breakdown" style="display:none;margin-top:10px;background:rgba(0,0,0,.18);border-radius:10px;padding:12px;font-size:12px;line-height:1.7;font-family:monospace">
+          <div>Фикс в месяц: <b>${fmt(fix)} ₽</b></div>
+          <div>+ Премия (закупки × ставка × эфф.):<br>&nbsp;&nbsp;${fmt(buy)} ₽ × ${rate}% × ${eff}% = <b>${fmt(com)} ₽</b></div>
+          <div>+ Раньте (маржа × доля прораба):<br>&nbsp;&nbsp;${fmt(rentGross)} ₽ × ${rentierShare}% = <b>${fmt(rent)} ₽</b></div>
+          <div style="border-top:1px dashed rgba(255,255,255,.4);margin-top:6px;padding-top:6px">
+            ИТОГО: <b style="font-size:14px">${fmt(total)} ₽</b>
+          </div>
+          ${currentProject?.updated_at ? `<div style="margin-top:8px;opacity:.7;font-size:11px;font-family:system-ui">📋 Ставки последний раз менялись: ${new Date(currentProject.updated_at).toLocaleDateString('ru-RU')}</div>` : ''}
+        </div>
       </div>`;
     }
 
