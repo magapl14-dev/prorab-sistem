@@ -47,7 +47,8 @@
 [data-theme="dark"] .badge-foreman,[data-theme="dark"] .tag-expense{background:var(--tag-bg)}
 [data-theme="dark"] .tag,[data-theme="dark"] .mbadge,[data-theme="dark"] .dash-progress{background:var(--chip-bg)}
 [data-theme="dark"] .icon-btn,[data-theme="dark"] .modal-close{background:var(--icon-bg)}
-[data-theme="dark"] input,[data-theme="dark"] textarea,[data-theme="dark"] select{background:var(--input-bg);color:var(--text);border-color:var(--border)}
+[data-theme="dark"] input,[data-theme="dark"] textarea,[data-theme="dark"] select{background:var(--input-bg);color:var(--text);border-color:var(--border);color-scheme:dark}
+[data-theme="dark"] select option{background:var(--card);color:var(--text)}
 [data-theme="dark"] .dash-warn,[data-theme="dark"] .dash-notice{background:#2a2208;color:#ffb74d}
 [data-theme="dark"] .sheet{background:var(--card)}
 [data-theme="dark"] .add-photo-btn{background:var(--input-bg);border-color:var(--border)}
@@ -589,6 +590,28 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
         <span>Сумма закупки</span>
         <strong id="calc-sum-value">0 ₽</strong>
       </div>
+      <button type="button" id="f-exp-rentier-toggle" onclick="toggleExpRentierBlock()" class="btn btn-secondary" style="margin-top:10px;margin-bottom:10px;padding:10px;font-size:13px">💼 Добавить раньтье на закупку</button>
+      <div id="f-exp-rentier-block" style="display:none;background:var(--tag-bg);padding:12px;border-radius:10px;margin-bottom:12px;border:1px solid var(--border)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <strong style="font-size:13px">📝 РАНЬТЬЕ НА ЗАКУПКУ <span style="background:#1976d2;color:#fff;font-size:9px;padding:2px 5px;border-radius:4px;vertical-align:middle">NEW</span></strong>
+          <button type="button" onclick="toggleExpRentierBlock()" style="background:var(--text2);color:#fff;border:none;border-radius:14px;padding:4px 10px;font-size:11px;cursor:pointer">Убрать</button>
+        </div>
+        <div style="display:flex;gap:0;margin-bottom:10px;background:#fff;border-radius:8px;padding:3px">
+          <button type="button" id="f-exp-rentier-mode-sum" onclick="setExpRentierMode('sum')" style="flex:1;padding:8px;border:none;background:var(--orange);color:#fff;border-radius:6px;font-weight:600;cursor:pointer;font-size:13px">Сумма ₽</button>
+          <button type="button" id="f-exp-rentier-mode-pct" onclick="setExpRentierMode('pct')" style="flex:1;padding:8px;border:none;background:transparent;color:var(--text2);border-radius:6px;font-weight:600;cursor:pointer;font-size:13px">% от закупки</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div>
+            <label style="font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase">Скидка / откат, ₽</label>
+            <input type="number" id="f-exp-rentier" min="0" step="any" placeholder="0" oninput="updateExpRentierDistribution()" style="margin-top:4px">
+          </div>
+          <div>
+            <label style="font-size:10px;color:var(--text2);font-weight:600;text-transform:uppercase">Распределение</label>
+            <div id="f-exp-rentier-distrib" style="margin-top:4px;background:#ebe7f9;border-radius:8px;padding:11px;text-align:center;color:#5e35b1;font-weight:600">—</div>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text2);margin-top:8px;line-height:1.4">Раньтье — это скидка/откат от поставщика сверх наценки проекта. Видно только вам.</div>
+      </div>
     </div>
     <div id="master-fields" style="display:none">
       <div class="form-group">
@@ -853,6 +876,47 @@ function setLoginError(msg) {
 }
 
 let _rentierMode = 'sum'; // 'sum' or 'pct'
+let _expRentierMode = 'sum';
+
+window.toggleExpRentierBlock = function() {
+  const block = document.getElementById('f-exp-rentier-block');
+  const btn = document.getElementById('f-exp-rentier-toggle');
+  if (block.style.display === 'none') {
+    block.style.display = '';
+    btn.style.display = 'none';
+  } else {
+    block.style.display = 'none';
+    btn.style.display = '';
+    document.getElementById('f-exp-rentier').value = '';
+    document.getElementById('f-exp-rentier-distrib').textContent = '—';
+  }
+};
+
+window.setExpRentierMode = function(mode) {
+  _expRentierMode = mode;
+  const sumBtn = document.getElementById('f-exp-rentier-mode-sum');
+  const pctBtn = document.getElementById('f-exp-rentier-mode-pct');
+  sumBtn.style.background = mode === 'sum' ? 'var(--orange)' : 'transparent';
+  sumBtn.style.color = mode === 'sum' ? '#fff' : 'var(--text2)';
+  pctBtn.style.background = mode === 'pct' ? 'var(--orange)' : 'transparent';
+  pctBtn.style.color = mode === 'pct' ? '#fff' : 'var(--text2)';
+  document.getElementById('f-exp-rentier').placeholder = mode === 'sum' ? '0' : '% от закупки';
+  updateExpRentierDistribution();
+};
+
+window.updateExpRentierDistribution = function() {
+  const v = parseFloat(document.getElementById('f-exp-rentier').value || 0);
+  const qty = evalFormula(document.getElementById('f-qty').value || '1');
+  const price = evalFormula(document.getElementById('f-price').value || '0');
+  const sumBuy = qty * price;
+  let rentier = _expRentierMode === 'pct' ? sumBuy * v / 100 : v;
+  const share = currentProject && currentProject.rentier_foreman_share != null
+    ? parseFloat(currentProject.rentier_foreman_share) : 100;
+  const foremanCut = rentier * share / 100;
+  const el = document.getElementById('f-exp-rentier-distrib');
+  if (!rentier) { el.textContent = '—'; return; }
+  el.innerHTML = `Вам: <strong>${fmt(foremanCut)} ₽</strong>`;
+};
 
 window.toggleRentierBlock = function() {
   const block = document.getElementById('f-rentier-block');
@@ -1158,6 +1222,11 @@ window.openAddForm = function(kind) {
   document.getElementById('f-rentier-toggle').style.display = '';
   document.getElementById('f-rentier-distrib').textContent = '—';
   setRentierMode('sum');
+  document.getElementById('f-exp-rentier').value = '';
+  document.getElementById('f-exp-rentier-block').style.display = 'none';
+  document.getElementById('f-exp-rentier-toggle').style.display = '';
+  document.getElementById('f-exp-rentier-distrib').textContent = '—';
+  setExpRentierMode('sum');
   document.getElementById('f-rep-name').value = '';
   document.getElementById('f-client-amount').value = '';
   document.getElementById('f-is-advance').checked = false;
@@ -1199,6 +1268,7 @@ window.calcSum = function() {
   const qty = showFormulaResult('f-qty', 'f-qty-result', '');
   const price = showFormulaResult('f-price', 'f-price-result', '₽');
   document.getElementById('calc-sum-value').textContent = fmt(qty * price) + ' ₽';
+  if (typeof updateExpRentierDistribution === 'function') updateExpRentierDistribution();
 };
 
 window.saveRecord = async function() {
