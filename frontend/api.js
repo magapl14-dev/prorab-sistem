@@ -106,6 +106,13 @@ export const Admin = {
     update: (id, data) => _patch(`/admin/dictionaries/${id}`, data),
     delete: (id) => _delete(`/admin/dictionaries/${id}`),
   },
+  settings: {
+    update: (data) => _patch("/admin/settings", data),
+  },
+};
+
+export const Settings = {
+  get: () => _get("/settings"),
 };
 
 // ── HTTP helpers ──────────────────────────────────────────────────────────────

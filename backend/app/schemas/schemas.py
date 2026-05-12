@@ -272,3 +272,18 @@ class DictionaryCreate(BaseModel):
 class DictionaryUpdate(BaseModel):
     value: Optional[str] = None
     display_order: Optional[int] = None
+
+
+# ── App settings ─────────────────────────────────────────────────────────────
+
+class AppSettingOut(BaseModel):
+    app_name: str
+    logo_url: Optional[str] = None
+    favicon_url: Optional[str] = None
+    model_config = {"from_attributes": True}
+
+
+class AppSettingUpdate(BaseModel):
+    app_name: Optional[str] = None
+    logo_url: Optional[str] = None
+    favicon_url: Optional[str] = None

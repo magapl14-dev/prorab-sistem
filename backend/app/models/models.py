@@ -160,3 +160,13 @@ class Dictionary(Base):
     __table_args__ = (
         UniqueConstraint("kind", "value", name="uq_dictionary_kind_value"),
     )
+
+
+class AppSetting(Base):
+    __tablename__ = "app_settings"
+
+    id = Column(Integer, primary_key=True, default=1)
+    app_name = Column(String(100), nullable=False, default="WELL DOM")
+    logo_url = Column(Text, nullable=True)
+    favicon_url = Column(Text, nullable=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

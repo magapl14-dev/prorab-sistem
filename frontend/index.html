@@ -526,7 +526,8 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
           </div>
           <button class="btn btn-secondary" style="margin-bottom:10px" onclick="openAdminUsers()">👥 Пользователи</button>
           <button class="btn btn-secondary" style="margin-bottom:10px" onclick="openAdminProjects()">🏗️ Проекты</button>
-          <button class="btn btn-secondary" onclick="openAdminDictionaries()">📋 Справочники</button>
+          <button class="btn btn-secondary" style="margin-bottom:10px" onclick="openAdminDictionaries()">📋 Справочники</button>
+          <button class="btn btn-secondary" onclick="openAdminBranding()">🎨 Брендинг (имя/лого/фавикон)</button>
         </div>
       </div>
     </div>
@@ -731,7 +732,7 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
 </div>
 
 <script type="module">
-import { Auth, Records, Photos, Earnings, Admin } from '/api.js';
+import { Auth, Records, Photos, Earnings, Admin, Settings } from '/api.js';
 window._api = { Auth, Records, Photos, Earnings, Admin };
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -794,9 +795,34 @@ function updateOnlineStatus() {
 window.addEventListener('online', updateOnlineStatus);
 window.addEventListener('offline', updateOnlineStatus);
 
+// ── Branding (app name, logo, favicon) ───────────────────────────────────────
+async function applyBranding() {
+  try {
+    const s = await Settings.get();
+    if (s.app_name) {
+      document.title = s.app_name + ' — учёт';
+      document.querySelectorAll('.top-bar-logo span:not(.logo-house)').forEach(el => { el.textContent = s.app_name; });
+      const loginLogo = document.querySelector('.login-logo h1');
+      if (loginLogo) loginLogo.textContent = s.app_name;
+    }
+    if (s.logo_url) {
+      document.querySelectorAll('.logo-house').forEach(el => {
+        el.innerHTML = `<img src="${s.logo_url}" alt="" style="width:22px;height:22px;object-fit:contain;display:block">`;
+      });
+    }
+    if (s.favicon_url) {
+      let link = document.querySelector("link[rel='icon']");
+      if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); }
+      link.href = s.favicon_url;
+    }
+    window._branding = s;
+  } catch (_) {}
+}
+
 // ── Boot ─────────────────────────────────────────────────────────────────────
 (async function boot() {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
+  applyBranding();
   updateOnlineStatus();
   if (OfflineQueue.list.length && navigator.onLine) setTimeout(() => OfflineQueue.flush(), 2000);
   if (Auth.isLoggedIn) {
@@ -2780,6 +2806,63 @@ window.submitEditProject = async function(code) {
 };
 
 // ── Admin: Dictionaries ───────────────────────────────────────────────────────
+window.openAdminBranding = async function() {
+  const s = window._branding || await Settings.get().catch(() => ({}));
+  openModal('🎨 Брендинг приложения', `
+    <div class="form-group">
+      <label>Название приложения</label>
+      <input id="b-name" type="text" value="${esc(s.app_name||'WELL DOM')}" maxlength="100">
+      <div style="font-size:11px;color:var(--text2);margin-top:4px">Видно в шапке слева и заголовке вкладки</div>
+    </div>
+    <div class="form-group">
+      <label>URL логотипа (PNG/SVG, 22×22)</label>
+      <input id="b-logo" type="url" value="${esc(s.logo_url||'')}" placeholder="https://...">
+      <input type="file" accept="image/*" id="b-logo-file" style="margin-top:6px;font-size:12px">
+      ${s.logo_url ? `<img src="${s.logo_url}" style="margin-top:6px;width:32px;height:32px;object-fit:contain;background:var(--chip-bg);border-radius:6px;padding:4px">` : ''}
+    </div>
+    <div class="form-group">
+      <label>URL фавикона (32×32 PNG/ICO)</label>
+      <input id="b-fav" type="url" value="${esc(s.favicon_url||'')}" placeholder="https://...">
+      <input type="file" accept="image/*" id="b-fav-file" style="margin-top:6px;font-size:12px">
+    </div>
+    <div style="font-size:11px;color:var(--text2);line-height:1.5;margin-bottom:10px">
+      Можно вставить прямой URL или загрузить файл — он будет сохранён через хранилище приложения.
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn" onclick="submitBranding()">Сохранить</button>
+    </div>
+  `);
+};
+
+window.submitBranding = async function() {
+  const data = {
+    app_name: document.getElementById('b-name').value.trim() || 'WELL DOM',
+    logo_url: document.getElementById('b-logo').value.trim() || null,
+    favicon_url: document.getElementById('b-fav').value.trim() || null,
+  };
+  try {
+    const logoFile = document.getElementById('b-logo-file').files[0];
+    if (logoFile) {
+      const id = await Photos.upload(logoFile, 'receipt');
+      const conf = await Photos.confirm(id);
+      data.logo_url = conf.url || data.logo_url;
+    }
+    const favFile = document.getElementById('b-fav-file').files[0];
+    if (favFile) {
+      const id = await Photos.upload(favFile, 'receipt');
+      const conf = await Photos.confirm(id);
+      data.favicon_url = conf.url || data.favicon_url;
+    }
+    await Admin.settings.update(data);
+    toast('Брендинг обновлён');
+    closeModal();
+    applyBranding();
+  } catch(e) {
+    toast('Ошибка: ' + (e?.detail || JSON.stringify(e)));
+  }
+};
+
 window.openAdminDictionaries = async function() {
   openSheet('detail-sheet');
   document.getElementById('detail-title').textContent = 'Справочники';
