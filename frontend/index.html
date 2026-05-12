@@ -435,8 +435,12 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
     <!-- MASTERS TAB -->
     <div class="tab" id="tab-masters">
       <div class="section-header">
-        <h2>Оплата мастерам</h2>
-        <button class="add-btn" onclick="openAddForm('master_payment')">+ Добавить</button>
+        <h2>Мастера</h2>
+        <button class="add-btn" onclick="openAddForm('master_payment')">+ Выплата</button>
+      </div>
+      <div style="display:flex;background:var(--card);border-bottom:1px solid var(--border)">
+        <button class="dash-subtab active" id="m-subtab-cards" onclick="switchMastersView('cards')">👷 Карточки</button>
+        <button class="dash-subtab" id="m-subtab-list" onclick="switchMastersView('list')">📋 Список выплат</button>
       </div>
       <div class="content" id="masters-list"></div>
     </div>
@@ -1077,12 +1081,81 @@ async function loadTab(kind) {
   }
 }
 
+// Per-tab UI state for search/date filter
+const _tabState = { expense: { q: '', d: 'all', items: [] }, master_payment: { q: '', d: 'all', items: [] }, client_payment: { q: '', d: 'all', items: [] } };
+
+function _dateMatches(operDate, mode) {
+  if (mode === 'all' || !operDate) return true;
+  const today = new Date(); today.setHours(0,0,0,0);
+  const d = new Date(operDate);
+  if (mode === 'today') return d.toDateString() === today.toDateString();
+  if (mode === 'yesterday') { const y = new Date(today); y.setDate(y.getDate()-1); return d.toDateString() === y.toDateString(); }
+  if (mode === 'week') { const w = new Date(today); w.setDate(w.getDate()-6); return d >= w; }
+  if (mode === 'month') return d.getFullYear()===today.getFullYear() && d.getMonth()===today.getMonth();
+  return true;
+}
+
+window.setRecSearch = function(kind, val) { _tabState[kind].q = val.toLowerCase(); rerenderRecList(kind); };
+window.setRecDate = function(kind, mode, btn) {
+  _tabState[kind].d = mode;
+  btn.parentNode.querySelectorAll('.rec-date-chip').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  rerenderRecList(kind);
+};
+
+function rerenderRecList(kind) {
+  const containerId = kind === 'expense' ? 'expenses-list' : kind === 'master_payment' ? 'masters-list' : 'payments-list';
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const s = _tabState[kind];
+  const q = s.q;
+  const filtered = s.items.filter(r => {
+    if (!_dateMatches(r.operation_date, s.d)) return false;
+    if (!q) return true;
+    const hay = [r.name, r.client_rep_name, r.type, r.category, r.kassa, r.comment].filter(Boolean).join(' ').toLowerCase();
+    return hay.includes(q);
+  });
+  if (kind === 'master_payment' && _mastersView === 'cards') {
+    renderMasterCards(el, filtered);
+  } else {
+    renderRecordsCards(el, filtered, kind);
+  }
+}
+
 function renderRecords(el, items, kind) {
+  _tabState[kind].items = items;
+  // Inject toolbar (search + date chips) if not yet present
+  const toolbarHtml = `
+    <div class="rec-toolbar" style="padding:8px 12px 4px;display:flex;flex-direction:column;gap:6px">
+      <input type="search" placeholder="🔍 Поиск по записям..." oninput="setRecSearch('${kind}', this.value)" style="padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;background:var(--input-bg);color:var(--text)">
+      <div style="display:flex;gap:6px;overflow-x:auto;scrollbar-width:none">
+        <button class="rec-date-chip active" onclick="setRecDate('${kind}','all',this)" style="white-space:nowrap;padding:4px 12px;border-radius:14px;border:1.5px solid var(--border);background:var(--card);color:var(--text2);font-size:12px;cursor:pointer">Все</button>
+        <button class="rec-date-chip" onclick="setRecDate('${kind}','today',this)" style="white-space:nowrap;padding:4px 12px;border-radius:14px;border:1.5px solid var(--border);background:var(--card);color:var(--text2);font-size:12px;cursor:pointer">Сегодня</button>
+        <button class="rec-date-chip" onclick="setRecDate('${kind}','yesterday',this)" style="white-space:nowrap;padding:4px 12px;border-radius:14px;border:1.5px solid var(--border);background:var(--card);color:var(--text2);font-size:12px;cursor:pointer">Вчера</button>
+        <button class="rec-date-chip" onclick="setRecDate('${kind}','week',this)" style="white-space:nowrap;padding:4px 12px;border-radius:14px;border:1.5px solid var(--border);background:var(--card);color:var(--text2);font-size:12px;cursor:pointer">Неделя</button>
+        <button class="rec-date-chip" onclick="setRecDate('${kind}','month',this)" style="white-space:nowrap;padding:4px 12px;border-radius:14px;border:1.5px solid var(--border);background:var(--card);color:var(--text2);font-size:12px;cursor:pointer">Месяц</button>
+      </div>
+    </div>
+    <div id="rec-cards-${kind}"></div>
+  `;
+  el.innerHTML = toolbarHtml;
+  // Activate chip by saved state
+  const s = _tabState[kind];
+  const chip = el.querySelector(`.rec-date-chip[onclick*="'${s.d}'"]`);
+  if (chip) {
+    el.querySelectorAll('.rec-date-chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+  }
+  rerenderRecList(kind);
+}
+
+function renderRecordsCards(el, items, kind) {
+  const cards = el.querySelector(`#rec-cards-${kind}`) || el;
   if (!items.length) {
-    el.innerHTML = `<div class="empty"><div class="icon">${kind === 'expense' ? '🛒' : kind === 'master_payment' ? '👷' : '💰'}</div>Записей пока нет</div>`;
+    cards.innerHTML = `<div class="empty"><div class="icon">${kind === 'expense' ? '🛒' : kind === 'master_payment' ? '👷' : '💰'}</div>Записей не найдено</div>`;
     return;
   }
-  el.innerHTML = items.map(r => {
+  cards.innerHTML = items.map(r => {
     const amount = r.kind === 'expense' ? r.sum_buy : r.payment_amount;
     const isIncome = r.kind === 'client_payment';
     const sign = amount ? (isIncome ? '+' : '−') : '';
@@ -1106,9 +1179,17 @@ function renderRecords(el, items, kind) {
           ${r.author ? `<span>${esc(r.author.name)}</span>` : ''}
         </div>
         ${photos ? `<div class="record-photos">${photos}</div>` : ''}
+        <div style="margin-top:8px;display:flex;justify-content:flex-end">
+          <button onclick="event.stopPropagation();repeatRecord('${r.id}')" style="background:transparent;border:1.5px solid var(--orange);color:var(--orange);padding:4px 12px;border-radius:14px;font-size:12px;font-weight:600;cursor:pointer">↻ Повторить</button>
+        </div>
       </div>
     `;
   }).join('');
+  // Refresh active chip styling
+  cards.closest('.content')?.querySelectorAll('.rec-date-chip').forEach(c => {
+    if (c.classList.contains('active')) { c.style.background = 'var(--orange)'; c.style.color = '#fff'; c.style.borderColor = 'var(--orange)'; }
+    else { c.style.background = 'var(--card)'; c.style.color = 'var(--text2)'; c.style.borderColor = 'var(--border)'; }
+  });
 }
 
 window.filterRecords = function(kind, type, el) {
@@ -1116,6 +1197,126 @@ window.filterRecords = function(kind, type, el) {
   el.classList.add('active');
   activeFilter = type;
   loadTab(kind);
+};
+
+window.repeatRecord = async function(id) {
+  if (!currentProject) return;
+  try {
+    const r = await Records.get(currentProject.code, id);
+    openAddForm(r.kind);
+    // Wait one tick so form is rendered, then populate
+    setTimeout(() => {
+      if (r.kind === 'expense') {
+        if (r.name) document.getElementById('f-name').value = r.name;
+        if (r.type) document.getElementById('f-type').value = r.type;
+        if (r.category) document.getElementById('f-category').value = r.category;
+        if (r.kassa) document.getElementById('f-kassa').value = r.kassa;
+        if (r.qty != null) document.getElementById('f-qty').value = r.qty;
+        if (r.price != null) document.getElementById('f-price').value = r.price;
+        calcSum();
+      } else if (r.kind === 'master_payment') {
+        if (r.name) document.getElementById('f-master-name').value = r.name;
+        if (r.payment_amount != null) document.getElementById('f-payment-amount').value = r.payment_amount;
+        const ptMap = { 'Зарплата':'salary','Аванс':'advance','Премия':'bonus','Возврат долга':'debt' };
+        if (r.type && ptMap[r.type]) document.getElementById('f-master-paytype').value = ptMap[r.type];
+      } else {
+        if (r.client_rep_name) document.getElementById('f-rep-name').value = r.client_rep_name;
+        if (r.payment_amount != null) document.getElementById('f-client-amount').value = r.payment_amount;
+        document.getElementById('f-is-advance').checked = !!r.is_advance;
+      }
+      if (r.comment) document.getElementById('f-comment').value = r.comment;
+      toast('Заполнено из предыдущей записи — поправьте и сохраните');
+    }, 50);
+  } catch(e) { toast('Не удалось загрузить запись'); }
+};
+
+// Smart defaults: remember last values per kind+project
+function _defaultsKey(kind) { return `defaults_${currentProject?.code}_${kind}`; }
+function loadDefaults(kind) {
+  try { return JSON.parse(localStorage.getItem(_defaultsKey(kind)) || '{}'); } catch(_) { return {}; }
+}
+function saveDefaults(kind, vals) {
+  try { localStorage.setItem(_defaultsKey(kind), JSON.stringify(vals)); } catch(_) {}
+}
+
+// Masters view: cards (grouped by name) or full list
+let _mastersView = 'cards';
+window.switchMastersView = function(view) {
+  _mastersView = view;
+  document.getElementById('m-subtab-cards').classList.toggle('active', view === 'cards');
+  document.getElementById('m-subtab-list').classList.toggle('active', view === 'list');
+  loadTab('master_payment');
+};
+
+function renderMasterCards(el, items) {
+  // Group payments by master name
+  const groups = {};
+  items.forEach(r => {
+    const name = (r.name || 'Без имени').trim();
+    if (!groups[name]) groups[name] = { name, payments: [], totalPaid: 0, lastDate: null, advances: 0, salary: 0, bonus: 0, debt: 0 };
+    const g = groups[name];
+    const amt = parseFloat(r.payment_amount || 0);
+    g.payments.push(r);
+    g.totalPaid += amt;
+    if (!g.lastDate || r.operation_date > g.lastDate) g.lastDate = r.operation_date;
+    if (r.type === 'Аванс') g.advances += amt;
+    else if (r.type === 'Премия') g.bonus += amt;
+    else if (r.type === 'Возврат долга') g.debt += amt;
+    else g.salary += amt;
+  });
+  const list = Object.values(groups).sort((a,b) => (b.lastDate||'').localeCompare(a.lastDate||''));
+  if (!list.length) {
+    el.querySelector('#rec-cards-master_payment').innerHTML = `<div class="empty"><div class="icon">👷</div>Мастеров пока нет</div>`;
+    return;
+  }
+  el.querySelector('#rec-cards-master_payment').innerHTML = list.map(g => {
+    const initials = g.name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+    return `<div class="record-card" onclick="openMasterDetail('${esc(g.name).replace(/'/g,'')}')">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="width:48px;height:48px;border-radius:50%;background:var(--orange);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;flex-shrink:0">${esc(initials)}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;font-size:15px">${esc(g.name)}</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px">${g.payments.length} выплат · посл. ${formatDate(g.lastDate)}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-weight:700;font-size:16px;color:var(--red)">−${fmt(g.totalPaid)} ₽</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
+        ${g.salary>0?`<span class="tag">💵 ${fmt(g.salary)} ₽</span>`:''}
+        ${g.advances>0?`<span class="tag" style="background:#fff3e0;color:var(--orange)">💰 Аванс ${fmt(g.advances)} ₽</span>`:''}
+        ${g.bonus>0?`<span class="tag" style="background:#e8f5e9;color:#2e7d32">⭐ Премия ${fmt(g.bonus)} ₽</span>`:''}
+        ${g.debt>0?`<span class="tag">💸 Долг ${fmt(g.debt)} ₽</span>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.openMasterDetail = function(name) {
+  const items = (_tabState.master_payment.items || []).filter(r => (r.name || 'Без имени').trim() === name);
+  openSheet('detail-sheet');
+  document.getElementById('detail-title').textContent = name;
+  const total = items.reduce((s, r) => s + parseFloat(r.payment_amount || 0), 0);
+  document.getElementById('detail-body').innerHTML = `
+    <div style="background:var(--tag-bg);padding:14px;border-radius:10px;margin-bottom:14px;text-align:center">
+      <div style="font-size:11px;color:var(--text2);text-transform:uppercase">Всего выплачено</div>
+      <div style="font-size:24px;font-weight:700;color:var(--red);margin-top:4px">−${fmt(total)} ₽</div>
+      <div style="font-size:12px;color:var(--text2);margin-top:4px">${items.length} выплат</div>
+    </div>
+    <button class="btn btn-secondary" onclick="closeSheet();openAddForm('master_payment');setTimeout(()=>document.getElementById('f-master-name').value='${esc(name).replace(/'/g,'')}',50)" style="margin-bottom:14px">+ Новая выплата ${esc(name)}</button>
+    ${items.sort((a,b) => (b.operation_date||'').localeCompare(a.operation_date||'')).map(r => `
+      <div class="record-card" onclick="closeSheet();setTimeout(()=>openDetail('${r.id}'),300)">
+        <div class="record-top">
+          <div class="record-name">${esc(r.type || 'Зарплата')}${r.is_advance ? ' (аванс)' : ''}</div>
+          <div class="record-amount" style="color:var(--red)">−${fmt(r.payment_amount||0)} ₽</div>
+        </div>
+        <div class="record-meta">
+          <span>${formatDate(r.operation_date)}</span>
+          ${r.comment ? `<span class="tag">${esc(r.comment.slice(0,30))}</span>` : ''}
+        </div>
+      </div>
+    `).join('')}
+  `;
 };
 
 // ── Detail ────────────────────────────────────────────────────────────────────
@@ -1156,10 +1357,10 @@ window.openDetail = async function(id) {
             ${r.photos.map(p => `<img src="${p.thumb_url||p.url}" onclick="openLightbox('${p.url}')" style="width:100px;height:100px;border-radius:8px;object-fit:cover;cursor:pointer">`).join('')}
           </div>
         </div>` : ''}
-      ${canDelete ? `
-        <div style="margin-top:20px">
-          <button class="btn btn-danger" onclick="confirmDeleteRecord('${r.id}','${r.kind}')">Удалить запись</button>
-        </div>` : ''}
+      <div style="margin-top:20px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-secondary" style="flex:1;min-width:140px" onclick="closeSheet();repeatRecord('${r.id}')">↻ Повторить</button>
+        ${canDelete ? `<button class="btn btn-danger" style="flex:1;min-width:140px" onclick="confirmDeleteRecord('${r.id}','${r.kind}')">🗑 Удалить</button>` : ''}
+      </div>
     `;
   } catch (_) {
     document.getElementById('detail-body').innerHTML = '<p>Ошибка загрузки</p>';
@@ -1245,6 +1446,16 @@ window.openAddForm = function(kind) {
   document.getElementById('master-fields').style.display = kind === 'master_payment' ? '' : 'none';
   document.getElementById('client-fields').style.display = kind === 'client_payment' ? '' : 'none';
 
+  // Smart defaults — fill in last used values for this kind+project
+  const def = loadDefaults(kind);
+  if (kind === 'expense') {
+    if (def.type) document.getElementById('f-type').value = def.type;
+    if (def.category) document.getElementById('f-category').value = def.category;
+    if (def.kassa) document.getElementById('f-kassa').value = def.kassa;
+  } else if (kind === 'master_payment') {
+    if (def.master_paytype) document.getElementById('f-master-paytype').value = def.master_paytype;
+  }
+
   const titles = { expense: 'Добавить расход', master_payment: 'Оплата мастеру', client_payment: 'Платёж клиента' };
   document.getElementById('sheet-title').textContent = titles[kind];
   document.getElementById('form-kind-tabs').innerHTML = '';
@@ -1325,6 +1536,12 @@ window.saveRecord = async function() {
 
     try {
       await Records.create(currentProject.code, data);
+      // Remember last used values per kind+project
+      if (currentKind === 'expense') {
+        saveDefaults('expense', { type: data.type, category: data.category, kassa: data.kassa });
+      } else if (currentKind === 'master_payment') {
+        saveDefaults('master_payment', { master_paytype: document.getElementById('f-master-paytype').value });
+      }
       closeSheet();
       toast('Запись добавлена');
       loadTab(currentKind);
