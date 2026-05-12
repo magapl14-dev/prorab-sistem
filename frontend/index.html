@@ -945,7 +945,10 @@ function renderRecords(el, items, kind) {
   }
   el.innerHTML = items.map(r => {
     const amount = r.kind === 'expense' ? r.sum_buy : r.payment_amount;
-    const amountStr = amount ? fmt(amount) + ' ₽' : '';
+    const isIncome = r.kind === 'client_payment';
+    const sign = amount ? (isIncome ? '+' : '−') : '';
+    const amountColor = !amount ? 'var(--orange)' : (isIncome ? 'var(--green)' : 'var(--red)');
+    const amountStr = amount ? `${sign}${fmt(amount)} ₽` : '';
     const tagClass = r.kind === 'expense' ? 'tag-expense' : r.kind === 'master_payment' ? 'tag-master' : 'tag-client';
     const photos = (r.photos || []).slice(0, 3).map(p =>
       `<img src="${p.thumb_url || p.url}" loading="lazy">`
@@ -954,7 +957,7 @@ function renderRecords(el, items, kind) {
       <div class="record-card" onclick="openDetail('${r.id}')">
         <div class="record-top">
           <div class="record-name">${esc(r.name || r.client_rep_name || '—')}</div>
-          <div class="record-amount">${amountStr}</div>
+          <div class="record-amount" style="color:${amountColor}">${amountStr}</div>
         </div>
         <div class="record-meta">
           <span>${formatDate(r.operation_date)}</span>
