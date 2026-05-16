@@ -280,6 +280,7 @@ class AppSettingOut(BaseModel):
     app_name: str
     logo_url: Optional[str] = None
     favicon_url: Optional[str] = None
+    photo_camera_only: bool = False
     model_config = {"from_attributes": True}
 
 
@@ -287,3 +288,4 @@ class AppSettingUpdate(BaseModel):
     app_name: Optional[str] = None
     logo_url: Optional[str] = None
     favicon_url: Optional[str] = None
+    photo_camera_only: Optional[bool] = None

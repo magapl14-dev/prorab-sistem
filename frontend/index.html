@@ -692,7 +692,7 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
       <div class="photo-row" id="photo-row">
         <div class="add-photo-btn" onclick="pickPhoto()">📷</div>
       </div>
-      <input type="file" id="photo-input" accept="image/*" capture="environment" style="display:none" onchange="onPhotoSelected(event)" multiple>
+      <input type="file" id="photo-input" accept="image/*" capture="environment" style="display:none" onchange="onPhotoSelected(event)" multiple data-camera-only="1">
     </div>
     <button class="btn" onclick="saveRecord()" id="save-btn">Сохранить</button>
     <div class="error-msg" id="form-error"></div>
@@ -814,6 +814,16 @@ async function applyBranding() {
       let link = document.querySelector("link[rel='icon']");
       if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); }
       link.href = s.favicon_url;
+    }
+    const photoInput = document.getElementById('photo-input');
+    if (photoInput) {
+      if (s.photo_camera_only) {
+        photoInput.setAttribute('capture', 'environment');
+        photoInput.removeAttribute('multiple');
+      } else {
+        photoInput.removeAttribute('capture');
+        photoInput.setAttribute('multiple', '');
+      }
     }
     window._branding = s;
   } catch (_) {}
@@ -2837,6 +2847,13 @@ window.openAdminBranding = async function() {
     <div style="font-size:11px;color:var(--text2);line-height:1.5;margin-bottom:10px">
       Можно вставить прямой URL или загрузить файл — он будет сохранён через хранилище приложения.
     </div>
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input id="b-camera-only" type="checkbox" ${s.photo_camera_only ? 'checked' : ''} style="width:18px;height:18px;margin:0">
+        <span>Только камера (запретить выбор фото из галереи)</span>
+      </label>
+      <div style="font-size:11px;color:var(--text2);margin-top:4px">Если включено — пользователь сможет только сделать фото, без доступа к галерее</div>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
       <button class="btn" onclick="submitBranding()">Сохранить</button>
@@ -2849,6 +2866,7 @@ window.submitBranding = async function() {
     app_name: document.getElementById('b-name').value.trim() || 'WELL DOM',
     logo_url: document.getElementById('b-logo').value.trim() || null,
     favicon_url: document.getElementById('b-fav').value.trim() || null,
+    photo_camera_only: document.getElementById('b-camera-only').checked,
   };
   try {
     const logoFile = document.getElementById('b-logo-file').files[0];
