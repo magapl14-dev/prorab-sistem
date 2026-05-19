@@ -297,13 +297,15 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
 /* ── form / bottom sheet ── */
 .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100}
 .overlay.open{display:block}
-.sheet{position:fixed;left:0;right:0;bottom:0;background:#fff;border-radius:20px 20px 0 0;z-index:101;max-height:92vh;overflow-y:auto;transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);max-width:480px;margin:0 auto}
+.sheet{position:fixed;left:0;right:0;bottom:0;background:#fff;border-radius:20px 20px 0 0;z-index:101;max-height:88dvh;overflow-y:auto;transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);max-width:480px;margin:0 auto}
 .sheet.open{transform:translateY(0)}
 .sheet-handle{width:40px;height:4px;background:#e0d5c8;border-radius:2px;margin:12px auto 0}
 .sheet-title{font-size:17px;font-weight:700;padding:16px 16px 0;color:var(--text);display:flex;align-items:center;gap:8px}
-.sheet-back{position:absolute;top:14px;left:12px;background:var(--tag-bg);border:none;color:var(--text);font-size:13px;font-weight:600;padding:7px 12px;border-radius:18px;cursor:pointer;display:flex;align-items:center;gap:4px;z-index:2}
-.sheet-back:hover{background:var(--border)}
-.sheet-title{padding-left:90px}
+.sheet-header{position:sticky;top:0;background:#fff;z-index:5;padding-bottom:8px}
+[data-theme="dark"] .sheet-header{background:var(--card)}
+.sheet-back{position:absolute;top:14px;left:12px;background:var(--orange);border:none;color:#fff;font-size:13px;font-weight:600;padding:8px 14px;border-radius:18px;cursor:pointer;display:inline-flex;align-items:center;gap:4px;box-shadow:0 2px 8px rgba(0,0,0,.15);z-index:6}
+.sheet-back:hover{filter:brightness(1.05)}
+.sheet-title{padding:12px 16px 0;padding-left:110px}
 .form-body{padding:16px}
 .form-group{margin-bottom:14px}
 .form-group label{display:block;font-size:11px;color:var(--text2);margin-bottom:6px;font-weight:600;letter-spacing:.4px;text-transform:uppercase}
@@ -564,9 +566,11 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
 
 <!-- ADD RECORD SHEET -->
 <div class="sheet" id="add-sheet">
-  <div class="sheet-handle"></div>
-  <button type="button" class="sheet-back" onclick="closeSheet()" aria-label="Назад">← Назад</button>
-  <div class="sheet-title" id="sheet-title">Добавить расход</div>
+  <div class="sheet-header">
+    <div class="sheet-handle"></div>
+    <button type="button" class="sheet-back" onclick="closeSheet()" aria-label="Назад">← Назад</button>
+    <div class="sheet-title" id="sheet-title">Добавить расход</div>
+  </div>
   <div class="form-body">
     <button type="button" id="voice-form-btn" onclick="startVoiceForm()" style="width:100%;padding:12px;background:var(--orange-light);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;margin-bottom:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px">🎙 Сказать всё голосом</button>
     <div id="form-kind-tabs" class="type-tabs"></div>
@@ -705,9 +709,11 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
 
 <!-- RECORD DETAIL SHEET -->
 <div class="sheet" id="detail-sheet">
-  <div class="sheet-handle"></div>
-  <button type="button" class="sheet-back" onclick="closeSheet()" aria-label="Назад">← Назад</button>
-  <div class="sheet-title" id="detail-title">Запись</div>
+  <div class="sheet-header">
+    <div class="sheet-handle"></div>
+    <button type="button" class="sheet-back" onclick="closeSheet()" aria-label="Назад">← Назад</button>
+    <div class="sheet-title" id="detail-title">Запись</div>
+  </div>
   <div class="form-body" id="detail-body"></div>
 </div>
 
