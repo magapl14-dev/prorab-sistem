@@ -64,11 +64,12 @@ export const Photos = {
     return urlResp.photo_id;
   },
 
-  confirm: (photoId, { recordId = null, taskId = null, durationSec = null } = {}) =>
+  confirm: (photoId, { recordId = null, taskId = null, commentId = null, durationSec = null } = {}) =>
     _post("/photos/confirm", {
       photo_id: photoId,
       ...(recordId ? { record_id: recordId } : {}),
       ...(taskId ? { task_id: taskId } : {}),
+      ...(commentId ? { comment_id: commentId } : {}),
       ...(durationSec != null ? { duration_sec: durationSec } : {}),
     }),
 
@@ -139,6 +140,11 @@ export const Tasks = {
   users: () => _get("/tasks/_users"),
   projects: () => _get("/tasks/_projects"),
   types: () => _get("/tasks/_types"),
+  comments: {
+    list: (taskId) => _get(`/tasks/${taskId}/comments`),
+    add: (taskId, data) => _post(`/tasks/${taskId}/comments`, data),
+    delete: (taskId, commentId) => _delete(`/tasks/${taskId}/comments/${commentId}`),
+  },
 };
 
 export const Settings = {

@@ -232,6 +232,7 @@ class ConfirmUploadRequest(BaseModel):
     photo_id: UUID
     record_id: Optional[UUID] = None
     task_id: Optional[UUID] = None
+    comment_id: Optional[UUID] = None
     duration_sec: Optional[int] = None
 
 
@@ -345,6 +346,20 @@ class TaskProjectBrief(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class TaskCommentOut(BaseModel):
+    id: UUID
+    text: Optional[str] = None
+    author: Optional[TaskAssigneeBrief] = None
+    attachments: List[PhotoOut] = []
+    created_at: datetime
+    model_config = {"from_attributes": True}
+
+
+class TaskCommentCreate(BaseModel):
+    text: Optional[str] = None
+    attachment_ids: List[UUID] = []
+
+
 class TaskOut(BaseModel):
     id: UUID
     title: str
@@ -352,11 +367,12 @@ class TaskOut(BaseModel):
     type: Optional[str] = None
     status: str
     priority: Optional[str] = None
-    due_date: Optional[date] = None
+    due_at: Optional[datetime] = None
     project: Optional[TaskProjectBrief] = None
     creator: Optional[TaskAssigneeBrief] = None
     assignees: List[TaskAssigneeBrief] = []
     attachments: List[PhotoOut] = []
+    comments: List[TaskCommentOut] = []
     completed_at: Optional[datetime] = None
     created_at: datetime
     model_config = {"from_attributes": True}
@@ -368,7 +384,7 @@ class TaskCreate(BaseModel):
     project_code: Optional[str] = None
     type: Optional[str] = None
     priority: Optional[str] = None  # low|normal|high
-    due_date: Optional[date] = None
+    due_at: Optional[datetime] = None
     assignee_ids: List[UUID] = []
     attachment_ids: List[UUID] = []
 
@@ -379,7 +395,7 @@ class TaskUpdate(BaseModel):
     project_code: Optional[str] = None  # передать "" чтобы убрать проект
     type: Optional[str] = None
     priority: Optional[str] = None
-    due_date: Optional[date] = None
+    due_at: Optional[datetime] = None
     status: Optional[str] = None
     assignee_ids: Optional[List[UUID]] = None
     attachment_ids: Optional[List[UUID]] = None  # добавить новые приложения

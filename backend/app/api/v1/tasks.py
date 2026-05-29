@@ -9,8 +9,11 @@ from sqlalchemy.orm import selectinload
 from ...core.database import get_db
 from ...core.deps import current_user
 from ...core.permissions import has_permission, require_permission
-from ...models.models import User, Task, TaskAssignee, Project, UserProject, Photo, Dictionary
-from ...schemas.schemas import TaskOut, TaskCreate, TaskUpdate, TaskAssigneeBrief, TaskProjectBrief, PhotoOut, DictionaryOut
+from ...models.models import User, Task, TaskAssignee, Project, UserProject, Photo, Dictionary, TaskComment
+from ...schemas.schemas import (
+    TaskOut, TaskCreate, TaskUpdate, TaskAssigneeBrief, TaskProjectBrief, PhotoOut, DictionaryOut,
+    TaskCommentOut, TaskCommentCreate,
+)
 from ...services.s3 import public_url
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -77,15 +80,25 @@ def _photo_brief(p: Photo) -> PhotoOut:
     )
 
 
-def _task_out(t: Task) -> TaskOut:
+def _comment_out(c: TaskComment) -> TaskCommentOut:
+    author = TaskAssigneeBrief(id=c.author.id, name=c.author.name) if c.author else None
+    atts = [_photo_brief(p) for p in (c.attachments or []) if not p.deleted_at]
+    return TaskCommentOut(id=c.id, text=c.text, author=author, attachments=atts, created_at=c.created_at)
+
+
+def _task_out(t: Task, include_comments: bool = False) -> TaskOut:
     assignees = [TaskAssigneeBrief(id=a.user.id, name=a.user.name) for a in (t.assignees_link or []) if a.user]
     project = TaskProjectBrief(code=t.project.code, name=t.project.name) if t.project else None
     creator = TaskAssigneeBrief(id=t.creator.id, name=t.creator.name) if t.creator else None
     attachments = [_photo_brief(p) for p in (t.attachments or []) if not p.deleted_at]
+    comments = []
+    if include_comments:
+        comments = [_comment_out(c) for c in sorted((t.comments or []), key=lambda x: x.created_at) if not c.deleted_at]
     return TaskOut(
         id=t.id, title=t.title, description=t.description, type=t.type, status=t.status,
-        priority=t.priority, due_date=t.due_date,
+        priority=t.priority, due_at=t.due_at,
         project=project, creator=creator, assignees=assignees, attachments=attachments,
+        comments=comments,
         completed_at=t.completed_at, created_at=t.created_at,
     )
 
@@ -165,7 +178,7 @@ async def list_tasks(
         .where(and_(*filters))
         .order_by(
             (Task.status == "done").asc(),
-            Task.due_date.asc().nulls_last(),
+            Task.due_at.asc().nulls_last(),
             Task.created_at.desc(),
         )
     )).scalars().all()
@@ -185,12 +198,95 @@ async def get_task(
             selectinload(Task.creator),
             selectinload(Task.assignees_link).selectinload(TaskAssignee.user),
             selectinload(Task.attachments),
+            selectinload(Task.comments).selectinload(TaskComment.author),
+            selectinload(Task.comments).selectinload(TaskComment.attachments),
         )
         .where(Task.id == task_id, Task.deleted_at.is_(None))
     )).scalar_one_or_none()
     if not task:
         raise HTTPException(404)
-    return _task_out(task)
+    return _task_out(task, include_comments=True)
+
+
+# ── Task comments ─────────────────────────────────────────────────────────────
+
+@router.get("/{task_id}/comments", response_model=list[TaskCommentOut])
+async def list_comments(
+    task_id: UUID,
+    user: User = Depends(require_permission("tasks", "view")),
+    db: AsyncSession = Depends(get_db),
+):
+    rows = (await db.execute(
+        select(TaskComment)
+        .options(selectinload(TaskComment.author), selectinload(TaskComment.attachments))
+        .where(TaskComment.task_id == task_id, TaskComment.deleted_at.is_(None))
+        .order_by(TaskComment.created_at)
+    )).scalars().all()
+    return [_comment_out(c) for c in rows]
+
+
+@router.post("/{task_id}/comments", response_model=TaskCommentOut, status_code=201)
+async def add_comment(
+    task_id: UUID,
+    data: TaskCommentCreate,
+    user: User = Depends(require_permission("tasks", "view")),
+    db: AsyncSession = Depends(get_db),
+):
+    # проверим, что задача существует
+    task = (await db.execute(select(Task).where(Task.id == task_id, Task.deleted_at.is_(None)))).scalar_one_or_none()
+    if not task:
+        raise HTTPException(404)
+    text = (data.text or "").strip() or None
+    if not text and not data.attachment_ids:
+        raise HTTPException(400, "Comment must have text or attachments")
+
+    comment = TaskComment(task_id=task_id, author_id=user.id, text=text)
+    db.add(comment)
+    await db.flush()
+
+    if data.attachment_ids:
+        photos = (await db.execute(
+            select(Photo).where(
+                Photo.id.in_(data.attachment_ids),
+                Photo.uploaded_by == user.id,
+                Photo.is_confirmed == True,
+                Photo.comment_id.is_(None),
+                Photo.task_id.is_(None),
+                Photo.record_id.is_(None),
+                Photo.deleted_at.is_(None),
+            )
+        )).scalars().all()
+        for p in photos:
+            p.comment_id = comment.id
+
+    await db.commit()
+    fetched = (await db.execute(
+        select(TaskComment)
+        .options(selectinload(TaskComment.author), selectinload(TaskComment.attachments))
+        .where(TaskComment.id == comment.id)
+    )).scalar_one()
+    return _comment_out(fetched)
+
+
+@router.delete("/{task_id}/comments/{comment_id}", status_code=204)
+async def delete_comment(
+    task_id: UUID,
+    comment_id: UUID,
+    user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    comment = (await db.execute(
+        select(TaskComment).where(TaskComment.id == comment_id, TaskComment.task_id == task_id, TaskComment.deleted_at.is_(None))
+    )).scalar_one_or_none()
+    if not comment:
+        raise HTTPException(404)
+    is_author = comment.author_id == user.id
+    if not is_author:
+        if not await has_permission(db, user.role, "tasks", "delete"):
+            raise HTTPException(403, "Cannot delete others' comments")
+    from datetime import datetime, timezone
+    comment.deleted_at = datetime.now(timezone.utc)
+    await db.commit()
 
 
 @router.post("", response_model=TaskOut, status_code=201)
@@ -209,7 +305,7 @@ async def create_task(
         type=data.type or None,
         project_id=project.id if project else None,
         priority=data.priority,
-        due_date=data.due_date,
+        due_at=data.due_at,
         created_by=user.id,
         status="open",
     )
@@ -288,8 +384,8 @@ async def update_task(
             task.project_id = p.id if p else None
     if data.priority is not None:
         task.priority = data.priority or None
-    if data.due_date is not None:
-        task.due_date = data.due_date
+    if data.due_at is not None:
+        task.due_at = data.due_at
     if data.status is not None:
         if data.status not in ("open", "in_progress", "done", "cancelled"):
             raise HTTPException(400, "Invalid status")

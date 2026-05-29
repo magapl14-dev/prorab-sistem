@@ -94,6 +94,8 @@ async def confirm_upload(
         photo.record_id = data.record_id
     if data.task_id:
         photo.task_id = data.task_id
+    if data.comment_id:
+        photo.comment_id = data.comment_id
     if data.duration_sec is not None:
         photo.duration_sec = data.duration_sec
     await db.commit()

@@ -114,6 +114,7 @@ class Photo(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     record_id = Column(UUID(as_uuid=True), ForeignKey("records.id", ondelete="CASCADE"), nullable=True)
     task_id = Column(UUID(as_uuid=True), ForeignKey("tasks.id", ondelete="CASCADE"), nullable=True)
+    comment_id = Column(UUID(as_uuid=True), ForeignKey("task_comments.id", ondelete="CASCADE"), nullable=True)
     s3_bucket = Column(String(200), nullable=False)
     s3_key = Column(String(500), nullable=False)
     thumb_key = Column(String(500), nullable=True)
@@ -130,7 +131,8 @@ class Photo(Base):
     deleted_at = Column(DateTime(timezone=True), nullable=True)
 
     record = relationship("Record", back_populates="photos")
-    task = relationship("Task", back_populates="attachments")
+    task = relationship("Task", back_populates="attachments", foreign_keys=[task_id])
+    comment = relationship("TaskComment", foreign_keys=[comment_id])
     uploader = relationship("User", back_populates="photos")
 
 
@@ -213,7 +215,7 @@ class Task(Base):
     type = Column(String(100), nullable=True)
     status = Column(String(20), nullable=False, default="open", server_default="open")  # open|in_progress|done|cancelled
     priority = Column(String(20), nullable=True)  # low|normal|high
-    due_date = Column(Date, nullable=True)
+    due_at = Column(DateTime(timezone=True), nullable=True)
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     completed_at = Column(DateTime(timezone=True), nullable=True)
     completed_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
@@ -224,7 +226,23 @@ class Task(Base):
     project = relationship("Project", foreign_keys=[project_id])
     creator = relationship("User", foreign_keys=[created_by])
     assignees_link = relationship("TaskAssignee", back_populates="task", cascade="all, delete-orphan")
-    attachments = relationship("Photo", back_populates="task")
+    attachments = relationship("Photo", back_populates="task", foreign_keys="Photo.task_id")
+    comments = relationship("TaskComment", back_populates="task", cascade="all, delete-orphan")
+
+
+class TaskComment(Base):
+    __tablename__ = "task_comments"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    task_id = Column(UUID(as_uuid=True), ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False)
+    author_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    text = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+
+    task = relationship("Task", back_populates="comments")
+    author = relationship("User", foreign_keys=[author_id])
+    attachments = relationship("Photo", foreign_keys="Photo.comment_id")
 
 
 class TaskAssignee(Base):
