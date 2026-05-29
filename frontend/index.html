@@ -837,8 +837,32 @@ async function applyBranding() {
         photoInput.setAttribute('multiple', '');
       }
     }
+    if (s.primary_color && /^#[0-9a-fA-F]{6}$/.test(s.primary_color)) {
+      applyPrimaryColor(s.primary_color);
+    }
     window._branding = s;
   } catch (_) {}
+}
+
+function _hexToRgb(hex) {
+  const h = hex.replace('#','');
+  return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+}
+function _rgbToHex(r,g,b) {
+  return '#' + [r,g,b].map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2,'0')).join('');
+}
+function _shade(hex, pct) {
+  // pct < 0 darken, > 0 lighten
+  const [r,g,b] = _hexToRgb(hex);
+  const t = pct < 0 ? 0 : 255;
+  const p = Math.abs(pct);
+  return _rgbToHex(r + (t - r) * p, g + (t - g) * p, b + (t - b) * p);
+}
+function applyPrimaryColor(hex) {
+  const root = document.documentElement;
+  root.style.setProperty('--orange', hex);
+  root.style.setProperty('--orange-dark', _shade(hex, -0.15));
+  root.style.setProperty('--orange-light', _shade(hex, 0.18));
 }
 
 // ── Boot ─────────────────────────────────────────────────────────────────────
@@ -2915,6 +2939,18 @@ window.openAdminBranding = async function() {
       </label>
       <div style="font-size:11px;color:var(--text2);margin-top:4px">Если включено — пользователь сможет только сделать фото, без доступа к галерее</div>
     </div>
+    <div class="form-group">
+      <label>Основной цвет фирменного стиля</label>
+      <div style="display:flex;gap:10px;align-items:center">
+        <input id="b-color" type="color" value="${esc(s.primary_color || '#e07820')}" style="width:60px;height:42px;padding:2px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:transparent" oninput="document.getElementById('b-color-hex').value=this.value;document.getElementById('b-color-preview').style.background=this.value">
+        <input id="b-color-hex" type="text" value="${esc(s.primary_color || '#e07820')}" placeholder="#e07820" maxlength="7" style="flex:1;font-family:monospace" oninput="if(/^#[0-9a-fA-F]{6}$/.test(this.value)){document.getElementById('b-color').value=this.value;document.getElementById('b-color-preview').style.background=this.value}">
+        <button type="button" onclick="document.getElementById('b-color').value='#e07820';document.getElementById('b-color-hex').value='#e07820';document.getElementById('b-color-preview').style.background='#e07820'" style="padding:8px 10px;background:var(--tag-bg);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px" title="Сбросить к дефолту">↺</button>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px;align-items:center">
+        <div id="b-color-preview" style="height:6px;flex:1;border-radius:3px;background:${esc(s.primary_color || '#e07820')}"></div>
+        <span style="font-size:11px;color:var(--text2)">Кнопки, акценты, выделения</span>
+      </div>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
       <button class="btn" onclick="submitBranding()">Сохранить</button>
@@ -2928,7 +2964,11 @@ window.submitBranding = async function() {
     logo_url: document.getElementById('b-logo').value.trim() || null,
     favicon_url: document.getElementById('b-fav').value.trim() || null,
     photo_camera_only: document.getElementById('b-camera-only').checked,
+    primary_color: (document.getElementById('b-color-hex').value.trim() || '').toLowerCase() || null,
   };
+  if (data.primary_color && !/^#[0-9a-f]{6}$/.test(data.primary_color)) {
+    toast('Цвет должен быть в формате #RRGGBB'); return;
+  }
   try {
     const logoFile = document.getElementById('b-logo-file').files[0];
     if (logoFile) {

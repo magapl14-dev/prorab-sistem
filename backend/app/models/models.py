@@ -170,6 +170,7 @@ class AppSetting(Base):
     logo_url = Column(Text, nullable=True)
     favicon_url = Column(Text, nullable=True)
     photo_camera_only = Column(Boolean, nullable=False, default=False, server_default="false")
+    primary_color = Column(String(20), nullable=True)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
