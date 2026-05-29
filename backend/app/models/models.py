@@ -171,3 +171,18 @@ class AppSetting(Base):
     favicon_url = Column(Text, nullable=True)
     photo_camera_only = Column(Boolean, nullable=False, default=False, server_default="false")
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class RolePermission(Base):
+    __tablename__ = "role_permissions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    role = Column(String(20), nullable=False)
+    resource = Column(String(50), nullable=False)
+    action = Column(String(20), nullable=False)
+    allowed = Column(Boolean, nullable=False, default=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("role", "resource", "action", name="uq_role_perm"),
+    )

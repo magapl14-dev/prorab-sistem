@@ -7,6 +7,7 @@ from ...core.database import get_db
 from ...core.redis import get_redis
 from ...core.security import verify_pin, hash_pin, create_access_token, create_refresh_token, decode_token, normalize_phone
 from ...core.deps import current_user
+from ...core.permissions import get_user_permissions
 from ...core.config import settings
 from ...models.models import User, UserProject, Project
 from ...schemas.schemas import (
@@ -81,11 +82,12 @@ async def login(
         for up, p in ups.all()
     ]
 
+    perms = await get_user_permissions(db, user.role)
     return TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,
         expires_in=settings.jwt_access_ttl,
-        user=UserBrief(id=user.id, name=user.name, role=user.role, projects=projects),
+        user=UserBrief(id=user.id, name=user.name, role=user.role, projects=projects, permissions=perms),
     )
 
 
@@ -149,4 +151,5 @@ async def me(user: User = Depends(current_user), db: AsyncSession = Depends(get_
         ProjectBrief(id=up.project_id, code=p.code, name=p.name, role=up.role)
         for up, p in ups.all()
     ]
-    return UserBrief(id=user.id, name=user.name, role=user.role, projects=projects)
+    perms = await get_user_permissions(db, user.role)
+    return UserBrief(id=user.id, name=user.name, role=user.role, projects=projects, permissions=perms)

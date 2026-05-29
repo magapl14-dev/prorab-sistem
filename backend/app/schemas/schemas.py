@@ -34,6 +34,7 @@ class UserBrief(BaseModel):
     name: str
     role: str
     projects: List[ProjectBrief] = []
+    permissions: dict = {}  # {resource: [action, ...]}
     model_config = {"from_attributes": True}
 
 
@@ -289,3 +290,23 @@ class AppSettingUpdate(BaseModel):
     logo_url: Optional[str] = None
     favicon_url: Optional[str] = None
     photo_camera_only: Optional[bool] = None
+
+
+# ── Permissions ───────────────────────────────────────────────────────────────
+
+class PermissionItem(BaseModel):
+    role: str
+    resource: str
+    action: str
+    allowed: bool
+
+
+class PermissionsMatrix(BaseModel):
+    roles: List[str]
+    resources: List[str]
+    actions: List[str]
+    matrix: dict  # {role: {resource: {action: bool}}}
+
+
+class PermissionsBulkUpdate(BaseModel):
+    items: List[PermissionItem]

@@ -109,6 +109,10 @@ export const Admin = {
   settings: {
     update: (data) => _patch("/admin/settings", data),
   },
+  permissions: {
+    get: () => _get("/admin/permissions"),
+    update: (items) => _patch("/admin/permissions", { items }),
+  },
 };
 
 export const Settings = {

@@ -428,7 +428,7 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
     <div class="tab active" id="tab-expenses">
       <div class="section-header">
         <h2>Расходы</h2>
-        <button class="add-btn" onclick="openAddForm('expense')">+ Добавить</button>
+        <button class="add-btn" id="add-expense-btn" onclick="openAddForm('expense')">+ Добавить</button>
       </div>
       <div class="filters" id="expense-filters">
         <div class="filter-chip active" onclick="filterRecords('expense',null,this)">Все</div>
@@ -445,7 +445,7 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
     <div class="tab" id="tab-masters">
       <div class="section-header">
         <h2>Мастера</h2>
-        <button class="add-btn" onclick="openAddForm('master_payment')">+ Выплата</button>
+        <button class="add-btn" id="add-master-btn" onclick="openAddForm('master_payment')">+ Выплата</button>
       </div>
       <div style="display:flex;background:var(--card);border-bottom:1px solid var(--border)">
         <button class="dash-subtab active" id="m-subtab-cards" onclick="switchMastersView('cards')">👷 Карточки</button>
@@ -529,10 +529,11 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
           <div class="section-header" style="padding:8px 0">
             <h2>Администрирование</h2>
           </div>
-          <button class="btn btn-secondary" style="margin-bottom:10px" onclick="openAdminUsers()">👥 Пользователи</button>
-          <button class="btn btn-secondary" style="margin-bottom:10px" onclick="openAdminProjects()">🏗️ Проекты</button>
-          <button class="btn btn-secondary" style="margin-bottom:10px" onclick="openAdminDictionaries()">📋 Справочники</button>
-          <button class="btn btn-secondary" onclick="openAdminBranding()">🎨 Брендинг (имя/лого/фавикон)</button>
+          <button class="btn btn-secondary" id="admin-users-btn" style="margin-bottom:10px" onclick="openAdminUsers()">👥 Пользователи</button>
+          <button class="btn btn-secondary" id="admin-projects-btn" style="margin-bottom:10px" onclick="openAdminProjects()">🏗️ Проекты</button>
+          <button class="btn btn-secondary" id="admin-dict-btn" style="margin-bottom:10px" onclick="openAdminDictionaries()">📋 Справочники</button>
+          <button class="btn btn-secondary" id="admin-perms-btn" style="margin-bottom:10px" onclick="openAdminPermissions()">🔐 Роли и права</button>
+          <button class="btn btn-secondary" id="admin-brand-btn" onclick="openAdminBranding()">🎨 Брендинг (имя/лого/фавикон)</button>
         </div>
       </div>
     </div>
@@ -1080,12 +1081,65 @@ window.selectProjectById = function(id, code, name, role) {
   selectProject({ id, code, name, role });
 };
 
+// ── Permissions ───────────────────────────────────────────────────────────────
+window.hasPerm = function(resource, action) {
+  if (!_user) return false;
+  if (_user.role === 'admin') return true;
+  const p = _user.permissions || {};
+  return Array.isArray(p[resource]) && p[resource].includes(action);
+};
+
+window.applyPermissions = function() {
+  // Tabs: показываем/скрываем нижнюю навигацию по view
+  const tabMap = {
+    expenses: ['nav-expenses', 'tab-expenses'],
+    master_payments: ['nav-masters', 'tab-masters'],
+    client_payments: ['nav-payments', 'tab-payments'],
+    dashboard: ['nav-dashboard', 'tab-dashboard'],
+    reports: ['nav-report', 'tab-report'],
+  };
+  Object.entries(tabMap).forEach(([res, ids]) => {
+    const show = hasPerm(res, 'view');
+    ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = show ? '' : 'none';
+    });
+  });
+  // Add buttons: показываем по create
+  const addMap = {
+    'add-expense-btn': ['expenses', 'create'],
+    'add-master-btn': ['master_payments', 'create'],
+    'add-payment-btn': ['client_payments', 'create'],
+  };
+  Object.entries(addMap).forEach(([id, [res, act]]) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = hasPerm(res, act) ? '' : 'none';
+  });
+  // Admin sub-buttons: показываем по view
+  const adminBtnMap = {
+    'admin-users-btn': 'users',
+    'admin-projects-btn': 'projects',
+    'admin-dict-btn': 'dictionaries',
+    'admin-perms-btn': 'permissions',
+    'admin-brand-btn': 'branding',
+  };
+  let anyAdmin = false;
+  Object.entries(adminBtnMap).forEach(([id, res]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const show = hasPerm(res, 'view');
+    el.style.display = show ? '' : 'none';
+    if (show) anyAdmin = true;
+  });
+  const adminPanel = document.getElementById('admin-panel');
+  if (adminPanel) adminPanel.style.display = anyAdmin ? '' : 'none';
+};
+
 function selectProject(project) {
   currentProject = project;
   if (project) {
     document.getElementById('project-title').textContent = project.name;
-    document.getElementById('add-payment-btn').style.display =
-      (_user && _user.role === 'client') ? 'none' : '';
+    applyPermissions();
     if (_user) {
       const initials = (_user.name || 'U').split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
       document.getElementById('user-avatar-btn').textContent = initials;
@@ -2478,7 +2532,7 @@ function setupProfile() {
       ${currentProject ? `<div class="info-row"><span>Проект</span><strong>${esc(currentProject.name)}</strong></div>` : ''}
     </div>
   `;
-  document.getElementById('admin-panel').style.display = u.role === 'admin' ? '' : 'none';
+  applyPermissions();
   if (typeof _syncThemeIcons === 'function') _syncThemeIcons();
 }
 
@@ -2898,6 +2952,120 @@ window.submitBranding = async function() {
     applyBranding();
   } catch(e) {
     toast('Ошибка: ' + (e?.detail || JSON.stringify(e)));
+  }
+};
+
+// ── Admin: Permissions matrix ────────────────────────────────────────────────
+const RESOURCE_LABELS = {
+  expenses: '🛒 Расходы',
+  master_payments: '👷 Выплаты мастерам',
+  client_payments: '💳 Платежи клиента',
+  dashboard: '📊 Доход / аналитика',
+  reports: '📈 Отчёты',
+  photos: '📷 Фотографии',
+  users: '👥 Пользователи (админка)',
+  projects: '🏗️ Проекты (админка)',
+  dictionaries: '📋 Справочники (админка)',
+  branding: '🎨 Брендинг (админка)',
+  permissions: '🔐 Роли и права (админка)',
+};
+const ROLE_LABELS = { admin: '👑 Админ', foreman: '👷 Прораб', client: '🧑 Клиент' };
+const ACTION_LABELS = { view: 'Просмотр', create: 'Создание', edit: 'Редакт.', delete: 'Удаление' };
+
+window.openAdminPermissions = async function() {
+  openSheet('detail-sheet');
+  document.getElementById('detail-title').textContent = 'Роли и права';
+  document.getElementById('detail-body').innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+  try {
+    const data = await Admin.permissions.get();
+    window._permMatrix = data;
+    renderPermissionsUI(data);
+  } catch(e) {
+    document.getElementById('detail-body').innerHTML = '<div style="padding:20px;color:var(--danger)">Ошибка загрузки: ' + esc(e?.detail || '') + '</div>';
+  }
+};
+
+function renderPermissionsUI(data) {
+  const { roles, resources, actions, matrix } = data;
+  let html = `
+    <div style="padding:0 4px 16px">
+      <div style="display:flex;gap:6px;margin-bottom:12px;background:var(--tag-bg);padding:4px;border-radius:8px">
+        ${roles.map((r, i) => `<button type="button" class="perm-role-tab ${i===0?'active':''}" data-role="${r}" onclick="switchPermRole('${r}', this)" style="flex:1;padding:8px;border:none;background:${i===0?'var(--orange)':'transparent'};color:${i===0?'#fff':'var(--text)'};border-radius:6px;font-weight:600;cursor:pointer;font-size:13px">${ROLE_LABELS[r]||r}</button>`).join('')}
+      </div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.4">Отметьте чекбоксы — каждая роль получит только указанные права. Админ всегда имеет все права (не редактируется).</div>
+      <div id="perm-grid"></div>
+      <button class="btn" id="perm-save-btn" onclick="savePermissions()" style="margin-top:14px">Сохранить</button>
+    </div>
+  `;
+  document.getElementById('detail-body').innerHTML = html;
+  renderPermGrid(roles[0]);
+}
+
+window.switchPermRole = function(role, btn) {
+  document.querySelectorAll('.perm-role-tab').forEach(b => {
+    b.classList.remove('active');
+    b.style.background = 'transparent';
+    b.style.color = 'var(--text)';
+  });
+  btn.classList.add('active');
+  btn.style.background = 'var(--orange)';
+  btn.style.color = '#fff';
+  renderPermGrid(role);
+};
+
+function renderPermGrid(role) {
+  const { resources, actions, matrix } = window._permMatrix;
+  const disabled = role === 'admin' ? 'disabled' : '';
+  const note = role === 'admin' ? '<div style="background:#fff7e6;border:1px solid var(--orange);padding:10px;border-radius:8px;margin-bottom:10px;font-size:12px;color:#a65100">👑 Роль «Админ» всегда имеет все права. Изменение запрещено.</div>' : '';
+  let html = note;
+  html += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+  html += `<thead><tr><th style="text-align:left;padding:8px 4px;border-bottom:2px solid var(--border)">Раздел</th>${actions.map(a => `<th style="padding:8px 4px;border-bottom:2px solid var(--border);text-align:center;font-size:11px">${ACTION_LABELS[a]||a}</th>`).join('')}</tr></thead>`;
+  html += '<tbody>';
+  resources.forEach(res => {
+    html += `<tr style="border-bottom:1px solid var(--border)"><td style="padding:8px 4px;font-weight:600">${RESOURCE_LABELS[res]||res}</td>`;
+    actions.forEach(act => {
+      const checked = matrix[role]?.[res]?.[act] ? 'checked' : '';
+      html += `<td style="text-align:center;padding:8px 4px"><input type="checkbox" class="perm-cb" data-role="${role}" data-resource="${res}" data-action="${act}" ${checked} ${disabled} style="width:20px;height:20px;cursor:pointer"></td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  document.getElementById('perm-grid').innerHTML = html;
+  document.querySelectorAll('.perm-cb').forEach(cb => {
+    cb.addEventListener('change', e => {
+      const { role, resource, action } = e.target.dataset;
+      window._permMatrix.matrix[role][resource][action] = e.target.checked;
+    });
+  });
+}
+
+window.savePermissions = async function() {
+  const { roles, resources, actions, matrix } = window._permMatrix;
+  const items = [];
+  roles.forEach(role => {
+    if (role === 'admin') return;
+    resources.forEach(res => {
+      actions.forEach(act => {
+        items.push({ role, resource: res, action: act, allowed: !!matrix[role][res][act] });
+      });
+    });
+  });
+  const btn = document.getElementById('perm-save-btn');
+  btn.disabled = true; btn.textContent = 'Сохранение...';
+  try {
+    await Admin.permissions.update(items);
+    toast('Права сохранены');
+    // обновим текущего пользователя — вдруг свои права поменяли
+    try {
+      const user = await Auth.me();
+      window._user = user;
+      applyPermissions();
+    } catch(_) {}
+    closeSheet();
+  } catch(e) {
+    toast('Ошибка: ' + (e?.detail || JSON.stringify(e)));
+  } finally {
+    btn.disabled = false; btn.textContent = 'Сохранить';
   }
 };
 
