@@ -177,7 +177,7 @@ class RolePermission(Base):
     __tablename__ = "role_permissions"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    role = Column(String(20), nullable=False)
+    role = Column(String(50), nullable=False)
     resource = Column(String(50), nullable=False)
     action = Column(String(20), nullable=False)
     allowed = Column(Boolean, nullable=False, default=False)
@@ -186,3 +186,13 @@ class RolePermission(Base):
     __table_args__ = (
         UniqueConstraint("role", "resource", "action", name="uq_role_perm"),
     )
+
+
+class Role(Base):
+    __tablename__ = "roles"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(50), nullable=False, unique=True)
+    label = Column(String(100), nullable=False)
+    is_system = Column(Boolean, nullable=False, default=False, server_default="false")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

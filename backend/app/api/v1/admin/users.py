@@ -7,8 +7,13 @@ from sqlalchemy import select
 from ....core.database import get_db
 from ....core.permissions import require_permission
 from ....core.security import hash_pin, normalize_phone
-from ....models.models import User, UserProject, Project
+from ....models.models import User, UserProject, Project, Role
 from ....schemas.schemas import UserCreate, UserOut
+
+
+async def _valid_roles(db: AsyncSession) -> set[str]:
+    rows = (await db.execute(select(Role))).scalars().all()
+    return {r.name for r in rows}
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -27,7 +32,7 @@ async def create_user(
     admin: User = Depends(require_permission("users", "create")),
     db: AsyncSession = Depends(get_db),
 ):
-    if data.role not in ("admin", "foreman", "client"):
+    if data.role not in await _valid_roles(db):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid role")
 
     phone = normalize_phone(data.phone)
@@ -54,7 +59,7 @@ async def update_user(
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
-    if "role" in data and data["role"] in ("admin", "foreman", "client"):
+    if "role" in data and data["role"] in await _valid_roles(db):
         user.role = data["role"]
     if "pin" in data and data["pin"]:
         user.pin_hash = hash_pin(str(data["pin"]))

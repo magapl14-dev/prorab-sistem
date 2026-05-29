@@ -310,3 +310,15 @@ class PermissionsMatrix(BaseModel):
 
 class PermissionsBulkUpdate(BaseModel):
     items: List[PermissionItem]
+
+
+class RoleOut(BaseModel):
+    name: str
+    label: str
+    is_system: bool
+    model_config = {"from_attributes": True}
+
+
+class RoleCreate(BaseModel):
+    name: str
+    label: str

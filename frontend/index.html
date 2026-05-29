@@ -2617,17 +2617,15 @@ window.deleteUser = async function(id) {
   } catch(e) { toast('Ошибка: ' + (e?.detail || '')); }
 };
 
-window.openCreateUser = function() {
+window.openCreateUser = async function() {
+  const roles = await loadRolesCache();
+  const opts = roles.map(r => `<option value="${esc(r.name)}"${r.name==='foreman'?' selected':''}>${esc(r.label)}</option>`).join('');
   openModal('Новый пользователь', `
     <div class="form-group"><label>Телефон</label><input id="m-phone" type="tel" placeholder="+7 900 000-00-00"></div>
     <div class="form-group"><label>Имя</label><input id="m-name" type="text" placeholder="Иван Иванов"></div>
     <div class="form-group"><label>PIN (4 цифры)</label><input id="m-pin" type="text" maxlength="4" placeholder="1234" inputmode="numeric"></div>
     <div class="form-group"><label>Роль</label>
-      <select id="m-role">
-        <option value="foreman">Прораб</option>
-        <option value="admin">Администратор</option>
-        <option value="client">Клиент</option>
-      </select>
+      <select id="m-role">${opts}</select>
     </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
@@ -2648,15 +2646,13 @@ window.submitCreateUser = async function() {
   } catch(e) { toast('Ошибка: ' + (e?.detail || JSON.stringify(e))); }
 };
 
-window.openEditUser = function(id, name, phone, role) {
+window.openEditUser = async function(id, name, phone, role) {
+  const roles = await loadRolesCache();
+  const opts = roles.map(r => `<option value="${esc(r.name)}"${r.name===role?' selected':''}>${esc(r.label)}</option>`).join('');
   openModal('Изменить пользователя', `
     <div class="form-group"><label>Новый PIN (оставьте пустым чтобы не менять)</label><input id="m-newpin" type="text" maxlength="4" placeholder="----" inputmode="numeric"></div>
     <div class="form-group"><label>Роль</label>
-      <select id="m-erole">
-        <option value="foreman" ${role==='foreman'?'selected':''}>Прораб</option>
-        <option value="admin" ${role==='admin'?'selected':''}>Администратор</option>
-        <option value="client" ${role==='client'?'selected':''}>Клиент</option>
-      </select>
+      <select id="m-erole">${opts}</select>
     </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
@@ -2977,20 +2973,32 @@ window.openAdminPermissions = async function() {
   document.getElementById('detail-title').textContent = 'Роли и права';
   document.getElementById('detail-body').innerHTML = '<div class="loader"><div class="spinner"></div></div>';
   try {
-    const data = await Admin.permissions.get();
+    const [data, rolesList] = await Promise.all([Admin.permissions.get(), Admin.roles.list()]);
     window._permMatrix = data;
+    window._rolesCache = rolesList;
+    window._rolesMeta = Object.fromEntries(rolesList.map(r => [r.name, r]));
     renderPermissionsUI(data);
   } catch(e) {
-    document.getElementById('detail-body').innerHTML = '<div style="padding:20px;color:var(--danger)">Ошибка загрузки: ' + esc(e?.detail || '') + '</div>';
+    document.getElementById('detail-body').innerHTML = '<div style="padding:20px;color:var(--danger)">Ошибка загрузки: ' + esc(e?.detail || JSON.stringify(e) || 'unknown') + '</div>';
   }
 };
 
 function renderPermissionsUI(data) {
   const { roles, resources, actions, matrix } = data;
+  const meta = window._rolesMeta || {};
   let html = `
     <div style="padding:0 4px 16px">
-      <div style="display:flex;gap:6px;margin-bottom:12px;background:var(--tag-bg);padding:4px;border-radius:8px">
-        ${roles.map((r, i) => `<button type="button" class="perm-role-tab ${i===0?'active':''}" data-role="${r}" onclick="switchPermRole('${r}', this)" style="flex:1;padding:8px;border:none;background:${i===0?'var(--orange)':'transparent'};color:${i===0?'#fff':'var(--text)'};border-radius:6px;font-weight:600;cursor:pointer;font-size:13px">${ROLE_LABELS[r]||r}</button>`).join('')}
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <strong style="font-size:13px">Роли</strong>
+        <button class="btn btn-secondary" onclick="openCreateRole()" style="padding:6px 12px;font-size:12px;width:auto">+ Создать роль</button>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;background:var(--tag-bg);padding:6px;border-radius:8px">
+        ${roles.map((r, i) => {
+          const m = meta[r];
+          const lbl = m ? m.label : (ROLE_LABELS[r] || r);
+          const sys = m && m.is_system;
+          return `<button type="button" class="perm-role-tab ${i===0?'active':''}" data-role="${r}" onclick="switchPermRole('${r}', this)" style="padding:7px 12px;border:none;background:${i===0?'var(--orange)':'transparent'};color:${i===0?'#fff':'var(--text)'};border-radius:6px;font-weight:600;cursor:pointer;font-size:13px;display:inline-flex;align-items:center;gap:6px">${esc(lbl)}${sys?'':` <span onclick="event.stopPropagation();deleteRole('${esc(r)}','${esc(lbl)}')" title="Удалить роль" style="opacity:.6;font-size:11px">🗑</span>`}</button>`;
+        }).join('')}
       </div>
       <div style="font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.4">Отметьте чекбоксы — каждая роль получит только указанные права. Админ всегда имеет все права (не редактируется).</div>
       <div id="perm-grid"></div>
@@ -3000,6 +3008,49 @@ function renderPermissionsUI(data) {
   document.getElementById('detail-body').innerHTML = html;
   renderPermGrid(roles[0]);
 }
+
+window.openCreateRole = function() {
+  openModal('Создать роль', `
+    <div class="form-group">
+      <label>Системное имя (латиница)</label>
+      <input id="rl-name" type="text" placeholder="accountant" maxlength="50">
+      <div style="font-size:11px;color:var(--text2);margin-top:4px">Только латиница в нижнем регистре, цифры, _. Должно начинаться с буквы.</div>
+    </div>
+    <div class="form-group">
+      <label>Отображаемое название</label>
+      <input id="rl-label" type="text" placeholder="Бухгалтер" maxlength="100">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn" onclick="submitCreateRole()">Создать</button>
+    </div>
+  `);
+};
+
+window.submitCreateRole = async function() {
+  const name = document.getElementById('rl-name').value.trim().toLowerCase();
+  const label = document.getElementById('rl-label').value.trim();
+  if (!name || !label) { toast('Заполните оба поля'); return; }
+  try {
+    await Admin.roles.create({ name, label });
+    closeModal();
+    toast('Роль создана');
+    openAdminPermissions();
+  } catch(e) {
+    toast('Ошибка: ' + (e?.detail || JSON.stringify(e)));
+  }
+};
+
+window.deleteRole = async function(name, label) {
+  if (!confirm(`Удалить роль «${label}»? Это действие необратимо.`)) return;
+  try {
+    await Admin.roles.delete(name);
+    toast('Роль удалена');
+    openAdminPermissions();
+  } catch(e) {
+    toast('Ошибка: ' + (e?.detail || JSON.stringify(e)));
+  }
+};
 
 window.switchPermRole = function(role, btn) {
   document.querySelectorAll('.perm-role-tab').forEach(b => {
@@ -3338,7 +3389,17 @@ function esc(str) {
   return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 function roleLabel(role) {
+  const cache = window._rolesCache;
+  if (cache) {
+    const r = cache.find(x => x.name === role);
+    if (r) return r.label;
+  }
   return { admin: 'Администратор', foreman: 'Прораб', client: 'Клиент' }[role] || role;
+}
+
+async function loadRolesCache() {
+  try { window._rolesCache = await Admin.roles.list(); } catch(_) { window._rolesCache = []; }
+  return window._rolesCache;
 }
 window.toast = function(msg) {
   const el = document.getElementById('toast');

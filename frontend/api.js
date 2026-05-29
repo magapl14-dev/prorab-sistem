@@ -113,6 +113,11 @@ export const Admin = {
     get: () => _get("/admin/permissions"),
     update: (items) => _patch("/admin/permissions", { items }),
   },
+  roles: {
+    list: () => _get("/admin/roles"),
+    create: (data) => _post("/admin/roles", data),
+    delete: (name) => _delete(`/admin/roles/${encodeURIComponent(name)}`),
+  },
 };
 
 export const Settings = {
