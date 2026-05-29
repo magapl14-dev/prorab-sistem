@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 
 from ....core.database import get_db
-from ....core.deps import admin_only
+from ....core.permissions import require_permission
 from ....models.models import User, Project, UserProject, Dictionary
 from ....schemas.schemas import ProjectCreate, ProjectUpdate, ProjectOut, AssignUserRequest, DictionaryOut, DictionaryCreate, DictionaryUpdate
 
@@ -13,7 +13,7 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 
 @router.get("/projects", response_model=list[ProjectOut])
-async def list_projects(admin: User = Depends(admin_only), db: AsyncSession = Depends(get_db)):
+async def list_projects(admin: User = Depends(require_permission("projects", "view")), db: AsyncSession = Depends(get_db)):
     rows = (await db.execute(
         select(Project).where(Project.deleted_at.is_(None)).order_by(Project.name)
     )).scalars().all()
@@ -23,7 +23,7 @@ async def list_projects(admin: User = Depends(admin_only), db: AsyncSession = De
 @router.post("/projects", response_model=ProjectOut, status_code=201)
 async def create_project(
     data: ProjectCreate,
-    admin: User = Depends(admin_only),
+    admin: User = Depends(require_permission("projects", "create")),
     db: AsyncSession = Depends(get_db),
 ):
     existing = (await db.execute(select(Project).where(Project.code == data.code))).scalar_one_or_none()
@@ -39,7 +39,7 @@ async def create_project(
 @router.patch("/projects/{code}", response_model=ProjectOut)
 async def update_project(
     code: str, data: ProjectUpdate,
-    admin: User = Depends(admin_only), db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_permission("projects", "edit")), db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(Project).where(Project.code == code, Project.deleted_at.is_(None)))
     project = result.scalar_one_or_none()
@@ -54,7 +54,7 @@ async def update_project(
 @router.post("/projects/{code}/users", status_code=201)
 async def assign_user(
     code: str, data: AssignUserRequest,
-    admin: User = Depends(admin_only), db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_permission("projects", "edit")), db: AsyncSession = Depends(get_db),
 ):
     project = (await db.execute(select(Project).where(Project.code == code))).scalar_one_or_none()
     if not project:
@@ -79,7 +79,7 @@ async def assign_user(
 @router.delete("/projects/{code}/users/{user_id}", status_code=204)
 async def revoke_user(
     code: str, user_id: UUID,
-    admin: User = Depends(admin_only), db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_permission("projects", "edit")), db: AsyncSession = Depends(get_db),
 ):
     project = (await db.execute(select(Project).where(Project.code == code))).scalar_one_or_none()
     if not project:
@@ -99,7 +99,7 @@ async def revoke_user(
 @router.patch("/projects/{code}/activate")
 async def activate_project(
     code: str,
-    admin: User = Depends(admin_only),
+    admin: User = Depends(require_permission("projects", "edit")),
     db: AsyncSession = Depends(get_db),
 ):
     project = (await db.execute(select(Project).where(Project.code == code, Project.deleted_at.is_(None)))).scalar_one_or_none()
@@ -113,7 +113,7 @@ async def activate_project(
 @router.patch("/projects/{code}/deactivate")
 async def deactivate_project(
     code: str,
-    admin: User = Depends(admin_only),
+    admin: User = Depends(require_permission("projects", "edit")),
     db: AsyncSession = Depends(get_db),
 ):
     project = (await db.execute(select(Project).where(Project.code == code, Project.deleted_at.is_(None)))).scalar_one_or_none()
@@ -127,7 +127,7 @@ async def deactivate_project(
 @router.delete("/projects/{code}", status_code=204)
 async def delete_project(
     code: str,
-    admin: User = Depends(admin_only),
+    admin: User = Depends(require_permission("projects", "delete")),
     db: AsyncSession = Depends(get_db),
 ):
     project = (await db.execute(select(Project).where(Project.code == code, Project.deleted_at.is_(None)))).scalar_one_or_none()
@@ -140,7 +140,7 @@ async def delete_project(
 # ── Dictionaries ──────────────────────────────────────────────────────────────
 
 @router.get("/dictionaries", response_model=list[DictionaryOut])
-async def list_dictionaries(admin: User = Depends(admin_only), db: AsyncSession = Depends(get_db)):
+async def list_dictionaries(admin: User = Depends(require_permission("dictionaries", "view")), db: AsyncSession = Depends(get_db)):
     rows = (await db.execute(
         select(Dictionary).where(Dictionary.active == True).order_by(Dictionary.kind, Dictionary.display_order)
     )).scalars().all()
@@ -150,7 +150,7 @@ async def list_dictionaries(admin: User = Depends(admin_only), db: AsyncSession 
 @router.post("/dictionaries", response_model=DictionaryOut, status_code=201)
 async def create_dictionary(
     data: DictionaryCreate,
-    admin: User = Depends(admin_only),
+    admin: User = Depends(require_permission("dictionaries", "create")),
     db: AsyncSession = Depends(get_db),
 ):
     d = Dictionary(**data.model_dump(), created_by=admin.id)
@@ -163,7 +163,7 @@ async def create_dictionary(
 async def update_dictionary(
     dict_id: UUID,
     data: DictionaryUpdate,
-    admin: User = Depends(admin_only),
+    admin: User = Depends(require_permission("dictionaries", "edit")),
     db: AsyncSession = Depends(get_db),
 ):
     d = (await db.execute(select(Dictionary).where(Dictionary.id == dict_id, Dictionary.active == True))).scalar_one_or_none()
@@ -178,7 +178,7 @@ async def update_dictionary(
 @router.delete("/dictionaries/{dict_id}", status_code=204)
 async def delete_dictionary(
     dict_id: UUID,
-    admin: User = Depends(admin_only),
+    admin: User = Depends(require_permission("dictionaries", "delete")),
     db: AsyncSession = Depends(get_db),
 ):
     d = (await db.execute(select(Dictionary).where(Dictionary.id == dict_id, Dictionary.active == True))).scalar_one_or_none()
@@ -193,7 +193,7 @@ async def delete_dictionary(
 @router.post("/projects/{code}/sync-sheets")
 async def sync_sheets(
     code: str,
-    admin: User = Depends(admin_only),
+    admin: User = Depends(require_permission("projects", "edit")),
     db: AsyncSession = Depends(get_db),
 ):
     from sqlalchemy.orm import selectinload

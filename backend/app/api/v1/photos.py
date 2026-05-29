@@ -9,6 +9,7 @@ from sqlalchemy import select
 
 from ...core.database import get_db, AsyncSessionLocal
 from ...core.deps import current_user
+from ...core.permissions import has_permission, require_permission
 from ...core.config import settings
 from ...models.models import User, Photo
 from ...schemas.schemas import UploadUrlRequest, UploadUrlResponse, ConfirmUploadRequest, PhotoOut
@@ -33,7 +34,7 @@ async def _make_thumbnail(photo_id: UUID, s3_key: str):
 @router.post("/photos/upload-url", response_model=UploadUrlResponse)
 async def get_upload_url(
     data: UploadUrlRequest,
-    user: User = Depends(current_user),
+    user: User = Depends(require_permission("photos", "create")),
     db: AsyncSession = Depends(get_db),
 ):
     allowed_types = {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}
@@ -73,7 +74,7 @@ async def local_upload(path: str, request: Request):
 async def confirm_upload(
     data: ConfirmUploadRequest,
     background_tasks: BackgroundTasks,
-    user: User = Depends(current_user),
+    user: User = Depends(require_permission("photos", "create")),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
@@ -109,8 +110,14 @@ async def delete_photo(
     photo = result.scalar_one_or_none()
     if not photo:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
-    if user.role != "admin" and photo.uploaded_by != user.id:
-        raise HTTPException(status.HTTP_403_FORBIDDEN)
+    # Своё всегда можно (если может загружать), чужое — нужен delete
+    is_own = photo.uploaded_by == user.id
+    if is_own:
+        if not await has_permission(db, user.role, "photos", "create"):
+            raise HTTPException(status.HTTP_403_FORBIDDEN)
+    else:
+        if not await has_permission(db, user.role, "photos", "delete"):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Cannot delete others' photos")
 
     photo.deleted_at = datetime.now(timezone.utc)
     await db.commit()

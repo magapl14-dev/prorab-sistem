@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from ...core.database import get_db
-from ...core.deps import admin_only
+from ...core.permissions import require_permission
 from ...models.models import AppSetting, User
 from ...schemas.schemas import AppSettingOut, AppSettingUpdate
 
@@ -28,7 +28,7 @@ async def get_settings(db: AsyncSession = Depends(get_db)):
 @router.patch("/admin/settings", response_model=AppSettingOut)
 async def update_settings(
     data: AppSettingUpdate,
-    admin: User = Depends(admin_only),
+    admin: User = Depends(require_permission("branding", "edit")),
     db: AsyncSession = Depends(get_db),
 ):
     row = await _get_or_create(db)

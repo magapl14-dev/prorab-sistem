@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from ....core.database import get_db
-from ....core.deps import admin_only
+from ....core.permissions import require_permission
 from ....core.security import hash_pin, normalize_phone
 from ....models.models import User, UserProject, Project
 from ....schemas.schemas import UserCreate, UserOut
@@ -14,7 +14,7 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 
 @router.get("/users", response_model=list[UserOut])
-async def list_users(admin: User = Depends(admin_only), db: AsyncSession = Depends(get_db)):
+async def list_users(admin: User = Depends(require_permission("users", "view")), db: AsyncSession = Depends(get_db)):
     rows = (await db.execute(
         select(User).where(User.deleted_at.is_(None)).order_by(User.name)
     )).scalars().all()
@@ -24,7 +24,7 @@ async def list_users(admin: User = Depends(admin_only), db: AsyncSession = Depen
 @router.post("/users", response_model=UserOut, status_code=201)
 async def create_user(
     data: UserCreate,
-    admin: User = Depends(admin_only),
+    admin: User = Depends(require_permission("users", "create")),
     db: AsyncSession = Depends(get_db),
 ):
     if data.role not in ("admin", "foreman", "client"):
@@ -47,7 +47,7 @@ async def create_user(
 async def update_user(
     user_id: str,
     data: dict,
-    admin: User = Depends(admin_only),
+    admin: User = Depends(require_permission("users", "edit")),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(User).where(User.id == UUID(user_id), User.deleted_at.is_(None)))
@@ -67,7 +67,7 @@ async def update_user(
 @router.patch("/users/{user_id}/deactivate", status_code=200)
 async def deactivate_user(
     user_id: str,
-    admin: User = Depends(admin_only),
+    admin: User = Depends(require_permission("users", "edit")),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(User).where(User.id == UUID(user_id), User.deleted_at.is_(None)))
@@ -82,7 +82,7 @@ async def deactivate_user(
 @router.patch("/users/{user_id}/activate", status_code=200)
 async def activate_user(
     user_id: str,
-    admin: User = Depends(admin_only),
+    admin: User = Depends(require_permission("users", "edit")),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(User).where(User.id == UUID(user_id), User.deleted_at.is_(None)))
@@ -97,7 +97,7 @@ async def activate_user(
 @router.delete("/users/{user_id}", status_code=204)
 async def delete_user(
     user_id: str,
-    admin: User = Depends(admin_only),
+    admin: User = Depends(require_permission("users", "delete")),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(User).where(User.id == UUID(user_id), User.deleted_at.is_(None)))
@@ -111,7 +111,7 @@ async def delete_user(
 @router.get("/users/{user_id}/projects")
 async def user_projects(
     user_id: str,
-    admin: User = Depends(admin_only),
+    admin: User = Depends(require_permission("users", "view")),
     db: AsyncSession = Depends(get_db),
 ):
     rows = (await db.execute(

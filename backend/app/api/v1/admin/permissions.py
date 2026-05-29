@@ -3,8 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from ....core.database import get_db
-from ....core.deps import admin_only
-from ....core.permissions import RESOURCES, ACTIONS
+from ....core.permissions import RESOURCES, ACTIONS, require_permission
 from ....models.models import RolePermission, User
 from ....schemas.schemas import PermissionsMatrix, PermissionsBulkUpdate
 
@@ -15,7 +14,7 @@ ROLES = ["admin", "foreman", "client"]
 
 @router.get("/permissions", response_model=PermissionsMatrix)
 async def get_permissions(
-    admin: User = Depends(admin_only),
+    admin: User = Depends(require_permission("permissions", "view")),
     db: AsyncSession = Depends(get_db),
 ):
     rows = (await db.execute(select(RolePermission))).scalars().all()
@@ -33,7 +32,7 @@ async def get_permissions(
 @router.patch("/permissions")
 async def update_permissions(
     data: PermissionsBulkUpdate,
-    admin: User = Depends(admin_only),
+    admin: User = Depends(require_permission("permissions", "edit")),
     db: AsyncSession = Depends(get_db),
 ):
     for item in data.items:

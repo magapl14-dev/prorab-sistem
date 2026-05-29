@@ -8,7 +8,15 @@ from sqlalchemy.orm import selectinload
 
 from ...core.database import get_db
 from ...core.deps import current_user
+from ...core.permissions import has_permission
 from ...models.models import User, Project, Record, UserProject, Photo, Dictionary
+
+# Соответствие kind записи → permission-resource
+KIND_TO_RESOURCE = {
+    "expense": "expenses",
+    "master_payment": "master_payments",
+    "client_payment": "client_payments",
+}
 from ...schemas.schemas import (
     RecordCreate, RecordUpdate, RecordOut, RecordListResponse, PhotoOut, DictionaryOut,
 )
@@ -86,10 +94,20 @@ async def list_records(
     project = await _get_project(code, user, db)
     filters = [Record.project_id == project.id, Record.deleted_at.is_(None)]
 
-    if user.role == "client":
-        filters.append(Record.kind == "client_payment")
-    elif kind:
+    # Какие kinds пользователь имеет право видеть?
+    allowed_kinds = []
+    for k, res in KIND_TO_RESOURCE.items():
+        if await has_permission(db, user.role, res, "view"):
+            allowed_kinds.append(k)
+    if not allowed_kinds:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "No records visible")
+
+    if kind:
+        if kind not in allowed_kinds:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, f"Cannot view {kind}")
         filters.append(Record.kind == kind)
+    else:
+        filters.append(Record.kind.in_(allowed_kinds))
 
     if type:
         filters.append(Record.type == type)
@@ -123,8 +141,11 @@ async def create_record(
     user: User = Depends(current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    if user.role == "client":
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Clients cannot create records")
+    resource = KIND_TO_RESOURCE.get(data.kind)
+    if not resource:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Unknown kind: {data.kind}")
+    if not await has_permission(db, user.role, resource, "create"):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, f"Cannot create {data.kind}")
 
     project = await _get_project(code, user, db)
     rec_dict = data.model_dump(exclude={"photo_ids"})
@@ -170,6 +191,9 @@ async def get_record(
     record = result.scalar_one_or_none()
     if not record:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Record not found")
+    resource = KIND_TO_RESOURCE.get(record.kind)
+    if resource and not await has_permission(db, user.role, resource, "view"):
+        raise HTTPException(status.HTTP_403_FORBIDDEN)
     return _record_out(record)
 
 
@@ -178,9 +202,6 @@ async def update_record(
     code: str, record_id: UUID, data: RecordUpdate,
     user: User = Depends(current_user), db: AsyncSession = Depends(get_db),
 ):
-    if user.role == "client":
-        raise HTTPException(status.HTTP_403_FORBIDDEN)
-
     project = await _get_project(code, user, db)
     result = await db.execute(
         select(Record).where(Record.id == record_id, Record.project_id == project.id, Record.deleted_at.is_(None))
@@ -188,8 +209,17 @@ async def update_record(
     record = result.scalar_one_or_none()
     if not record:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
-    if user.role == "foreman" and record.author_id != user.id:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Can only edit your own records")
+    resource = KIND_TO_RESOURCE.get(record.kind)
+    if not resource:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST)
+    # Своё всегда можно (если есть хотя бы create); чужое — нужен edit
+    is_own = record.author_id == user.id
+    if is_own:
+        if not await has_permission(db, user.role, resource, "create"):
+            raise HTTPException(status.HTTP_403_FORBIDDEN)
+    else:
+        if not await has_permission(db, user.role, resource, "edit"):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Cannot edit others' records")
 
     for field, value in data.model_dump(exclude_none=True).items():
         setattr(record, field, value)
@@ -216,8 +246,6 @@ async def delete_record(
     code: str, record_id: UUID,
     user: User = Depends(current_user), db: AsyncSession = Depends(get_db),
 ):
-    if user.role == "client":
-        raise HTTPException(status.HTTP_403_FORBIDDEN)
     project = await _get_project(code, user, db)
     result = await db.execute(
         select(Record).where(Record.id == record_id, Record.project_id == project.id, Record.deleted_at.is_(None))
@@ -225,8 +253,17 @@ async def delete_record(
     record = result.scalar_one_or_none()
     if not record:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
-    if user.role == "foreman" and record.author_id != user.id:
-        raise HTTPException(status.HTTP_403_FORBIDDEN)
+    resource = KIND_TO_RESOURCE.get(record.kind)
+    if not resource:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST)
+    # Своё всегда можно удалить (если есть create); чужое — нужен delete
+    is_own = record.author_id == user.id
+    if is_own:
+        if not await has_permission(db, user.role, resource, "create"):
+            raise HTTPException(status.HTTP_403_FORBIDDEN)
+    else:
+        if not await has_permission(db, user.role, resource, "delete"):
+            raise HTTPException(status.HTTP_403_FORBIDDEN, "Cannot delete others' records")
     record.deleted_at = datetime.now(timezone.utc)
     await db.commit()
 
