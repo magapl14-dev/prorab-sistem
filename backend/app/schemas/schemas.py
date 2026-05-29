@@ -175,6 +175,8 @@ class PhotoOut(BaseModel):
     mime_type: str
     size_bytes: int
     kind: str
+    media_type: str = "image"
+    duration_sec: Optional[int] = None
     uploaded_at: datetime
     model_config = {"from_attributes": True}
 
@@ -217,6 +219,7 @@ class UploadUrlRequest(BaseModel):
     size: int
     mime_type: str
     kind: str = "receipt"
+    media_type: str = "image"  # image | audio
 
 
 class UploadUrlResponse(BaseModel):
@@ -228,6 +231,8 @@ class UploadUrlResponse(BaseModel):
 class ConfirmUploadRequest(BaseModel):
     photo_id: UUID
     record_id: Optional[UUID] = None
+    task_id: Optional[UUID] = None
+    duration_sec: Optional[int] = None
 
 
 # ── Earnings / Plan ───────────────────────────────────────────────────────────
@@ -344,12 +349,14 @@ class TaskOut(BaseModel):
     id: UUID
     title: str
     description: Optional[str] = None
+    type: Optional[str] = None
     status: str
     priority: Optional[str] = None
     due_date: Optional[date] = None
     project: Optional[TaskProjectBrief] = None
     creator: Optional[TaskAssigneeBrief] = None
     assignees: List[TaskAssigneeBrief] = []
+    attachments: List[PhotoOut] = []
     completed_at: Optional[datetime] = None
     created_at: datetime
     model_config = {"from_attributes": True}
@@ -359,16 +366,20 @@ class TaskCreate(BaseModel):
     title: str
     description: Optional[str] = None
     project_code: Optional[str] = None
+    type: Optional[str] = None
     priority: Optional[str] = None  # low|normal|high
     due_date: Optional[date] = None
     assignee_ids: List[UUID] = []
+    attachment_ids: List[UUID] = []
 
 
 class TaskUpdate(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
     project_code: Optional[str] = None  # передать "" чтобы убрать проект
+    type: Optional[str] = None
     priority: Optional[str] = None
     due_date: Optional[date] = None
     status: Optional[str] = None
     assignee_ids: Optional[List[UUID]] = None
+    attachment_ids: Optional[List[UUID]] = None  # добавить новые приложения

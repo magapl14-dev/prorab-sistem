@@ -48,24 +48,29 @@ export const Records = {
 };
 
 export const Photos = {
-  async upload(file, kind = "receipt") {
+  async upload(file, kind = "receipt", mediaType = "image") {
     const urlResp = await _post("/photos/upload-url", {
-      filename: file.name,
+      filename: file.name || (mediaType === "audio" ? "audio.webm" : "photo.jpg"),
       size: file.size,
-      mime_type: file.type || "image/jpeg",
+      mime_type: file.type || (mediaType === "audio" ? "audio/webm" : "image/jpeg"),
       kind,
+      media_type: mediaType,
     });
-    // Upload directly to S3
     await fetch(urlResp.upload_url, {
       method: "PUT",
       body: file,
-      headers: { "Content-Type": file.type || "image/jpeg" },
+      headers: { "Content-Type": file.type || (mediaType === "audio" ? "audio/webm" : "image/jpeg") },
     });
     return urlResp.photo_id;
   },
 
-  confirm: (photoId, recordId = null) =>
-    _post("/photos/confirm", { photo_id: photoId, ...(recordId ? { record_id: recordId } : {}) }),
+  confirm: (photoId, { recordId = null, taskId = null, durationSec = null } = {}) =>
+    _post("/photos/confirm", {
+      photo_id: photoId,
+      ...(recordId ? { record_id: recordId } : {}),
+      ...(taskId ? { task_id: taskId } : {}),
+      ...(durationSec != null ? { duration_sec: durationSec } : {}),
+    }),
 
   delete: (id) => _delete(`/photos/${id}`),
 };
@@ -133,6 +138,7 @@ export const Tasks = {
   delete: (id) => _delete(`/tasks/${id}`),
   users: () => _get("/tasks/_users"),
   projects: () => _get("/tasks/_projects"),
+  types: () => _get("/tasks/_types"),
 };
 
 export const Settings = {

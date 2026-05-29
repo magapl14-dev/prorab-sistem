@@ -113,6 +113,7 @@ class Photo(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     record_id = Column(UUID(as_uuid=True), ForeignKey("records.id", ondelete="CASCADE"), nullable=True)
+    task_id = Column(UUID(as_uuid=True), ForeignKey("tasks.id", ondelete="CASCADE"), nullable=True)
     s3_bucket = Column(String(200), nullable=False)
     s3_key = Column(String(500), nullable=False)
     thumb_key = Column(String(500), nullable=True)
@@ -120,13 +121,16 @@ class Photo(Base):
     size_bytes = Column(Integer, nullable=False)
     width = Column(Integer, nullable=True)
     height = Column(Integer, nullable=True)
-    kind = Column(String(20), nullable=False, default="receipt")
+    duration_sec = Column(Integer, nullable=True)
+    kind = Column(String(20), nullable=False, default="receipt")  # receipt|photo|audio
+    media_type = Column(String(20), nullable=False, default="image", server_default="image")  # image|audio
     is_confirmed = Column(Boolean, default=False, nullable=False)
     uploaded_at = Column(DateTime(timezone=True), server_default=func.now())
     uploaded_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     deleted_at = Column(DateTime(timezone=True), nullable=True)
 
     record = relationship("Record", back_populates="photos")
+    task = relationship("Task", back_populates="attachments")
     uploader = relationship("User", back_populates="photos")
 
 
@@ -206,6 +210,7 @@ class Task(Base):
     project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True)
     title = Column(String(500), nullable=False)
     description = Column(Text, nullable=True)
+    type = Column(String(100), nullable=True)
     status = Column(String(20), nullable=False, default="open", server_default="open")  # open|in_progress|done|cancelled
     priority = Column(String(20), nullable=True)  # low|normal|high
     due_date = Column(Date, nullable=True)
@@ -219,6 +224,7 @@ class Task(Base):
     project = relationship("Project", foreign_keys=[project_id])
     creator = relationship("User", foreign_keys=[created_by])
     assignees_link = relationship("TaskAssignee", back_populates="task", cascade="all, delete-orphan")
+    attachments = relationship("Photo", back_populates="task")
 
 
 class TaskAssignee(Base):

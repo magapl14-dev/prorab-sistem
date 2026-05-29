@@ -9,8 +9,9 @@ from sqlalchemy.orm import selectinload
 from ...core.database import get_db
 from ...core.deps import current_user
 from ...core.permissions import has_permission, require_permission
-from ...models.models import User, Task, TaskAssignee, Project, UserProject
-from ...schemas.schemas import TaskOut, TaskCreate, TaskUpdate, TaskAssigneeBrief, TaskProjectBrief
+from ...models.models import User, Task, TaskAssignee, Project, UserProject, Photo, Dictionary
+from ...schemas.schemas import TaskOut, TaskCreate, TaskUpdate, TaskAssigneeBrief, TaskProjectBrief, PhotoOut, DictionaryOut
+from ...services.s3 import public_url
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -25,6 +26,18 @@ async def list_assignable_users(
         select(User).where(User.deleted_at.is_(None), User.active == True).order_by(User.name)
     )).scalars().all()
     return [TaskAssigneeBrief(id=u.id, name=u.name) for u in rows]
+
+
+@router.get("/_types", response_model=list[DictionaryOut])
+async def list_task_types(
+    user: User = Depends(require_permission("tasks", "view")),
+    db: AsyncSession = Depends(get_db),
+):
+    rows = (await db.execute(
+        select(Dictionary).where(Dictionary.kind == "task_type", Dictionary.active == True)
+        .order_by(Dictionary.display_order, Dictionary.value)
+    )).scalars().all()
+    return rows
 
 
 @router.get("/_projects", response_model=list[TaskProjectBrief])
@@ -52,14 +65,27 @@ async def list_task_projects(
     return [TaskProjectBrief(code=p.code, name=p.name) for p in rows]
 
 
+def _photo_brief(p: Photo) -> PhotoOut:
+    return PhotoOut(
+        id=p.id, s3_key=p.s3_key, thumb_key=p.thumb_key,
+        url=public_url(p.s3_key),
+        thumb_url=public_url(p.thumb_key) if p.thumb_key else None,
+        mime_type=p.mime_type, size_bytes=p.size_bytes,
+        kind=p.kind, media_type=p.media_type or "image",
+        duration_sec=p.duration_sec,
+        uploaded_at=p.uploaded_at,
+    )
+
+
 def _task_out(t: Task) -> TaskOut:
     assignees = [TaskAssigneeBrief(id=a.user.id, name=a.user.name) for a in (t.assignees_link or []) if a.user]
     project = TaskProjectBrief(code=t.project.code, name=t.project.name) if t.project else None
     creator = TaskAssigneeBrief(id=t.creator.id, name=t.creator.name) if t.creator else None
+    attachments = [_photo_brief(p) for p in (t.attachments or []) if not p.deleted_at]
     return TaskOut(
-        id=t.id, title=t.title, description=t.description, status=t.status,
+        id=t.id, title=t.title, description=t.description, type=t.type, status=t.status,
         priority=t.priority, due_date=t.due_date,
-        project=project, creator=creator, assignees=assignees,
+        project=project, creator=creator, assignees=assignees, attachments=attachments,
         completed_at=t.completed_at, created_at=t.created_at,
     )
 
@@ -134,6 +160,7 @@ async def list_tasks(
             selectinload(Task.project),
             selectinload(Task.creator),
             selectinload(Task.assignees_link).selectinload(TaskAssignee.user),
+            selectinload(Task.attachments),
         )
         .where(and_(*filters))
         .order_by(
@@ -157,6 +184,7 @@ async def get_task(
             selectinload(Task.project),
             selectinload(Task.creator),
             selectinload(Task.assignees_link).selectinload(TaskAssignee.user),
+            selectinload(Task.attachments),
         )
         .where(Task.id == task_id, Task.deleted_at.is_(None))
     )).scalar_one_or_none()
@@ -178,6 +206,7 @@ async def create_task(
     task = Task(
         title=data.title.strip(),
         description=data.description,
+        type=data.type or None,
         project_id=project.id if project else None,
         priority=data.priority,
         due_date=data.due_date,
@@ -190,6 +219,21 @@ async def create_task(
     for uid in (data.assignee_ids or []):
         db.add(TaskAssignee(task_id=task.id, user_id=uid))
 
+    # привязать загруженные вложения
+    if data.attachment_ids:
+        photos = (await db.execute(
+            select(Photo).where(
+                Photo.id.in_(data.attachment_ids),
+                Photo.uploaded_by == user.id,
+                Photo.is_confirmed == True,
+                Photo.task_id.is_(None),
+                Photo.record_id.is_(None),
+                Photo.deleted_at.is_(None),
+            )
+        )).scalars().all()
+        for p in photos:
+            p.task_id = task.id
+
     await db.commit()
     result = await db.execute(
         select(Task)
@@ -197,6 +241,7 @@ async def create_task(
             selectinload(Task.project),
             selectinload(Task.creator),
             selectinload(Task.assignees_link).selectinload(TaskAssignee.user),
+            selectinload(Task.attachments),
         )
         .where(Task.id == task.id)
     )
@@ -233,6 +278,8 @@ async def update_task(
         task.title = data.title.strip()
     if data.description is not None:
         task.description = data.description
+    if data.type is not None:
+        task.type = data.type or None
     if data.project_code is not None:
         if data.project_code == "":
             task.project_id = None
@@ -266,6 +313,21 @@ async def update_task(
         for uid in to_add:
             db.add(TaskAssignee(task_id=task.id, user_id=uid))
 
+    # добавить новые вложения (нельзя удалить чужие через эту запись)
+    if data.attachment_ids:
+        photos = (await db.execute(
+            select(Photo).where(
+                Photo.id.in_(data.attachment_ids),
+                Photo.uploaded_by == user.id,
+                Photo.is_confirmed == True,
+                Photo.task_id.is_(None),
+                Photo.record_id.is_(None),
+                Photo.deleted_at.is_(None),
+            )
+        )).scalars().all()
+        for p in photos:
+            p.task_id = task.id
+
     await db.commit()
     result = await db.execute(
         select(Task)
@@ -273,6 +335,7 @@ async def update_task(
             selectinload(Task.project),
             selectinload(Task.creator),
             selectinload(Task.assignees_link).selectinload(TaskAssignee.user),
+            selectinload(Task.attachments),
         )
         .where(Task.id == task.id)
     )

@@ -37,11 +37,15 @@ async def get_upload_url(
     user: User = Depends(require_permission("photos", "create")),
     db: AsyncSession = Depends(get_db),
 ):
-    allowed_types = {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}
-    if data.mime_type not in allowed_types:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Unsupported image type")
-    if data.size > 20 * 1024 * 1024:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Max file size 20 MB")
+    image_types = {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}
+    audio_types = {"audio/webm", "audio/ogg", "audio/mp4", "audio/mpeg", "audio/aac", "audio/wav"}
+    media_type = data.media_type if data.media_type in ("image", "audio") else "image"
+    allowed = image_types if media_type == "image" else audio_types
+    if data.mime_type not in allowed:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Unsupported {media_type} type: {data.mime_type}")
+    max_bytes = 20 * 1024 * 1024 if media_type == "image" else 30 * 1024 * 1024
+    if data.size > max_bytes:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Max file size {max_bytes // (1024*1024)} MB")
 
     s3_key, upload_url = generate_presigned_put(data.filename, data.mime_type, data.size)
 
@@ -51,6 +55,7 @@ async def get_upload_url(
         mime_type=data.mime_type,
         size_bytes=data.size,
         kind=data.kind,
+        media_type=media_type,
         is_confirmed=False,
         uploaded_by=user.id,
     )
@@ -87,16 +92,24 @@ async def confirm_upload(
     photo.is_confirmed = True
     if data.record_id:
         photo.record_id = data.record_id
+    if data.task_id:
+        photo.task_id = data.task_id
+    if data.duration_sec is not None:
+        photo.duration_sec = data.duration_sec
     await db.commit()
 
-    background_tasks.add_task(asyncio.ensure_future, _make_thumbnail(photo.id, photo.s3_key))
+    # генерим миниатюру только для изображений
+    if photo.media_type == "image":
+        background_tasks.add_task(asyncio.ensure_future, _make_thumbnail(photo.id, photo.s3_key))
 
     return PhotoOut(
         id=photo.id, s3_key=photo.s3_key, thumb_key=photo.thumb_key,
         url=public_url(photo.s3_key),
         thumb_url=public_url(photo.thumb_key) if photo.thumb_key else None,
         mime_type=photo.mime_type, size_bytes=photo.size_bytes,
-        kind=photo.kind, uploaded_at=photo.uploaded_at,
+        kind=photo.kind, media_type=photo.media_type,
+        duration_sec=photo.duration_sec,
+        uploaded_at=photo.uploaded_at,
     )
 
 
