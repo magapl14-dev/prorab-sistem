@@ -11,6 +11,7 @@ RESOURCES = [
     "expenses",
     "master_payments",
     "client_payments",
+    "tasks",
     "dashboard",
     "reports",
     "photos",

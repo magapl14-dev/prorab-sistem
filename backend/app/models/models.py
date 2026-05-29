@@ -197,3 +197,36 @@ class Role(Base):
     label = Column(String(100), nullable=False)
     is_system = Column(Boolean, nullable=False, default=False, server_default="false")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Task(Base):
+    __tablename__ = "tasks"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id"), nullable=True)
+    title = Column(String(500), nullable=False)
+    description = Column(Text, nullable=True)
+    status = Column(String(20), nullable=False, default="open", server_default="open")  # open|in_progress|done|cancelled
+    priority = Column(String(20), nullable=True)  # low|normal|high
+    due_date = Column(Date, nullable=True)
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    completed_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
+
+    project = relationship("Project", foreign_keys=[project_id])
+    creator = relationship("User", foreign_keys=[created_by])
+    assignees_link = relationship("TaskAssignee", back_populates="task", cascade="all, delete-orphan")
+
+
+class TaskAssignee(Base):
+    __tablename__ = "task_assignees"
+
+    task_id = Column(UUID(as_uuid=True), ForeignKey("tasks.id", ondelete="CASCADE"), primary_key=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), primary_key=True)
+    assigned_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    task = relationship("Task", back_populates="assignees_link")
+    user = relationship("User")

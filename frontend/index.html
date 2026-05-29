@@ -514,6 +514,23 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
       <div class="content" id="rpt-content" style="padding-top:8px"></div>
     </div>
 
+    <!-- TASKS TAB -->
+    <div class="tab" id="tab-tasks">
+      <div class="section-header">
+        <h2>Задачи</h2>
+        <button class="add-btn" id="add-task-btn" onclick="openCreateTask()">+ Задача</button>
+      </div>
+      <div class="filters" id="task-filters">
+        <div class="filter-chip active" data-filter="active" onclick="setTaskFilter('active',this)">Активные</div>
+        <div class="filter-chip" data-filter="mine" onclick="setTaskFilter('mine',this)">👤 Мои</div>
+        <div class="filter-chip" data-filter="project" onclick="setTaskFilter('project',this)">🏗️ Этот проект</div>
+        <div class="filter-chip" data-filter="noproject" onclick="setTaskFilter('noproject',this)">📌 Без проекта</div>
+        <div class="filter-chip" data-filter="done" onclick="setTaskFilter('done',this)">✓ Готово</div>
+        <div class="filter-chip" data-filter="all" onclick="setTaskFilter('all',this)">Все</div>
+      </div>
+      <div class="content" id="tasks-list"></div>
+    </div>
+
     <!-- PROFILE TAB -->
     <div class="tab" id="tab-profile">
       <div class="content">
@@ -556,6 +573,9 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
     </button>
     <button class="nav-btn" onclick="showTab('report')" id="nav-report">
       <span class="icon">📈</span>Отчёт
+    </button>
+    <button class="nav-btn" onclick="showTab('tasks')" id="nav-tasks">
+      <span class="icon">✅</span>Задачи
     </button>
   </nav>
 </div>
@@ -744,7 +764,7 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
 </div>
 
 <script type="module">
-import { Auth, Records, Photos, Earnings, Admin, Settings } from '/api.js';
+import { Auth, Records, Photos, Earnings, Admin, Tasks, Settings } from '/api.js';
 window._api = { Auth, Records, Photos, Earnings, Admin };
 
 // ── State ─────────────────────────────────────────────────────────────────────
@@ -1121,6 +1141,7 @@ window.applyPermissions = function() {
     client_payments: ['nav-payments', 'tab-payments'],
     dashboard: ['nav-dashboard', 'tab-dashboard'],
     reports: ['nav-report', 'tab-report'],
+    tasks: ['nav-tasks', 'tab-tasks'],
   };
   Object.entries(tabMap).forEach(([res, ids]) => {
     const show = hasPerm(res, 'view');
@@ -1134,6 +1155,7 @@ window.applyPermissions = function() {
     'add-expense-btn': ['expenses', 'create'],
     'add-master-btn': ['master_payments', 'create'],
     'add-payment-btn': ['client_payments', 'create'],
+    'add-task-btn': ['tasks', 'create'],
   };
   Object.entries(addMap).forEach(([id, [res, act]]) => {
     const el = document.getElementById(id);
@@ -1203,6 +1225,7 @@ window.showTab = function(tab) {
   else if (tab === 'payments') loadTab('client_payment');
   else if (tab === 'dashboard') loadDashboard();
   else if (tab === 'report') loadReport();
+  else if (tab === 'tasks') loadTasks();
   else if (tab === 'profile') setupProfile();
 };
 
@@ -2543,6 +2566,231 @@ async function loadDashboard() {
     el.innerHTML = '<div class="empty">Ошибка загрузки</div>';
   }
 }
+
+// ── Tasks ─────────────────────────────────────────────────────────────────────
+let _taskFilter = 'active';
+
+window.setTaskFilter = function(filter, btn) {
+  _taskFilter = filter;
+  document.querySelectorAll('#task-filters .filter-chip').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  loadTasks();
+};
+
+async function loadTasks() {
+  const el = document.getElementById('tasks-list');
+  el.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+  const params = {};
+  if (_taskFilter === 'active') params.include_done = false;
+  else if (_taskFilter === 'mine') { params.assignee = 'me'; params.include_done = false; }
+  else if (_taskFilter === 'project') { params.project_code = currentProject?.code || ''; }
+  else if (_taskFilter === 'noproject') { params.project_code = 'none'; }
+  else if (_taskFilter === 'done') { params.status = 'done'; }
+  // all — без фильтров
+  try {
+    const tasks = await Tasks.list(params);
+    renderTaskList(tasks);
+  } catch(e) {
+    el.innerHTML = '<div class="empty">Ошибка: ' + esc(e?.detail || JSON.stringify(e)) + '</div>';
+  }
+}
+
+function _taskStatusLabel(s) {
+  return { open: '📋 Открыта', in_progress: '⏳ В работе', done: '✅ Готово', cancelled: '❌ Отменена' }[s] || s;
+}
+function _taskPriorityBadge(p) {
+  if (p === 'high') return '<span style="background:#fee;color:#c62828;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600">⬆ ВЫСОКИЙ</span>';
+  if (p === 'low') return '<span style="background:#e8f5e9;color:#2e7d32;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600">⬇ низкий</span>';
+  return '';
+}
+function _taskDueText(d) {
+  if (!d) return '';
+  const today = new Date().toISOString().slice(0,10);
+  const overdue = d < today;
+  const color = overdue ? '#c62828' : 'var(--text2)';
+  return `<span style="color:${color};font-size:12px">📅 ${d}${overdue ? ' (просрочено)' : ''}</span>`;
+}
+
+function renderTaskList(tasks) {
+  const el = document.getElementById('tasks-list');
+  if (!tasks.length) {
+    el.innerHTML = '<div class="empty">Нет задач</div>';
+    return;
+  }
+  el.innerHTML = tasks.map(t => {
+    const done = t.status === 'done';
+    const assignees = (t.assignees || []).map(a => esc(a.name)).join(', ') || '—';
+    const proj = t.project ? `🏗️ ${esc(t.project.name)}` : '📌 Без проекта';
+    return `
+      <div class="record-card" style="${done ? 'opacity:.55' : ''};border-left:3px solid ${done ? '#9e9e9e' : 'var(--orange)'}">
+        <div style="display:flex;align-items:flex-start;gap:10px">
+          <input type="checkbox" ${done ? 'checked' : ''} onclick="event.stopPropagation();toggleTaskDone('${t.id}', this.checked)" style="width:22px;height:22px;cursor:pointer;flex-shrink:0;margin-top:2px">
+          <div style="flex:1;min-width:0" onclick="openEditTask('${t.id}')">
+            <div style="font-weight:600;font-size:15px;${done ? 'text-decoration:line-through' : ''}">${esc(t.title)}</div>
+            <div style="font-size:12px;color:var(--text2);margin-top:4px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+              <span>${proj}</span>
+              <span>👤 ${assignees}</span>
+              ${_taskDueText(t.due_date)}
+              ${_taskPriorityBadge(t.priority)}
+            </div>
+            ${t.description ? `<div style="font-size:13px;color:var(--text2);margin-top:6px;line-height:1.4">${esc(t.description).slice(0,160)}${t.description.length>160?'…':''}</div>` : ''}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+window.toggleTaskDone = async function(id, checked) {
+  try {
+    await Tasks.update(id, { status: checked ? 'done' : 'open' });
+    loadTasks();
+  } catch(e) {
+    toast('Ошибка: ' + (e?.detail || ''));
+  }
+};
+
+async function _loadTaskFormData() {
+  const [users, projects] = await Promise.all([Tasks.users(), Tasks.projects()]);
+  return { users, projects };
+}
+
+window.openCreateTask = async function() {
+  const { users, projects } = await _loadTaskFormData();
+  const projOpts = '<option value="">📌 Без проекта</option>' +
+    projects.map(p => `<option value="${esc(p.code)}"${currentProject?.code===p.code?' selected':''}>${esc(p.name)}</option>`).join('');
+  const userChecks = users.map(u => `
+    <label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer">
+      <input type="checkbox" name="task-assignee" value="${u.id}" style="width:18px;height:18px">
+      <span>${esc(u.name)}</span>
+    </label>
+  `).join('');
+  openModal('Новая задача', `
+    <div class="form-group"><label>Название</label><input id="t-title" type="text" placeholder="Что нужно сделать"></div>
+    <div class="form-group"><label>Описание (необязательно)</label><textarea id="t-desc" rows="3" placeholder="Детали"></textarea></div>
+    <div class="row-2">
+      <div class="form-group"><label>Проект</label><select id="t-project">${projOpts}</select></div>
+      <div class="form-group"><label>Срок</label><input id="t-due" type="date"></div>
+    </div>
+    <div class="form-group">
+      <label>Приоритет</label>
+      <select id="t-priority"><option value="">обычный</option><option value="high">⬆ Высокий</option><option value="low">⬇ Низкий</option></select>
+    </div>
+    <div class="form-group">
+      <label>Исполнители</label>
+      <div style="max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px 12px">${userChecks || '<div style="color:var(--text2);font-size:12px">Нет активных пользователей</div>'}</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn" onclick="submitCreateTask()">Создать</button>
+    </div>
+  `);
+};
+
+window.submitCreateTask = async function() {
+  const title = document.getElementById('t-title').value.trim();
+  if (!title) { toast('Введите название'); return; }
+  const data = {
+    title,
+    description: document.getElementById('t-desc').value.trim() || null,
+    project_code: document.getElementById('t-project').value || null,
+    due_date: document.getElementById('t-due').value || null,
+    priority: document.getElementById('t-priority').value || null,
+    assignee_ids: Array.from(document.querySelectorAll('input[name="task-assignee"]:checked')).map(el => el.value),
+  };
+  try {
+    await Tasks.create(data);
+    closeModal();
+    toast('Задача создана');
+    loadTasks();
+  } catch(e) {
+    toast('Ошибка: ' + (e?.detail || JSON.stringify(e)));
+  }
+};
+
+window.openEditTask = async function(id) {
+  try {
+    const [task, { users, projects }] = await Promise.all([Tasks.get(id), _loadTaskFormData()]);
+    const assignedIds = new Set((task.assignees || []).map(a => a.id));
+    const projOpts = '<option value="">📌 Без проекта</option>' +
+      projects.map(p => `<option value="${esc(p.code)}"${task.project?.code===p.code?' selected':''}>${esc(p.name)}</option>`).join('');
+    const userChecks = users.map(u => `
+      <label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer">
+        <input type="checkbox" name="task-assignee" value="${u.id}" ${assignedIds.has(u.id)?'checked':''} style="width:18px;height:18px">
+        <span>${esc(u.name)}</span>
+      </label>
+    `).join('');
+    openModal('Задача', `
+      <div class="form-group"><label>Название</label><input id="t-title" type="text" value="${esc(task.title)}"></div>
+      <div class="form-group"><label>Описание</label><textarea id="t-desc" rows="3">${esc(task.description||'')}</textarea></div>
+      <div class="row-2">
+        <div class="form-group"><label>Проект</label><select id="t-project">${projOpts}</select></div>
+        <div class="form-group"><label>Срок</label><input id="t-due" type="date" value="${task.due_date||''}"></div>
+      </div>
+      <div class="row-2">
+        <div class="form-group"><label>Приоритет</label>
+          <select id="t-priority">
+            <option value="" ${!task.priority?'selected':''}>обычный</option>
+            <option value="high" ${task.priority==='high'?'selected':''}>⬆ Высокий</option>
+            <option value="low" ${task.priority==='low'?'selected':''}>⬇ Низкий</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Статус</label>
+          <select id="t-status">
+            <option value="open" ${task.status==='open'?'selected':''}>📋 Открыта</option>
+            <option value="in_progress" ${task.status==='in_progress'?'selected':''}>⏳ В работе</option>
+            <option value="done" ${task.status==='done'?'selected':''}>✅ Готово</option>
+            <option value="cancelled" ${task.status==='cancelled'?'selected':''}>❌ Отменена</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Исполнители</label>
+        <div style="max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px 12px">${userChecks}</div>
+      </div>
+      <div style="font-size:11px;color:var(--text2);margin-bottom:10px">Автор: ${esc(task.creator?.name || '?')} · ${new Date(task.created_at).toLocaleString('ru-RU')}</div>
+      <div class="modal-actions">
+        <button class="btn btn-danger" onclick="deleteTask('${task.id}')">Удалить</button>
+        <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+        <button class="btn" onclick="submitEditTask('${task.id}')">Сохранить</button>
+      </div>
+    `);
+  } catch(e) {
+    toast('Ошибка: ' + (e?.detail || ''));
+  }
+};
+
+window.submitEditTask = async function(id) {
+  const data = {
+    title: document.getElementById('t-title').value.trim(),
+    description: document.getElementById('t-desc').value.trim() || null,
+    project_code: document.getElementById('t-project').value,  // "" → бэк уберёт привязку
+    due_date: document.getElementById('t-due').value || null,
+    priority: document.getElementById('t-priority').value || null,
+    status: document.getElementById('t-status').value,
+    assignee_ids: Array.from(document.querySelectorAll('input[name="task-assignee"]:checked')).map(el => el.value),
+  };
+  try {
+    await Tasks.update(id, data);
+    closeModal();
+    toast('Сохранено');
+    loadTasks();
+  } catch(e) {
+    toast('Ошибка: ' + (e?.detail || JSON.stringify(e)));
+  }
+};
+
+window.deleteTask = async function(id) {
+  if (!confirm('Удалить задачу?')) return;
+  try {
+    await Tasks.delete(id);
+    closeModal();
+    toast('Удалено');
+    loadTasks();
+  } catch(e) {
+    toast('Ошибка: ' + (e?.detail || ''));
+  }
+};
 
 // ── Profile ───────────────────────────────────────────────────────────────────
 function setupProfile() {

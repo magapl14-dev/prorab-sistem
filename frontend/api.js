@@ -120,6 +120,21 @@ export const Admin = {
   },
 };
 
+export const Tasks = {
+  list: (params = {}) => {
+    const qs = new URLSearchParams();
+    Object.entries(params).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== '') qs.set(k, v); });
+    const s = qs.toString();
+    return _get(`/tasks${s ? '?' + s : ''}`);
+  },
+  get: (id) => _get(`/tasks/${id}`),
+  create: (data) => _post("/tasks", data),
+  update: (id, data) => _patch(`/tasks/${id}`, data),
+  delete: (id) => _delete(`/tasks/${id}`),
+  users: () => _get("/tasks/_users"),
+  projects: () => _get("/tasks/_projects"),
+};
+
 export const Settings = {
   get: () => _get("/settings"),
 };

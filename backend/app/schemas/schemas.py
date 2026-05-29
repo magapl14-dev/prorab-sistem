@@ -324,3 +324,51 @@ class RoleOut(BaseModel):
 class RoleCreate(BaseModel):
     name: str
     label: str
+
+
+# ── Tasks ─────────────────────────────────────────────────────────────────────
+
+class TaskAssigneeBrief(BaseModel):
+    id: UUID
+    name: str
+    model_config = {"from_attributes": True}
+
+
+class TaskProjectBrief(BaseModel):
+    code: str
+    name: str
+    model_config = {"from_attributes": True}
+
+
+class TaskOut(BaseModel):
+    id: UUID
+    title: str
+    description: Optional[str] = None
+    status: str
+    priority: Optional[str] = None
+    due_date: Optional[date] = None
+    project: Optional[TaskProjectBrief] = None
+    creator: Optional[TaskAssigneeBrief] = None
+    assignees: List[TaskAssigneeBrief] = []
+    completed_at: Optional[datetime] = None
+    created_at: datetime
+    model_config = {"from_attributes": True}
+
+
+class TaskCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    project_code: Optional[str] = None
+    priority: Optional[str] = None  # low|normal|high
+    due_date: Optional[date] = None
+    assignee_ids: List[UUID] = []
+
+
+class TaskUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    project_code: Optional[str] = None  # передать "" чтобы убрать проект
+    priority: Optional[str] = None
+    due_date: Optional[date] = None
+    status: Optional[str] = None
+    assignee_ids: Optional[List[UUID]] = None
