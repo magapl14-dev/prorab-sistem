@@ -2772,8 +2772,11 @@ window.taskToggleRecord = async function() {
       btn.textContent = '🎙 Запись';
       btn.style.background = '';
       const duration = Math.round((Date.now() - _taskRecordStart) / 1000);
-      const blob = new Blob(_taskRecordChunks, { type: _taskMediaRecorder.mimeType || 'audio/webm' });
-      const file = new File([blob], `audio_${Date.now()}.webm`, { type: blob.type });
+      const rawType = _taskMediaRecorder.mimeType || 'audio/webm';
+      const baseMime = rawType.split(';')[0].trim().toLowerCase();
+      const ext = baseMime.includes('mp4') ? 'm4a' : baseMime.includes('ogg') ? 'ogg' : 'webm';
+      const blob = new Blob(_taskRecordChunks, { type: baseMime });
+      const file = new File([blob], `audio_${Date.now()}.${ext}`, { type: baseMime });
       const existingJson = document.getElementById('t-existing-att')?.dataset.list || '[]';
       const existing = JSON.parse(existingJson);
       try {
@@ -2783,12 +2786,12 @@ window.taskToggleRecord = async function() {
           id: photoId,
           url: confirmed.url,
           media_type: 'audio',
-          mime_type: blob.type,
+          mime_type: baseMime,
           duration_sec: duration,
         });
         _refreshTaskAttachmentsUI(existing);
-      } catch(_) {
-        toast('Ошибка загрузки аудио');
+      } catch(e) {
+        toast('Ошибка аудио: ' + (e?.detail || e?.message || JSON.stringify(e)));
       }
     };
     _taskMediaRecorder.start();
@@ -2899,14 +2902,17 @@ window.cmtToggleRecord = async function() {
       stream.getTracks().forEach(t => t.stop());
       btn.textContent = '🎙 Запись'; btn.style.background = '';
       const duration = Math.round((Date.now() - _cmtRecordStart) / 1000);
-      const blob = new Blob(_cmtRecordChunks, { type: _cmtMediaRecorder.mimeType || 'audio/webm' });
-      const file = new File([blob], `audio_${Date.now()}.webm`, { type: blob.type });
+      const rawType = _cmtMediaRecorder.mimeType || 'audio/webm';
+      const baseMime = rawType.split(';')[0].trim().toLowerCase();
+      const ext = baseMime.includes('mp4') ? 'm4a' : baseMime.includes('ogg') ? 'ogg' : 'webm';
+      const blob = new Blob(_cmtRecordChunks, { type: baseMime });
+      const file = new File([blob], `audio_${Date.now()}.${ext}`, { type: baseMime });
       try {
         const id = await Photos.upload(file, 'task', 'audio');
         const c = await Photos.confirm(id, { durationSec: duration });
         _cmtNewAttachments.push({ id, url: c.url, media_type: 'audio', duration_sec: duration });
         _refreshCmtAttUI();
-      } catch(_) { toast('Ошибка загрузки аудио'); }
+      } catch(e) { toast('Ошибка аудио: ' + (e?.detail || e?.message || '')); }
     };
     _cmtMediaRecorder.start();
     btn.textContent = '⏹ Стоп'; btn.style.background = '#c62828';

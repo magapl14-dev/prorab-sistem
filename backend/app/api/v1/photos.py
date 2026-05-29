@@ -38,10 +38,12 @@ async def get_upload_url(
     db: AsyncSession = Depends(get_db),
 ):
     image_types = {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}
-    audio_types = {"audio/webm", "audio/ogg", "audio/mp4", "audio/mpeg", "audio/aac", "audio/wav"}
+    audio_types = {"audio/webm", "audio/ogg", "audio/mp4", "audio/mpeg", "audio/aac", "audio/wav", "audio/x-m4a"}
     media_type = data.media_type if data.media_type in ("image", "audio") else "image"
     allowed = image_types if media_type == "image" else audio_types
-    if data.mime_type not in allowed:
+    # MediaRecorder часто отдаёт MIME с кодеком: "audio/webm;codecs=opus" — берём базовую часть
+    mime_base = data.mime_type.split(";")[0].strip().lower()
+    if mime_base not in allowed:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Unsupported {media_type} type: {data.mime_type}")
     max_bytes = 20 * 1024 * 1024 if media_type == "image" else 30 * 1024 * 1024
     if data.size > max_bytes:
