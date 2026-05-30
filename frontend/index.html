@@ -197,8 +197,8 @@ body{background:var(--bg)}
 #app{height:100%;display:flex;flex-direction:column;max-width:480px;margin:0 auto;position:relative;background:var(--bg);overflow:hidden}
 /* On wide screens, frame the app like a phone mockup on a dark background */
 @media (min-width: 768px){
-  body{background:radial-gradient(120% 90% at 50% 0%, #2a241d 0%, #16120e 70%);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
-  html,body{height:auto}
+  html,body{height:100vh;overflow:hidden}
+  body{background:radial-gradient(120% 90% at 50% 0%, #2a241d 0%, #16120e 70%);display:flex;align-items:center;justify-content:center;padding:24px}
   #app{height:min(900px, calc(100vh - 48px));width:428px;max-width:428px;border-radius:36px;overflow:hidden;border:7px solid rgba(58,46,32,.7);box-shadow:0 30px 80px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(255,255,255,.05)}
 }
 @media (min-width: 768px) and (prefers-color-scheme: dark){
