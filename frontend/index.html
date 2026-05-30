@@ -1173,6 +1173,72 @@ let dictionaries = { type: [], category: [] };
 let activeFilter = null;
 
 // ── Offline queue ────────────────────────────────────────────────────────────
+// ── Form drafts (auto-save while typing, restore on reopen) ──────────────────
+const _Drafts = {
+  key(formId) { return `draft_${formId}_${currentProject?.code || 'none'}_${_user?.id || 'anon'}`; },
+  save(formId, data) {
+    try { localStorage.setItem(this.key(formId), JSON.stringify({ ts: Date.now(), data })); } catch(_) {}
+  },
+  load(formId) {
+    try {
+      const raw = localStorage.getItem(this.key(formId));
+      if (!raw) return null;
+      const { ts, data } = JSON.parse(raw);
+      // Старше 7 дней — игнорируем
+      if (Date.now() - ts > 7 * 86400 * 1000) { this.clear(formId); return null; }
+      return data;
+    } catch(_) { return null; }
+  },
+  clear(formId) { try { localStorage.removeItem(this.key(formId)); } catch(_) {} },
+};
+
+// Снимок текущих значений формы добавления записи
+function _addFormSnapshot() {
+  const ids = ['f-date','f-name','f-type','f-category','f-kassa','f-qty','f-price',
+               'f-master-name','f-payment-amount','f-master-paytype','f-master-rentier',
+               'f-rep-name','f-client-amount','f-is-advance','f-exp-rentier','f-comment'];
+  const data = {};
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el.type === 'checkbox') data[id] = el.checked;
+    else data[id] = el.value;
+  });
+  return data;
+}
+
+function _hydrateAddForm(data) {
+  Object.entries(data || {}).forEach(([id, v]) => {
+    const el = document.getElementById(id);
+    if (!el || v === '' || v == null) return;
+    if (el.type === 'checkbox') el.checked = !!v;
+    else el.value = v;
+  });
+  // Восстановим визуальное состояние чипов
+  const ptype = data?.['f-master-paytype'];
+  if (ptype && typeof _pickPayType === 'function') _pickPayType(ptype);
+  if (typeof calcSum === 'function') try { calcSum(); } catch(_) {}
+}
+
+let _draftSaveTimer = null;
+function _scheduleDraftSave(formId) {
+  clearTimeout(_draftSaveTimer);
+  _draftSaveTimer = setTimeout(() => {
+    const data = _addFormSnapshot();
+    // Не сохраняем пустой черновик
+    const meaningful = Object.values(data).some(v => v && v !== '0' && v !== 0);
+    if (meaningful) _Drafts.save(formId, data);
+  }, 600);
+}
+
+function _attachDraftListeners() {
+  const sheet = document.getElementById('add-sheet');
+  if (!sheet || sheet._draftBound) return;
+  sheet._draftBound = true;
+  sheet.addEventListener('input', () => _scheduleDraftSave('add-' + (window._currentAddKind || 'expense')));
+  sheet.addEventListener('change', () => _scheduleDraftSave('add-' + (window._currentAddKind || 'expense')));
+}
+
 const OfflineQueue = {
   KEY: 'offline_records_queue',
   get list() { return JSON.parse(localStorage.getItem(this.KEY) || '[]'); },
@@ -2400,6 +2466,7 @@ window.closeLightbox = function() {
 // ── Add form ──────────────────────────────────────────────────────────────────
 window.openAddForm = function(kind) {
   currentKind = kind;
+  window._currentAddKind = kind;
   pendingPhotoIds = [];
   document.getElementById('photo-row').innerHTML = '<div class="add-photo-btn" onclick="pickPhoto()">📷</div>';
   document.getElementById('form-error').textContent = '';
@@ -2471,6 +2538,15 @@ window.openAddForm = function(kind) {
   document.getElementById('form-kind-tabs').innerHTML = '';
 
   openSheet('add-sheet');
+
+  // Восстанавливаем черновик (если был), вешаем автосохранение
+  const draftKey = 'add-' + kind;
+  const draft = _Drafts.load(draftKey);
+  if (draft) {
+    _hydrateAddForm(draft);
+    toast('🔄 Восстановлен черновик');
+  }
+  _attachDraftListeners();
 };
 
 function evalFormula(str) {
@@ -2546,6 +2622,7 @@ window.saveRecord = async function() {
 
     try {
       const created = await Records.create(currentProject.code, data);
+      _Drafts.clear('add-' + currentKind);
       if (currentKind === 'expense') {
         saveDefaults('expense', { type: data.type, category: data.category, kassa: data.kassa });
       } else if (currentKind === 'master_payment') {
@@ -2573,8 +2650,9 @@ window.saveRecord = async function() {
     } catch (netErr) {
       if (!navigator.onLine || (netErr && /Failed to fetch|NetworkError|net::/i.test(String(netErr.message || netErr)))) {
         OfflineQueue.add(currentProject.code, data);
+        _Drafts.clear('add-' + currentKind);
         closeSheet();
-        toast('Сохранено локально, отправится при появлении связи');
+        toast('💾 Сохранено локально, отправится при появлении связи');
       } else {
         throw netErr;
       }
@@ -4214,6 +4292,34 @@ window.openCreateTask = async function() {
   `);
   _renderAssigneeChips();
   if (typeof attachVoiceMicsTo === 'function') attachVoiceMicsTo();
+
+  // Восстановление черновика новой задачи
+  const draft = _Drafts.load('new-task');
+  if (draft) {
+    const titleEl = document.getElementById('t-title');
+    const descEl = document.getElementById('t-desc');
+    if (titleEl && draft.title) titleEl.value = draft.title;
+    if (descEl && draft.description) descEl.value = draft.description;
+    if (draft.assignees) { _taskAssignees = draft.assignees; _renderAssigneeChips(); }
+    if (draft.title || draft.description || draft.assignees?.length) {
+      toast('🔄 Восстановлен черновик задачи');
+    }
+  }
+  // Авто-сохранение черновика при вводе
+  const modal = document.getElementById('modal-overlay');
+  if (modal && !modal._taskDraftBound) {
+    modal._taskDraftBound = true;
+    modal.addEventListener('input', () => {
+      clearTimeout(window._taskDraftTimer);
+      window._taskDraftTimer = setTimeout(() => {
+        const title = document.getElementById('t-title')?.value || '';
+        const description = document.getElementById('t-desc')?.value || '';
+        if (title || description || _taskAssignees.length) {
+          _Drafts.save('new-task', { title, description, assignees: _taskAssignees });
+        }
+      }, 600);
+    });
+  }
 };
 
 window.submitCreateTask = async function() {
@@ -4232,6 +4338,7 @@ window.submitCreateTask = async function() {
   };
   try {
     await Tasks.create(data);
+    _Drafts.clear('new-task');
     _taskNewAttachments = [];
     closeModal();
     toast('Задача создана');
