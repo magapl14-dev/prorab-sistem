@@ -3373,7 +3373,11 @@ window.toggleTaskDone = async function(id, checked, btnEl) {
     if (checked) {
       try { celebrateTaskClosed(btnEl); } catch(_) {}
     }
-    loadTasks();
+    // Обновляем активную вкладку — либо Задачи, либо Главную
+    const active = document.querySelector('.tab.active')?.id;
+    if (active === 'tab-home') loadHome();
+    else if (active === 'tab-tasks') loadTasks();
+    else { loadHome(); loadTasks(); }
   } catch(e) {
     toast('Ошибка: ' + (e?.detail || ''));
   }
