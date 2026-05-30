@@ -143,6 +143,18 @@
 .task-card-urg.urg-week::before{background:#7cb342}
 .task-card-urg.urg-overdue::before{background:var(--expense);width:5px}
 .task-card-urg.urg-done::before{background:#9e9e9e}
+/* ── Home quick actions ── */
+.home-quick{flex:1;display:flex;flex-direction:column;align-items:center;gap:7px;padding:0;background:none;border:none;color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;transition:transform .12s}
+.home-quick:active{transform:scale(.95)}
+.home-quick .hq-ic{width:50px;height:50px;border-radius:16px;background:var(--card);box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;font-size:24px}
+/* ── Home rows ── */
+.home-task-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--hair)}
+.home-task-row:first-child{border-top:none}
+.home-task-check{width:24px;height:24px;flex-shrink:0;border-radius:8px;border:2px solid var(--border);background:transparent;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s}
+.home-task-check.done{border:none;background:var(--income)}
+.home-record-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--hair)}
+.home-record-row:first-child{border-top:none}
+.home-record-avt{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
 html,body{height:100%;font-family:'Golos Text',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);font-size:16px}
 #app{height:100%;display:flex;flex-direction:column;max-width:480px;margin:0 auto;position:relative}
 
@@ -203,8 +215,8 @@ html,body{height:100%;font-family:'Golos Text',system-ui,-apple-system,sans-seri
 .user-avatar{width:42px;height:42px;border-radius:13px;background:linear-gradient(135deg, var(--orange), var(--orange-dark));color:#fff;font-size:16px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:none;transition:transform .12s}
 .user-avatar:active{transform:scale(.95)}
 .content{flex:1;overflow-y:auto;padding:0 0 80px}
-.bottom-nav{flex-shrink:0;display:grid;grid-template-columns:repeat(6,1fr);background:color-mix(in srgb, var(--card) 92%, transparent);backdrop-filter:blur(14px) saturate(1.3);-webkit-backdrop-filter:blur(14px) saturate(1.3);border-top:1px solid var(--hair);padding:9px 4px max(9px, env(safe-area-inset-bottom))}
-.nav-btn{display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 2px;color:var(--text3);font-size:10.5px;font-weight:600;letter-spacing:.01em;background:none;border:none;cursor:pointer;position:relative;transition:color .2s}
+.bottom-nav{flex-shrink:0;display:grid;grid-template-columns:repeat(7,1fr);background:color-mix(in srgb, var(--card) 92%, transparent);backdrop-filter:blur(14px) saturate(1.3);-webkit-backdrop-filter:blur(14px) saturate(1.3);border-top:1px solid var(--hair);padding:9px 2px max(9px, env(safe-area-inset-bottom))}
+.nav-btn{display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 1px;color:var(--text3);font-size:9.5px;font-weight:600;letter-spacing:0;background:none;border:none;cursor:pointer;position:relative;transition:color .2s}
 .nav-btn .icon{font-size:21px;line-height:1}
 .nav-btn.active{color:var(--orange)}
 .nav-btn.active::before{content:"";position:absolute;top:-9px;width:22px;height:3px;border-radius:99px;background:var(--orange)}
@@ -521,7 +533,75 @@ html,body{height:100%;font-family:'Golos Text',system-ui,-apple-system,sans-seri
   <div style="flex:1;overflow:hidden;display:flex;flex-direction:column">
 
     <!-- EXPENSES TAB -->
-    <div class="tab active" id="tab-expenses">
+    <!-- HOME TAB (command center) -->
+    <div class="tab active" id="tab-home">
+      <div class="content" id="home-content">
+        <div style="padding:6px 16px 14px">
+          <div style="font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--orange)" id="home-date">—</div>
+          <div style="font-size:23px;font-weight:800;letter-spacing:-.02em;line-height:1.1;margin-top:4px" id="home-greet">Доброе утро</div>
+        </div>
+
+        <!-- Balance card with goal -->
+        <div style="background:var(--card);border-radius:18px;padding:16px;margin:0 12px 12px;box-shadow:var(--shadow)">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text2)">Баланс объекта</span>
+            <button onclick="showTab('report')" style="display:flex;align-items:center;gap:3px;font-size:12px;font-weight:700;color:var(--text2);background:none;border:none;cursor:pointer">Отчёт ›</button>
+          </div>
+          <div id="home-balance" style="font-size:30px;font-weight:800;color:var(--income);margin-top:4px;font-variant-numeric:tabular-nums;letter-spacing:-.02em">— ₽</div>
+          <div style="display:flex;gap:12px;margin-top:14px">
+            <div style="flex:1">
+              <div style="font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text2)">Расход</div>
+              <div id="home-expense" style="font-size:16px;font-weight:800;margin-top:3px;color:var(--expense);font-variant-numeric:tabular-nums">— ₽</div>
+            </div>
+            <div style="width:1px;background:var(--hair)"></div>
+            <div style="flex:1">
+              <div style="font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text2)">Оплаты клиента</div>
+              <div id="home-income" style="font-size:16px;font-weight:800;margin-top:3px;color:var(--income);font-variant-numeric:tabular-nums">— ₽</div>
+            </div>
+          </div>
+          <div style="height:1px;background:var(--hair);margin:14px 0"></div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+            <span style="font-size:12.5px;font-weight:700;color:var(--text2)">🎯 Цель месяца</span>
+            <span style="font-size:12.5px;font-weight:800;color:var(--orange)" id="home-goal-pct">0%</span>
+          </div>
+          <div style="height:9px;border-radius:99px;background:var(--bg);overflow:hidden">
+            <div id="home-goal-bar" style="height:100%;width:0%;border-radius:99px;background:linear-gradient(90deg, var(--orange), var(--orange-dark));transition:width .4s"></div>
+          </div>
+          <div id="home-goal-info" style="font-size:11.5px;color:var(--text2);margin-top:8px">установите цель в Доход</div>
+        </div>
+
+        <!-- Quick actions -->
+        <div style="display:flex;gap:8px;padding:0 16px 20px" id="home-quick">
+          <button class="home-quick" onclick="openAddForm('expense')"><span class="hq-ic" style="color:var(--expense)">🛒</span>Закуп</button>
+          <button class="home-quick" onclick="openAddForm('master_payment')"><span class="hq-ic" style="color:var(--orange)">👷</span>Выплата</button>
+          <button class="home-quick" onclick="openAddForm('client_payment')"><span class="hq-ic" style="color:var(--income)">💳</span>Платёж</button>
+          <button class="home-quick" onclick="openCreateTask()"><span class="hq-ic" style="color:#6B53A0">✅</span>Задача</button>
+        </div>
+
+        <!-- Today's tasks -->
+        <div style="background:var(--card);border-radius:18px;padding:16px;margin:0 12px 12px;box-shadow:var(--shadow)">
+          <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
+            <span style="font-size:18px">✅</span>
+            <span style="font-size:15.5px;font-weight:800">Задачи на сегодня</span>
+            <span id="home-tasks-count" style="font-size:12px;font-weight:700;color:var(--orange);background:var(--accent-tint);border-radius:99px;padding:2px 9px">0</span>
+            <button onclick="showTab('tasks')" style="margin-left:auto;display:flex;align-items:center;gap:3px;font-size:12.5px;font-weight:700;color:var(--text2);background:none;border:none;cursor:pointer">Все ›</button>
+          </div>
+          <div id="home-tasks-list"></div>
+        </div>
+
+        <!-- Recent records -->
+        <div style="background:var(--card);border-radius:18px;padding:16px;margin:0 12px 12px;box-shadow:var(--shadow)">
+          <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
+            <span style="font-size:18px">📋</span>
+            <span style="font-size:15.5px;font-weight:800">Последние записи</span>
+            <button onclick="showTab('report')" style="margin-left:auto;display:flex;align-items:center;gap:3px;font-size:12.5px;font-weight:700;color:var(--text2);background:none;border:none;cursor:pointer">Отчёт ›</button>
+          </div>
+          <div id="home-records-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab" id="tab-expenses">
       <div class="section-header">
         <h2>Расходы</h2>
         <button class="add-btn" id="add-expense-btn" onclick="openAddForm('expense')">+ Добавить</button>
@@ -675,7 +755,10 @@ html,body{height:100%;font-family:'Golos Text',system-ui,-apple-system,sans-seri
 
   <!-- Bottom nav -->
   <nav class="bottom-nav">
-    <button class="nav-btn active" onclick="showTab('expenses')" id="nav-expenses">
+    <button class="nav-btn active" onclick="showTab('home')" id="nav-home">
+      <span class="icon">🏠</span>Главная
+    </button>
+    <button class="nav-btn" onclick="showTab('expenses')" id="nav-expenses">
       <span class="icon">🛒</span>Закупка
     </button>
     <button class="nav-btn" onclick="showTab('masters')" id="nav-masters">
@@ -1259,6 +1342,7 @@ window.applyPermissions = function() {
     reports: ['nav-report', 'tab-report'],
     tasks: ['nav-tasks', 'tab-tasks'],
   };
+  // Home is always visible (no permission gate)
   Object.entries(tabMap).forEach(([res, ids]) => {
     const show = hasPerm(res, 'view');
     ids.forEach(id => {
@@ -1313,7 +1397,7 @@ function selectProject(project) {
     loadMotivation();
   }
   showScreen('main-screen');
-  showTab('expenses');
+  showTab('home');
 }
 
 window.goBack = async function() {
@@ -1337,7 +1421,8 @@ window.showTab = function(tab) {
   document.getElementById('tab-' + tab).classList.add('active');
   const nb = document.getElementById('nav-' + tab);
   if (nb) nb.classList.add('active');
-  if (tab === 'expenses') loadTab('expense');
+  if (tab === 'home') loadHome();
+  else if (tab === 'expenses') loadTab('expense');
   else if (tab === 'masters') loadTab('master_payment');
   else if (tab === 'payments') loadTab('client_payment');
   else if (tab === 'dashboard') loadDashboard();
@@ -1347,6 +1432,113 @@ window.showTab = function(tab) {
 };
 
 // ── Load records ──────────────────────────────────────────────────────────────
+// ── Home (command center) ────────────────────────────────────────────────────
+async function loadHome() {
+  if (!currentProject || !_user) return;
+  const T = new Date();
+  const weekdays = ['Воскресенье','Понедельник','Вторник','Среда','Четверг','Пятница','Суббота'];
+  const months = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+  const hour = T.getHours();
+  const greet = hour < 5 ? 'Доброй ночи' : hour < 12 ? 'Доброе утро' : hour < 18 ? 'Добрый день' : 'Добрый вечер';
+  document.getElementById('home-date').textContent = `${weekdays[T.getDay()]}, ${T.getDate()} ${months[T.getMonth()]}`;
+  document.getElementById('home-greet').textContent = `${greet}, ${(_user.name || '').split(' ')[0]}`;
+
+  try {
+    const recs = await Records.list(currentProject.code, { limit: 200 }).catch(() => ({ items: [] }));
+    const items = recs.items || [];
+    const expense = items.filter(r => r.kind === 'expense').reduce((s, r) => s + (parseFloat(r.sum_buy) || 0), 0);
+    const payments = items.filter(r => r.kind === 'client_payment').reduce((s, r) => s + (parseFloat(r.payment_amount) || 0), 0);
+    const balance = payments - expense;
+    document.getElementById('home-expense').textContent = fmt(expense) + ' ₽';
+    document.getElementById('home-income').textContent = fmt(payments) + ' ₽';
+    const bel = document.getElementById('home-balance');
+    bel.textContent = (balance >= 0 ? '+ ' : '− ') + fmt(Math.abs(balance)) + ' ₽';
+    bel.style.color = balance >= 0 ? 'var(--income)' : 'var(--expense)';
+
+    // Goal
+    const goalKey = `goal_${currentProject.code}_${_user.id}`;
+    const goal = parseFloat(localStorage.getItem(goalKey) || 0);
+    const goalBar = document.getElementById('home-goal-bar');
+    const goalPct = document.getElementById('home-goal-pct');
+    const goalInfo = document.getElementById('home-goal-info');
+    if (goal > 0) {
+      const ps = await Earnings.periodStats(currentProject.code).catch(() => null);
+      const monthEarned = ps?.month
+        ? (parseFloat(ps.month.commission||0) + parseFloat(ps.month.rentier||0) + parseFloat(ps.month.fixed||0))
+        : 0;
+      const pct = Math.min(100, Math.round(monthEarned / goal * 100));
+      goalBar.style.width = pct + '%';
+      goalPct.textContent = pct + '%';
+      goalInfo.textContent = `${fmt(monthEarned)} из ${fmt(goal)} ₽`;
+    } else {
+      goalBar.style.width = '0%';
+      goalPct.textContent = '0%';
+      goalInfo.innerHTML = '<button onclick="setEarningsGoal(currentProject.code)" style="background:none;border:none;color:var(--orange);font-weight:700;cursor:pointer;padding:0;font-size:11.5px">Установить цель →</button>';
+    }
+  } catch(_) {}
+
+  // Tasks for today
+  try {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const tEnd = new Date(today.getTime() + 86399000);
+    const tasks = await Tasks.list({
+      include_done: false,
+      due_from: today.toISOString(),
+      due_to: tEnd.toISOString(),
+    }).catch(() => []);
+    const myId = _user.id;
+    const mine = tasks.filter(t => (t.assignees || []).some(a => a.id === myId) || t.creator?.id === myId);
+    document.getElementById('home-tasks-count').textContent = mine.length;
+    const el = document.getElementById('home-tasks-list');
+    if (!mine.length) {
+      el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2);font-size:13px">На сегодня задач нет 👌</div>';
+    } else {
+      el.innerHTML = mine.slice(0, 5).map(t => {
+        const overdue = t.due_at && new Date(t.due_at) < new Date();
+        const time = t.due_at ? new Date(t.due_at).toLocaleTimeString('ru-RU', { hour:'2-digit', minute:'2-digit' }) : '';
+        return `
+          <div class="home-task-row" onclick="openEditTask('${t.id}')" style="cursor:pointer">
+            <button class="home-task-check" onclick="event.stopPropagation();toggleTaskDone('${t.id}', true, this)" title="Завершить"></button>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:14.5px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.title)}</div>
+              <div style="font-size:12px;color:var(--text2);margin-top:2px">${esc(t.assignees?.[0]?.name || '—')} · ${esc(t.priority || 'обычный')} приоритет</div>
+            </div>
+            <span style="font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:99px;border:1px solid ${overdue?'var(--expense)':'var(--border)'};color:${overdue?'var(--expense)':'var(--text2)'};white-space:nowrap">${overdue?'просрочено':time}</span>
+          </div>
+        `;
+      }).join('');
+    }
+  } catch(_) {}
+
+  // Recent records
+  try {
+    const recs = await Records.list(currentProject.code, { limit: 5 }).catch(() => ({ items: [] }));
+    const items = (recs.items || []).slice(0, 5);
+    const el = document.getElementById('home-records-list');
+    if (!items.length) {
+      el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2);font-size:13px">Записей пока нет</div>';
+    } else {
+      el.innerHTML = items.map(r => {
+        let amt = 0, label = '', icon = '🛒', cls = 'expense';
+        if (r.kind === 'expense') { amt = -(parseFloat(r.sum_buy)||0); label = r.name || 'Расход'; icon = '🛒'; }
+        else if (r.kind === 'master_payment') { amt = -(parseFloat(r.payment_amount)||0); label = r.name || 'Выплата мастеру'; icon = '👷'; }
+        else if (r.kind === 'client_payment') { amt = (parseFloat(r.payment_amount)||0); label = r.name || 'Платёж клиента'; icon = '💳'; cls = 'income'; }
+        const date = r.operation_date ? new Date(r.operation_date).toLocaleDateString('ru-RU', { day:'2-digit', month:'2-digit' }) : '';
+        return `
+          <div class="home-record-row">
+            <div class="home-record-avt" style="background:${cls==='income'?'var(--income-tint)':'var(--expense-tint)'};color:${cls==='income'?'var(--income)':'var(--expense)'}">${icon}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(label)}</div>
+              <div style="font-size:11.5px;color:var(--text2);margin-top:1px">${date}${r.author?.name ? ' · ' + esc(r.author.name) : ''}</div>
+            </div>
+            <div style="font-weight:800;font-variant-numeric:tabular-nums;color:${cls==='income'?'var(--income)':'var(--expense)'};font-size:14.5px;white-space:nowrap">${amt>=0?'+ ':'− '}${fmt(Math.abs(amt))} ₽</div>
+          </div>
+        `;
+      }).join('');
+    }
+  } catch(_) {}
+}
+
 async function loadTab(kind) {
   if (!currentProject) return;
   const containerId = kind === 'expense' ? 'expenses-list' :
