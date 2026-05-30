@@ -155,6 +155,12 @@
 .home-record-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--hair)}
 .home-record-row:first-child{border-top:none}
 .home-record-avt{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+/* ── Plan / fact badges ── */
+.pf-badge{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:99px;letter-spacing:.02em;white-space:nowrap}
+.pf-badge.fact{background:var(--income-tint);color:var(--income);border:1px solid color-mix(in srgb, var(--income) 25%, transparent)}
+.pf-badge.plan{background:transparent;color:var(--text2);border:1px dashed var(--text3)}
+.pf-badge.advance{background:#fff3e0;color:var(--orange)}
+.pf-badge.overdue{background:transparent;color:var(--expense);border:1px solid var(--expense)}
 /* ── Quick-add chooser cards ── */
 .qa-card{display:flex;flex-direction:column;gap:11px;padding:16px;border-radius:16px;background:var(--card);border:none;box-shadow:var(--shadow);text-align:left;align-items:flex-start;cursor:pointer;transition:transform .12s}
 .qa-card:active{transform:scale(.97)}
@@ -611,14 +617,26 @@ body{background:var(--bg)}
           <div id="home-tasks-list"></div>
         </div>
 
-        <!-- Recent records -->
+        <!-- Master payments -->
         <div style="background:var(--card);border-radius:18px;padding:16px;margin:0 12px 12px;box-shadow:var(--shadow)">
           <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
-            <span style="color:var(--text2)" data-icon="list" data-icon-size="18"></span>
-            <span style="font-size:15.5px;font-weight:800">Последние записи</span>
-            <button onclick="showTab('report')" style="margin-left:auto;display:flex;align-items:center;gap:3px;font-size:12.5px;font-weight:700;color:var(--text2);background:none;border:none;cursor:pointer">Отчёт ›</button>
+            <span style="color:var(--text2)" data-icon="worker" data-icon-size="18"></span>
+            <span style="font-size:15.5px;font-weight:800">Выплаты мастерам</span>
+            <span id="home-master-total" style="font-size:12px;font-weight:700;color:var(--expense);background:var(--expense-tint);border-radius:99px;padding:2px 9px"></span>
+            <button onclick="showTab('masters')" style="margin-left:auto;display:flex;align-items:center;gap:3px;font-size:12.5px;font-weight:700;color:var(--text2);background:none;border:none;cursor:pointer">Все ›</button>
           </div>
-          <div id="home-records-list"></div>
+          <div id="home-master-list"></div>
+        </div>
+
+        <!-- Client payments -->
+        <div style="background:var(--card);border-radius:18px;padding:16px;margin:0 12px 12px;box-shadow:var(--shadow)">
+          <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
+            <span style="color:var(--text2)" data-icon="wallet" data-icon-size="18"></span>
+            <span style="font-size:15.5px;font-weight:800">Поступления от клиента</span>
+            <span id="home-client-total" style="font-size:12px;font-weight:700;color:var(--income);background:var(--income-tint);border-radius:99px;padding:2px 9px"></span>
+            <button onclick="showTab('payments')" style="margin-left:auto;display:flex;align-items:center;gap:3px;font-size:12.5px;font-weight:700;color:var(--text2);background:none;border:none;cursor:pointer">Все ›</button>
+          </div>
+          <div id="home-client-list"></div>
         </div>
       </div>
     </div>
@@ -1635,31 +1653,94 @@ async function loadHome() {
     }
   } catch(_) {}
 
-  // Recent records
+  // Master payments + client payments blocks
   try {
-    const recs = await Records.list(currentProject.code, { limit: 5 }).catch(() => ({ items: [] }));
-    const items = (recs.items || []).slice(0, 5);
-    const el = document.getElementById('home-records-list');
-    if (!items.length) {
-      el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2);font-size:13px">Записей пока нет</div>';
-    } else {
-      el.innerHTML = items.map(r => {
-        let amt = 0, label = '', icon = '🛒', cls = 'expense';
-        if (r.kind === 'expense') { amt = -(parseFloat(r.sum_buy)||0); label = r.name || 'Расход'; icon = '🛒'; }
-        else if (r.kind === 'master_payment') { amt = -(parseFloat(r.payment_amount)||0); label = r.name || 'Выплата мастеру'; icon = '👷'; }
-        else if (r.kind === 'client_payment') { amt = (parseFloat(r.payment_amount)||0); label = r.name || 'Платёж клиента'; icon = '💳'; cls = 'income'; }
-        const date = r.operation_date ? new Date(r.operation_date).toLocaleDateString('ru-RU', { day:'2-digit', month:'2-digit' }) : '';
-        return `
-          <div class="home-record-row">
-            <div class="home-record-avt" style="background:${cls==='income'?'var(--income-tint)':'var(--expense-tint)'};color:${cls==='income'?'var(--income)':'var(--expense)'}">${icon}</div>
-            <div style="flex:1;min-width:0">
-              <div style="font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(label)}</div>
-              <div style="font-size:11.5px;color:var(--text2);margin-top:1px">${date}${r.author?.name ? ' · ' + esc(r.author.name) : ''}</div>
+    const today = new Date(); today.setHours(0,0,0,0);
+    const weekEnd = new Date(today); weekEnd.setDate(today.getDate() + 7);
+
+    const [mastersRec, clientsRec] = await Promise.all([
+      Records.list(currentProject.code, { kind: 'master_payment', limit: 20 }).catch(() => ({ items: [] })),
+      Records.list(currentProject.code, { kind: 'client_payment', limit: 20 }).catch(() => ({ items: [] })),
+    ]);
+
+    // Classify item as plan or fact:
+    // - If payment_date in future → plan
+    // - If overdue (past payment_date but not realized) — отдельный кейс, у нас факт
+    // - Default → fact
+    const classify = (r) => {
+      if (r.payment_date) {
+        const pd = new Date(r.payment_date);
+        if (pd > new Date()) return 'plan';
+      }
+      return 'fact';
+    };
+
+    const renderRow = (r, cls /* income|expense */) => {
+      const status = classify(r);
+      const amt = parseFloat(r.payment_amount) || 0;
+      const date = r.payment_date || r.operation_date;
+      const dateStr = date ? new Date(date).toLocaleDateString('ru-RU', { day:'2-digit', month:'2-digit' }) : '';
+      const who = r.name || r.client_rep_name || (cls==='income' ? 'Клиент' : 'Мастер');
+      const advanceBadge = r.is_advance ? `<span class="pf-badge advance">⚡ Аванс</span>` : '';
+      const statusBadge = status === 'plan'
+        ? `<span class="pf-badge plan">📅 План · ${dateStr}</span>`
+        : `<span class="pf-badge fact">✓ Факт · ${dateStr}</span>`;
+      const iconName = cls === 'income' ? 'wallet' : 'worker';
+      const tint = cls === 'income' ? 'var(--income-tint)' : 'var(--orange-light)';
+      const ink = cls === 'income' ? 'var(--income)' : 'var(--orange)';
+      const moneyColor = cls === 'income' ? 'var(--income)' : 'var(--expense)';
+      const sign = cls === 'income' ? '+ ' : '− ';
+      return `
+        <div class="home-record-row">
+          <div class="home-record-avt" style="background:${tint};color:${ink}" data-icon="${iconName}" data-icon-size="20"></div>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(who)}</div>
+            <div style="font-size:11.5px;color:var(--text2);margin-top:3px;display:flex;gap:5px;flex-wrap:wrap;align-items:center">
+              ${statusBadge}${advanceBadge}
             </div>
-            <div style="font-weight:800;font-variant-numeric:tabular-nums;color:${cls==='income'?'var(--income)':'var(--expense)'};font-size:14.5px;white-space:nowrap">${amt>=0?'+ ':'− '}${fmt(Math.abs(amt))} ₽</div>
           </div>
-        `;
-      }).join('');
+          <div style="font-weight:800;font-variant-numeric:tabular-nums;color:${moneyColor};font-size:14.5px;white-space:nowrap">${sign}${fmt(Math.abs(amt))} ₽</div>
+        </div>
+      `;
+    };
+
+    // Pick plans first (within next week), then latest facts
+    const pickFor = (items) => {
+      const plans = items.filter(r => {
+        if (!r.payment_date) return false;
+        const pd = new Date(r.payment_date);
+        return pd > new Date() && pd <= weekEnd;
+      }).sort((a, b) => (a.payment_date || '').localeCompare(b.payment_date || ''));
+      const facts = items.filter(r => !plans.includes(r))
+        .sort((a, b) => (b.operation_date || '').localeCompare(a.operation_date || ''));
+      return [...plans, ...facts].slice(0, 3);
+    };
+
+    const masterItems = pickFor(mastersRec.items || []);
+    const clientItems = pickFor(clientsRec.items || []);
+
+    const masterEl = document.getElementById('home-master-list');
+    if (!masterItems.length) {
+      masterEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2);font-size:13px">Нет выплат — добавьте через FAB</div>';
+      document.getElementById('home-master-total').textContent = '';
+    } else {
+      masterEl.innerHTML = masterItems.map(r => renderRow(r, 'expense')).join('');
+      const sum = masterItems.reduce((s, r) => s + (parseFloat(r.payment_amount) || 0), 0);
+      document.getElementById('home-master-total').textContent = '− ' + fmt(sum) + ' ₽';
+    }
+
+    const clientEl = document.getElementById('home-client-list');
+    if (!clientItems.length) {
+      clientEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2);font-size:13px">Поступлений пока нет</div>';
+      document.getElementById('home-client-total').textContent = '';
+    } else {
+      clientEl.innerHTML = clientItems.map(r => renderRow(r, 'income')).join('');
+      const sum = clientItems.reduce((s, r) => s + (parseFloat(r.payment_amount) || 0), 0);
+      document.getElementById('home-client-total').textContent = '+ ' + fmt(sum) + ' ₽';
+    }
+
+    if (window.renderIcons) {
+      renderIcons(masterEl); renderIcons(clientEl);
     }
   } catch(_) {}
 }
