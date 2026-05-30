@@ -57,6 +57,19 @@
 [data-theme="dark"] #f-rentier-distrib,[data-theme="dark"] #f-exp-rentier-distrib{background:#3a2e6b!important;color:#fff!important}
 [data-theme="dark"] #f-rentier-distrib strong,[data-theme="dark"] #f-exp-rentier-distrib strong{color:#fff!important}
 #f-payment-amount,#f-client-amount,#f-master-rentier,#f-exp-rentier{font-size:18px;padding:14px;font-weight:600}
+/* ── Voice recorder (Telegram/WhatsApp style) ── */
+.rec-bar{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#fee;border:1.5px solid #c62828;border-radius:24px}
+[data-theme="dark"] .rec-bar{background:#3a1a1a}
+.rec-dot{width:12px;height:12px;background:#c62828;border-radius:50%;flex-shrink:0;animation:rec-pulse 1.4s ease-in-out infinite}
+@keyframes rec-pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.25)}}
+.rec-waves{flex:1;display:flex;align-items:center;gap:2px;height:28px;overflow:hidden}
+.rec-wave-bar{width:3px;background:#c62828;border-radius:2px;flex-shrink:0;transition:height .08s ease-out;height:4px}
+.rec-timer{font-family:monospace;font-weight:700;color:#c62828;font-size:14px;min-width:42px;text-align:center}
+.rec-action{border:none;border-radius:50%;width:36px;height:36px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;transition:transform .15s}
+.rec-action:hover{transform:scale(1.08)}
+.rec-cancel{background:#f5f5f5;color:#c62828}
+[data-theme="dark"] .rec-cancel{background:#2a2a2a}
+.rec-send{background:#2e7d32;color:#fff}
 html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);font-size:16px}
 #app{height:100%;display:flex;flex-direction:column;max-width:480px;margin:0 auto;position:relative}
 
@@ -2749,67 +2762,160 @@ window.taskOnPhotoSelected = async function(e) {
   }
 };
 
-window.taskToggleRecord = async function() {
-  const btn = document.getElementById('t-rec-btn');
-  if (_taskMediaRecorder && _taskMediaRecorder.state === 'recording') {
-    _taskMediaRecorder.stop();
-    return;
-  }
-  if (!navigator.mediaDevices?.getUserMedia) {
-    toast('Запись аудио не поддерживается');
-    return;
-  }
+// ── Universal voice recorder (Telegram-style) ────────────────────────────────
+window._voiceRec = null; // { mediaRecorder, stream, chunks, startTime, audioCtx, analyser, dataArr, rafId, timerInterval, ctx, cancelled }
+
+function _recBarHtml() {
+  // 28 столбиков
+  const bars = Array.from({ length: 28 }, (_, i) => `<span class="rec-wave-bar" data-i="${i}"></span>`).join('');
+  return `
+    <div class="rec-bar">
+      <div class="rec-dot"></div>
+      <div class="rec-waves">${bars}</div>
+      <div class="rec-timer">0:00</div>
+      <button type="button" class="rec-action rec-cancel" title="Отмена" onclick="cancelVoiceRec()">✕</button>
+      <button type="button" class="rec-action rec-send" title="Отправить" onclick="finishVoiceRec()">▶</button>
+    </div>
+  `;
+}
+
+async function startVoiceRec(context) {
+  if (_voiceRec) return; // уже идёт запись
+  if (!navigator.mediaDevices?.getUserMedia) { toast('Запись аудио не поддерживается'); return; }
+
+  const buttonsHolder = context === 'task'
+    ? document.getElementById('t-rec-buttons')
+    : document.getElementById('t-cmt-rec-buttons');
+  if (!buttonsHolder) return;
+
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const mime = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' :
-                 MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '';
-    _taskMediaRecorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
-    _taskRecordChunks = [];
-    _taskRecordStart = Date.now();
-    _taskMediaRecorder.ondataavailable = e => { if (e.data.size > 0) _taskRecordChunks.push(e.data); };
-    _taskMediaRecorder.onstop = async () => {
-      stream.getTracks().forEach(t => t.stop());
-      btn.textContent = '🎙 Запись';
-      btn.style.background = '';
-      const duration = Math.round((Date.now() - _taskRecordStart) / 1000);
-      const rawType = _taskMediaRecorder.mimeType || 'audio/webm';
-      const baseMime = rawType.split(';')[0].trim().toLowerCase();
-      const ext = baseMime.includes('mp4') ? 'm4a' : baseMime.includes('ogg') ? 'ogg' : 'webm';
-      const blob = new Blob(_taskRecordChunks, { type: baseMime });
-      const file = new File([blob], `audio_${Date.now()}.${ext}`, { type: baseMime });
-      const existingJson = document.getElementById('t-existing-att')?.dataset.list || '[]';
-      const existing = JSON.parse(existingJson);
-      try {
-        const photoId = await Photos.upload(file, 'task', 'audio');
-        const confirmed = await Photos.confirm(photoId, { durationSec: duration });
-        _taskNewAttachments.push({
-          id: photoId,
-          url: confirmed.url,
-          media_type: 'audio',
-          mime_type: baseMime,
-          duration_sec: duration,
-        });
-        _refreshTaskAttachmentsUI(existing);
-      } catch(e) {
-        toast('Ошибка аудио: ' + (e?.detail || e?.message || JSON.stringify(e)));
-      }
+    const mimeOpts = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'];
+    const supported = mimeOpts.find(m => MediaRecorder.isTypeSupported(m)) || '';
+    const mediaRecorder = new MediaRecorder(stream, supported ? { mimeType: supported } : undefined);
+
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const source = audioCtx.createMediaStreamSource(stream);
+    const analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 64;
+    analyser.smoothingTimeConstant = 0.6;
+    source.connect(analyser);
+    const dataArr = new Uint8Array(analyser.frequencyBinCount);
+
+    const prevHtml = buttonsHolder.innerHTML;
+    buttonsHolder.innerHTML = _recBarHtml();
+
+    _voiceRec = {
+      ctx: context,
+      mediaRecorder, stream, chunks: [], startTime: Date.now(),
+      audioCtx, analyser, dataArr, rafId: 0, timerInterval: 0,
+      buttonsHolder, prevHtml, cancelled: false,
     };
-    _taskMediaRecorder.start();
-    btn.textContent = '⏹ Стоп (запись...)';
-    btn.style.background = '#c62828';
+
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) _voiceRec.chunks.push(e.data); };
+    mediaRecorder.onstop = () => _onVoiceStop();
+    mediaRecorder.start();
+
+    const barsEls = buttonsHolder.querySelectorAll('.rec-wave-bar');
+    const timerEl = buttonsHolder.querySelector('.rec-timer');
+
+    const tick = () => {
+      if (!_voiceRec) return;
+      analyser.getByteFrequencyData(dataArr);
+      // визуализация: для каждого столбика берём среднее по своему срезу
+      const groupSize = Math.max(1, Math.floor(dataArr.length / barsEls.length));
+      barsEls.forEach((bar, i) => {
+        let sum = 0;
+        for (let j = 0; j < groupSize; j++) sum += dataArr[i * groupSize + j] || 0;
+        const avg = sum / groupSize;
+        const h = Math.max(4, Math.min(26, (avg / 255) * 26 + 4));
+        bar.style.height = h + 'px';
+      });
+      _voiceRec.rafId = requestAnimationFrame(tick);
+    };
+    _voiceRec.rafId = requestAnimationFrame(tick);
+
+    _voiceRec.timerInterval = setInterval(() => {
+      if (!_voiceRec) return;
+      const sec = Math.floor((Date.now() - _voiceRec.startTime) / 1000);
+      if (timerEl) timerEl.textContent = `${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`;
+    }, 250);
   } catch(e) {
     toast('Нет доступа к микрофону');
   }
+}
+
+function _onVoiceStop() {
+  if (!_voiceRec) return;
+  const rec = _voiceRec;
+  _voiceRec = null; // сразу обнуляем чтобы повторные клики не сработали
+
+  rec.stream.getTracks().forEach(t => t.stop());
+  cancelAnimationFrame(rec.rafId);
+  clearInterval(rec.timerInterval);
+  try { rec.audioCtx.close(); } catch(_) {}
+
+  // вернуть кнопки на место
+  rec.buttonsHolder.innerHTML = rec.prevHtml;
+
+  if (rec.cancelled) return;
+
+  const duration = Math.max(1, Math.round((Date.now() - rec.startTime) / 1000));
+  const rawType = rec.mediaRecorder.mimeType || 'audio/webm';
+  const baseMime = rawType.split(';')[0].trim().toLowerCase();
+  const ext = baseMime.includes('mp4') ? 'm4a' : baseMime.includes('ogg') ? 'ogg' : 'webm';
+  const blob = new Blob(rec.chunks, { type: baseMime });
+  if (blob.size < 200) { toast('Запись слишком короткая'); return; }
+  const file = new File([blob], `audio_${Date.now()}.${ext}`, { type: baseMime });
+
+  (async () => {
+    try {
+      const photoId = await Photos.upload(file, 'task', 'audio');
+      const confirmed = await Photos.confirm(photoId, { durationSec: duration });
+      const item = {
+        id: photoId,
+        url: confirmed.url,
+        media_type: 'audio',
+        mime_type: baseMime,
+        duration_sec: duration,
+      };
+      if (rec.ctx === 'task') {
+        _taskNewAttachments.push(item);
+        const existingJson = document.getElementById('t-existing-att')?.dataset.list || '[]';
+        _refreshTaskAttachmentsUI(JSON.parse(existingJson));
+      } else {
+        _cmtNewAttachments.push(item);
+        _refreshCmtAttUI();
+      }
+    } catch(e) {
+      toast('Ошибка аудио: ' + (e?.detail || e?.message || ''));
+    }
+  })();
+}
+
+window.finishVoiceRec = function() {
+  if (!_voiceRec) return;
+  _voiceRec.cancelled = false;
+  try { _voiceRec.mediaRecorder.stop(); } catch(_) {}
 };
+window.cancelVoiceRec = function() {
+  if (!_voiceRec) return;
+  _voiceRec.cancelled = true;
+  try { _voiceRec.mediaRecorder.stop(); } catch(_) {}
+};
+
+window.taskToggleRecord = function() { startVoiceRec('task'); };
 
 function _taskAttachmentsBlock(existing = []) {
   return `
     <div class="form-group">
       <label>Вложения</label>
       <div id="t-att-list" style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:6px;flex-direction:column">${_renderTaskAttachments(existing)}</div>
-      <div style="display:flex;gap:8px">
-        <button type="button" class="btn btn-secondary" onclick="taskPickPhoto()" style="flex:1;padding:10px">📷 Фото</button>
-        <button type="button" class="btn btn-secondary" id="t-rec-btn" onclick="taskToggleRecord()" style="flex:1;padding:10px">🎙 Запись</button>
+      <div id="t-rec-buttons">
+        <div style="display:flex;gap:8px">
+          <button type="button" class="btn btn-secondary" onclick="taskPickPhoto()" style="flex:1;padding:10px">📷 Фото</button>
+          <button type="button" class="btn btn-secondary" onclick="startVoiceRec('task')" style="flex:1;padding:10px">🎙 Запись</button>
+        </div>
       </div>
       <input type="file" id="t-photo-input" accept="image/*" multiple style="display:none" onchange="taskOnPhotoSelected(event)">
       <div id="t-existing-att" data-list='${esc(JSON.stringify(existing))}'></div>
@@ -2877,10 +2983,12 @@ function _taskCommentsBlock(task) {
       </div>
       <textarea id="t-cmt-text" rows="2" placeholder="Написать комментарий..." data-voice style="margin-bottom:6px"></textarea>
       <div id="t-cmt-att-list" style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:6px;flex-direction:column"></div>
-      <div style="display:flex;gap:8px">
-        <button type="button" class="btn btn-secondary" onclick="cmtPickPhoto()" style="flex:1;padding:8px;font-size:13px">📷 Фото</button>
-        <button type="button" class="btn btn-secondary" id="t-cmt-rec-btn" onclick="cmtToggleRecord()" style="flex:1;padding:8px;font-size:13px">🎙 Запись</button>
-        <button type="button" class="btn" onclick="submitComment('${task.id}')" style="flex:1.4;padding:8px;font-size:13px">Отправить</button>
+      <div id="t-cmt-rec-buttons">
+        <div style="display:flex;gap:8px">
+          <button type="button" class="btn btn-secondary" onclick="cmtPickPhoto()" style="flex:1;padding:8px;font-size:13px">📷 Фото</button>
+          <button type="button" class="btn btn-secondary" onclick="startVoiceRec('comment')" style="flex:1;padding:8px;font-size:13px">🎙 Запись</button>
+          <button type="button" class="btn" onclick="submitComment('${task.id}')" style="flex:1.4;padding:8px;font-size:13px">Отправить</button>
+        </div>
       </div>
       <input type="file" id="t-cmt-photo-input" accept="image/*" multiple style="display:none" onchange="cmtOnPhotoSelected(event)">
     </div>
@@ -2920,37 +3028,7 @@ window.cmtOnPhotoSelected = async function(e) {
     } catch(_) { toast('Ошибка загрузки фото'); }
   }
 };
-window.cmtToggleRecord = async function() {
-  const btn = document.getElementById('t-cmt-rec-btn');
-  if (_cmtMediaRecorder && _cmtMediaRecorder.state === 'recording') { _cmtMediaRecorder.stop(); return; }
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    const mime = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' :
-                 MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '';
-    _cmtMediaRecorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
-    _cmtRecordChunks = [];
-    _cmtRecordStart = Date.now();
-    _cmtMediaRecorder.ondataavailable = e => { if (e.data.size > 0) _cmtRecordChunks.push(e.data); };
-    _cmtMediaRecorder.onstop = async () => {
-      stream.getTracks().forEach(t => t.stop());
-      btn.textContent = '🎙 Запись'; btn.style.background = '';
-      const duration = Math.round((Date.now() - _cmtRecordStart) / 1000);
-      const rawType = _cmtMediaRecorder.mimeType || 'audio/webm';
-      const baseMime = rawType.split(';')[0].trim().toLowerCase();
-      const ext = baseMime.includes('mp4') ? 'm4a' : baseMime.includes('ogg') ? 'ogg' : 'webm';
-      const blob = new Blob(_cmtRecordChunks, { type: baseMime });
-      const file = new File([blob], `audio_${Date.now()}.${ext}`, { type: baseMime });
-      try {
-        const id = await Photos.upload(file, 'task', 'audio');
-        const c = await Photos.confirm(id, { durationSec: duration });
-        _cmtNewAttachments.push({ id, url: c.url, media_type: 'audio', duration_sec: duration });
-        _refreshCmtAttUI();
-      } catch(e) { toast('Ошибка аудио: ' + (e?.detail || e?.message || '')); }
-    };
-    _cmtMediaRecorder.start();
-    btn.textContent = '⏹ Стоп'; btn.style.background = '#c62828';
-  } catch(_) { toast('Нет доступа к микрофону'); }
-};
+window.cmtToggleRecord = function() { startVoiceRec('comment'); };
 
 window.submitComment = async function(taskId) {
   const text = document.getElementById('t-cmt-text').value.trim();
