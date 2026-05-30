@@ -155,6 +155,17 @@
 .home-record-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--hair)}
 .home-record-row:first-child{border-top:none}
 .home-record-avt{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+/* ── Quick-add chooser cards ── */
+.qa-card{display:flex;flex-direction:column;gap:11px;padding:16px;border-radius:16px;background:var(--card);border:none;box-shadow:var(--shadow);text-align:left;align-items:flex-start;cursor:pointer;transition:transform .12s}
+.qa-card:active{transform:scale(.97)}
+.qa-ic{width:44px;height:44px;border-radius:13px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:22px;flex-shrink:0}
+.qa-txt{display:flex;flex-direction:column;gap:1px}
+.qa-txt strong{font-size:15px;font-weight:700;color:var(--text);letter-spacing:-.005em}
+.qa-txt span{font-size:11.5px;color:var(--text2)}
+/* ── Profile nav rows ── */
+.prof-nav-row{display:flex;align-items:center;gap:13px;padding:13px;border-radius:14px;background:var(--card);border:1px solid var(--border);box-shadow:var(--shadow);margin-bottom:9px;width:100%;cursor:pointer;text-align:left;transition:transform .12s}
+.prof-nav-row:active{transform:scale(.99)}
+.prof-nav-icon{width:42px;height:42px;border-radius:13px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;flex-shrink:0}
 html,body{height:100%;font-family:'Golos Text',system-ui,-apple-system,sans-serif;color:var(--text);font-size:16px}
 body{background:var(--bg)}
 #app{height:100%;display:flex;flex-direction:column;max-width:480px;margin:0 auto;position:relative;background:var(--bg)}
@@ -225,8 +236,8 @@ body{background:var(--bg)}
 .user-avatar{width:42px;height:42px;border-radius:13px;background:linear-gradient(135deg, var(--orange), var(--orange-dark));color:#fff;font-size:16px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:none;transition:transform .12s}
 .user-avatar:active{transform:scale(.95)}
 .content{flex:1;overflow-y:auto;padding:0 0 80px}
-.bottom-nav{flex-shrink:0;display:grid;grid-template-columns:repeat(7,1fr);background:color-mix(in srgb, var(--card) 92%, transparent);backdrop-filter:blur(14px) saturate(1.3);-webkit-backdrop-filter:blur(14px) saturate(1.3);border-top:1px solid var(--hair);padding:9px 2px max(9px, env(safe-area-inset-bottom))}
-.nav-btn{display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 1px;color:var(--text3);font-size:9.5px;font-weight:600;letter-spacing:0;background:none;border:none;cursor:pointer;position:relative;transition:color .2s}
+.bottom-nav{flex-shrink:0;display:grid;grid-template-columns:repeat(4,1fr);background:color-mix(in srgb, var(--card) 92%, transparent);backdrop-filter:blur(14px) saturate(1.3);-webkit-backdrop-filter:blur(14px) saturate(1.3);border-top:1px solid var(--hair);padding:9px 6px max(9px, env(safe-area-inset-bottom))}
+.nav-btn{display:flex;flex-direction:column;align-items:center;gap:5px;padding:6px 4px;color:var(--text3);font-size:11px;font-weight:600;letter-spacing:.01em;background:none;border:none;cursor:pointer;position:relative;transition:color .2s}
 .nav-btn .icon{font-size:21px;line-height:1}
 .nav-btn.active{color:var(--orange)}
 .nav-btn.active::before{content:"";position:absolute;top:-9px;width:22px;height:3px;border-radius:99px;background:var(--orange)}
@@ -741,6 +752,23 @@ body{background:var(--bg)}
       <div class="content">
         <div class="profile-section" id="profile-info"></div>
         <div style="padding:0 16px 16px">
+          <div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text2);margin:6px 2px 10px">Разделы</div>
+          <button class="prof-nav-row" onclick="showTab('report')">
+            <span class="prof-nav-icon" style="background:var(--orange)">📈</span>
+            <span style="flex:1;min-width:0"><span style="display:block;font-weight:700;font-size:15px">Отчёт по объекту</span><span style="font-size:12px;color:var(--text2)">Сводка · фото · аналитика</span></span>
+            <span style="color:var(--text2);font-size:18px">›</span>
+          </button>
+          <button class="prof-nav-row" onclick="showTab('payments')">
+            <span class="prof-nav-icon" style="background:var(--income)">💳</span>
+            <span style="flex:1;min-width:0"><span style="display:block;font-weight:700;font-size:15px">Платежи клиента</span><span style="font-size:12px;color:var(--text2)">Приходы по объекту</span></span>
+            <span style="color:var(--text2);font-size:18px">›</span>
+          </button>
+          <button class="prof-nav-row" onclick="showTab('dashboard')">
+            <span class="prof-nav-icon" style="background:#3E8C72">📊</span>
+            <span style="flex:1;min-width:0"><span style="display:block;font-weight:700;font-size:15px">Доход по проекту</span><span style="font-size:12px;color:var(--text2)">Заработок · цель · план</span></span>
+            <span style="color:var(--text2);font-size:18px">›</span>
+          </button>
+          <div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text2);margin:18px 2px 10px">Настройки</div>
           <button class="btn btn-secondary" onclick="toggleTheme()" id="theme-btn" style="margin-bottom:10px">🌙 Тёмная тема</button>
           <button class="btn btn-secondary" onclick="toggleSound()" id="sound-btn" style="margin-bottom:10px">🔊 Звуки</button>
           <button class="btn btn-secondary" onclick="showChangePinForm()">Изменить PIN</button>
@@ -763,7 +791,10 @@ body{background:var(--bg)}
 
   </div>
 
-  <!-- Bottom nav -->
+  <!-- FAB (quick-add chooser) -->
+  <button class="fab" onclick="openQuickChooser()" aria-label="Быстрый ввод">+</button>
+
+  <!-- Bottom nav: 4 main tabs (others live in profile) -->
   <nav class="bottom-nav">
     <button class="nav-btn active" onclick="showTab('home')" id="nav-home">
       <span class="icon">🏠</span>Главная
@@ -773,15 +804,6 @@ body{background:var(--bg)}
     </button>
     <button class="nav-btn" onclick="showTab('masters')" id="nav-masters">
       <span class="icon">👷</span>Мастера
-    </button>
-    <button class="nav-btn" onclick="showTab('payments')" id="nav-payments">
-      <span class="icon">💳</span>Клиент
-    </button>
-    <button class="nav-btn" onclick="showTab('dashboard')" id="nav-dashboard">
-      <span class="icon">📊</span>Доход
-    </button>
-    <button class="nav-btn" onclick="showTab('report')" id="nav-report">
-      <span class="icon">📈</span>Отчёт
     </button>
     <button class="nav-btn" onclick="showTab('tasks')" id="nav-tasks">
       <span class="icon">✅</span>Задачи
@@ -795,6 +817,36 @@ body{background:var(--bg)}
 <div class="overlay" id="overlay" onclick="closeSheet()"></div>
 
 <!-- ADD RECORD SHEET -->
+<!-- QUICK CHOOSER SHEET (from FAB) -->
+<div class="sheet" id="quick-chooser-sheet">
+  <div class="sheet-header">
+    <div class="sheet-handle"></div>
+    <button type="button" class="sheet-back" onclick="closeSheet()" aria-label="Назад">← Назад</button>
+    <div class="sheet-title">Быстрый ввод</div>
+  </div>
+  <div class="form-body" style="padding:0 16px 20px">
+    <div style="font-size:13px;color:var(--text2);margin-bottom:16px">Что записываем на ходу?</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:11px">
+      <button class="qa-card" onclick="closeSheet();setTimeout(()=>openAddForm('expense'),250)">
+        <span class="qa-ic" style="background:var(--expense)">🛒</span>
+        <span class="qa-txt"><strong>Расход</strong><span>Закупка, материалы</span></span>
+      </button>
+      <button class="qa-card" onclick="closeSheet();setTimeout(()=>openAddForm('master_payment'),250)">
+        <span class="qa-ic" style="background:var(--orange)">👷</span>
+        <span class="qa-txt"><strong>Выплата мастеру</strong><span>Аванс, расчёт</span></span>
+      </button>
+      <button class="qa-card" onclick="closeSheet();setTimeout(()=>openAddForm('client_payment'),250)">
+        <span class="qa-ic" style="background:var(--income)">💳</span>
+        <span class="qa-txt"><strong>Платёж клиента</strong><span>Приход денег</span></span>
+      </button>
+      <button class="qa-card" onclick="closeSheet();setTimeout(()=>openCreateTask(),250)">
+        <span class="qa-ic" style="background:#6B53A0">✅</span>
+        <span class="qa-txt"><strong>Задача</strong><span>Напоминание</span></span>
+      </button>
+    </div>
+  </div>
+</div>
+
 <div class="sheet" id="add-sheet">
   <div class="sheet-header">
     <div class="sheet-handle"></div>
@@ -1442,6 +1494,11 @@ window.showTab = function(tab) {
 };
 
 // ── Load records ──────────────────────────────────────────────────────────────
+// ── Quick-add chooser (opened by FAB) ────────────────────────────────────────
+window.openQuickChooser = function() {
+  openSheet('quick-chooser-sheet');
+};
+
 // ── Home (command center) ────────────────────────────────────────────────────
 async function loadHome() {
   if (!currentProject || !_user) return;
