@@ -90,6 +90,14 @@
 .assn-item{padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border)}
 .assn-item:last-child{border-bottom:none}
 .assn-item:hover{background:var(--tag-bg)}
+/* ── Telegram-style audio player ── */
+.tg-audio{display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--tag-bg);border-radius:18px;min-width:200px;max-width:100%}
+.tg-play{width:40px;height:40px;border-radius:50%;background:var(--orange);border:none;color:#fff;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0;transition:transform .15s}
+.tg-play:active{transform:scale(.95)}
+.tg-waveform{flex:1;display:flex;align-items:center;gap:2px;height:30px;cursor:pointer;min-width:80px;position:relative}
+.tg-wave-bar{flex:1;background:var(--text2);border-radius:2px;min-height:4px;opacity:.45;transition:opacity .15s,background .15s;min-width:2px;max-width:5px}
+.tg-wave-bar.played{background:var(--orange);opacity:1}
+.tg-time{font-family:monospace;font-size:11px;color:var(--text2);flex-shrink:0;min-width:36px;text-align:right}
 html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);font-size:16px}
 #app{height:100%;display:flex;flex-direction:column;max-width:480px;margin:0 auto;position:relative}
 
@@ -2734,15 +2742,7 @@ function _renderTaskAttachments(existing = []) {
   if (!all.length) return '<div style="color:var(--text2);font-size:12px;padding:8px">Нет вложений</div>';
   return all.map(a => {
     if (a.media_type === 'audio') {
-      const dur = a.duration_sec ? Math.round(a.duration_sec) : null;
-      const durTxt = dur != null ? `${Math.floor(dur/60)}:${String(dur%60).padStart(2,'0')}` : '';
-      return `
-        <div style="display:flex;align-items:center;gap:8px;padding:8px;background:var(--tag-bg);border-radius:8px;margin-bottom:6px">
-          <span>🎙</span>
-          <audio src="${esc(a.url)}" controls preload="metadata" style="flex:1;height:32px"></audio>
-          ${durTxt ? `<span style="font-size:11px;color:var(--text2)">${durTxt}</span>` : ''}
-        </div>
-      `;
+      return `<div style="margin-bottom:6px">${_tgPlayerHtml(a.url, a.duration_sec)}</div>`;
     }
     const src = a.thumb_url || a.url;
     return `<img src="${esc(src)}" class="photo-thumb" style="cursor:pointer" onclick="openLightbox('${esc(a.url)}')">`;
@@ -2949,6 +2949,152 @@ function _formatDuration(sec) {
   return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
 }
 
+// ── Telegram-style audio player ──────────────────────────────────────────────
+window._tgAudios = {}; // id → { audio, el, peaks, duration, playing }
+const _TG_BARS = 32;
+
+function _tgPlayerHtml(url, durationSec = 0) {
+  const id = 'tga-' + Math.random().toString(36).slice(2, 9);
+  // Стартовые "пустые" бары — заменим реальными пиками после декодирования
+  const bars = Array.from({ length: _TG_BARS }, () =>
+    `<span class="tg-wave-bar" style="height:${6 + Math.random() * 8}px"></span>`).join('');
+  const time = _formatDuration(durationSec) || '0:00';
+  return `
+    <div class="tg-audio" id="${id}" data-url="${esc(url)}" data-duration="${durationSec || 0}">
+      <button class="tg-play" type="button" onclick="_tgToggle('${id}')">▶</button>
+      <div class="tg-waveform" onclick="_tgSeek('${id}', event)">${bars}</div>
+      <div class="tg-time">${time}</div>
+    </div>
+  `;
+}
+
+async function _tgGenerateWaveform(url) {
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) return null;
+    const buf = await resp.arrayBuffer();
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const audioBuf = await ctx.decodeAudioData(buf);
+    ctx.close();
+    const ch = audioBuf.getChannelData(0);
+    const samples = Math.floor(ch.length / _TG_BARS);
+    const peaks = [];
+    for (let i = 0; i < _TG_BARS; i++) {
+      let max = 0;
+      const start = i * samples;
+      const end = Math.min(start + samples, ch.length);
+      for (let j = start; j < end; j++) {
+        const v = Math.abs(ch[j]);
+        if (v > max) max = v;
+      }
+      peaks.push(max);
+    }
+    const m = Math.max(...peaks, 0.01);
+    return peaks.map(p => p / m);
+  } catch(_) { return null; }
+}
+
+function _tgInitState(id) {
+  if (_tgAudios[id]) return _tgAudios[id];
+  const el = document.getElementById(id);
+  if (!el) return null;
+  const audio = new Audio();
+  audio.preload = 'metadata';
+  audio.src = el.dataset.url;
+  _fixAudioDuration(audio); // костыль для webm без duration
+
+  const state = {
+    audio, el,
+    peaks: null,
+    duration: parseFloat(el.dataset.duration) || 0,
+  };
+  _tgAudios[id] = state;
+
+  audio.addEventListener('timeupdate', () => _tgUpdateProgress(id));
+  audio.addEventListener('loadedmetadata', () => {
+    if (isFinite(audio.duration) && audio.duration > 0) {
+      state.duration = audio.duration;
+      const t = el.querySelector('.tg-time');
+      if (t) t.textContent = _formatDuration(state.duration);
+    }
+  });
+  audio.addEventListener('ended', () => {
+    const b = el.querySelector('.tg-play');
+    if (b) b.textContent = '▶';
+    audio.currentTime = 0;
+    _tgUpdateProgress(id);
+  });
+
+  // Генерим волны асинхронно
+  _tgGenerateWaveform(el.dataset.url).then(peaks => {
+    if (!peaks) return;
+    state.peaks = peaks;
+    const bars = el.querySelectorAll('.tg-wave-bar');
+    peaks.forEach((p, i) => {
+      if (!bars[i]) return;
+      const h = Math.max(4, p * 26);
+      bars[i].style.height = h + 'px';
+    });
+  });
+
+  return state;
+}
+
+function _tgUpdateProgress(id, forcedTime = null) {
+  const state = _tgAudios[id];
+  if (!state) return;
+  const dur = state.duration || (isFinite(state.audio.duration) ? state.audio.duration : 0);
+  const cur = forcedTime != null ? forcedTime : state.audio.currentTime;
+  const progress = dur > 0 ? Math.max(0, Math.min(1, cur / dur)) : 0;
+  const bars = state.el.querySelectorAll('.tg-wave-bar');
+  const played = Math.floor(progress * bars.length);
+  bars.forEach((b, i) => b.classList.toggle('played', i < played));
+  const t = state.el.querySelector('.tg-time');
+  if (t) {
+    if (state.playing && dur) t.textContent = _formatDuration(cur);
+    else t.textContent = _formatDuration(dur);
+  }
+}
+
+window._tgToggle = function(id) {
+  const state = _tgInitState(id);
+  if (!state) return;
+  const btn = state.el.querySelector('.tg-play');
+  if (!state.audio.paused) {
+    state.audio.pause();
+    state.playing = false;
+    if (btn) btn.textContent = '▶';
+    return;
+  }
+  // Пауза остальных
+  Object.entries(_tgAudios).forEach(([oid, s]) => {
+    if (oid !== id && !s.audio.paused) {
+      s.audio.pause();
+      s.playing = false;
+      const b = s.el.querySelector('.tg-play');
+      if (b) b.textContent = '▶';
+    }
+  });
+  state.audio.play().then(() => {
+    state.playing = true;
+    if (btn) btn.textContent = '⏸';
+  }).catch(e => {
+    toast('Воспроизведение: ' + (e?.message || ''));
+  });
+};
+
+window._tgSeek = function(id, event) {
+  const state = _tgInitState(id);
+  if (!state) return;
+  const dur = state.duration || (isFinite(state.audio.duration) ? state.audio.duration : 0);
+  if (!dur) return;
+  const wave = event.currentTarget;
+  const rect = wave.getBoundingClientRect();
+  const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+  try { state.audio.currentTime = ratio * dur; } catch(_) {}
+  _tgUpdateProgress(id);
+};
+
 // MediaRecorder пишет WebM без duration в заголовке. Этот хак заставляет браузер
 // просканировать файл и определить реальную длительность для play/seek.
 function _fixAudioDuration(audio) {
@@ -2979,8 +3125,7 @@ function _renderCommentItem(c) {
   const time = new Date(c.created_at).toLocaleString('ru-RU', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
   const atts = (c.attachments || []).map(a => {
     if (a.media_type === 'audio') {
-      const dur = _formatDuration(a.duration_sec);
-      return `<div style="display:flex;align-items:center;gap:8px;margin-top:6px;width:100%"><span>🎙</span><audio src="${esc(a.url)}" controls preload="metadata" style="flex:1;height:32px"></audio>${dur?`<span style="font-size:11px;color:var(--text2)">${dur}</span>`:''}</div>`;
+      return `<div style="width:100%;margin-top:6px">${_tgPlayerHtml(a.url, a.duration_sec)}</div>`;
     }
     return `<img src="${esc(a.thumb_url || a.url)}" class="photo-thumb" style="cursor:pointer;margin:4px 4px 0 0" onclick="openLightbox('${esc(a.url)}')">`;
   }).join('');
@@ -3063,12 +3208,10 @@ function _refreshCmtAttUI() {
     el.style.marginBottom = '6px';
     el.innerHTML = _cmtNewAttachments.map((a, idx) => {
       if (a.media_type === 'audio') {
-        const dur = a.duration_sec ? `${Math.floor(a.duration_sec/60)}:${String(a.duration_sec%60).padStart(2,'0')}` : '';
-        return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--tag-bg);border-radius:18px;font-size:12px"><span>🎙</span><audio src="${esc(a.url)}" controls preload="metadata" style="flex:1;height:28px"></audio>${dur?`<span style="color:var(--text2)">${dur}</span>`:''}<button type="button" onclick="_removeCmtAtt(${idx})" style="background:transparent;border:none;cursor:pointer;color:var(--text2);font-size:14px">✕</button></div>`;
+        return `<div style="display:flex;align-items:center;gap:6px">${_tgPlayerHtml(a.url, a.duration_sec)}<button type="button" onclick="_removeCmtAtt(${idx})" style="background:transparent;border:none;cursor:pointer;color:var(--text2);font-size:16px;padding:0 4px">✕</button></div>`;
       }
       return `<div style="position:relative;display:inline-block;margin-right:6px"><img src="${esc(a.thumb_url || a.url)}" class="photo-thumb"><button type="button" onclick="_removeCmtAtt(${idx})" style="position:absolute;top:-4px;right:-4px;background:#c62828;border:none;color:#fff;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center">✕</button></div>`;
     }).join('');
-    _fixAllAudiosIn(el);
   }
   _updateCmtActionBtn();
 }
