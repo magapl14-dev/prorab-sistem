@@ -2923,16 +2923,17 @@ window.submitComment = async function(taskId) {
   const text = document.getElementById('t-cmt-text').value.trim();
   if (!text && !_cmtNewAttachments.length) { toast('Текст или вложение'); return; }
   try {
-    const created = await Tasks.comments.add(taskId, {
+    await Tasks.comments.add(taskId, {
       text: text || null,
       attachment_ids: _cmtNewAttachments.map(a => a.id),
     });
-    // встроить в список
+    // Перезагружаем список из БД — гарантирует что все комментарии видны как лента
+    const all = await Tasks.comments.list(taskId);
     const list = document.getElementById('t-comments-list');
     if (list) {
-      const empty = list.querySelector('div[style*="Пока нет"]');
-      if (empty) empty.remove();
-      list.insertAdjacentHTML('beforeend', _renderCommentItem(created));
+      list.innerHTML = all.length
+        ? all.map(_renderCommentItem).join('')
+        : '<div style="color:var(--text2);font-size:12px;padding:8px 0">Пока нет комментариев</div>';
       list.scrollTop = list.scrollHeight;
     }
     document.getElementById('t-cmt-text').value = '';
