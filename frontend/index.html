@@ -78,6 +78,18 @@
 .cmt-icon:hover{background:var(--tag-bg)}
 .cmt-icon.cmt-send-active{color:#fff;background:var(--orange)}
 .cmt-icon.cmt-send-active:hover{background:var(--orange-dark)}
+/* ── Assignee picker ── */
+.assn-wrap{position:relative}
+.assn-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:8px 10px;border:1px solid var(--border);border-radius:8px;min-height:42px;background:var(--input-bg);cursor:text}
+.assn-chip{display:inline-flex;align-items:center;gap:4px;background:var(--orange);color:#fff;padding:3px 8px 3px 10px;border-radius:14px;font-size:12px;font-weight:600;line-height:1.4}
+.assn-chip button{background:transparent;border:none;color:#fff;cursor:pointer;padding:0 0 0 2px;font-size:15px;line-height:1;opacity:.85}
+.assn-chip button:hover{opacity:1}
+.assn-empty{color:var(--text2);font-size:13px}
+.assn-search{flex:1;min-width:120px;border:none!important;background:transparent!important;outline:none;padding:2px!important;font-size:13px;color:var(--text);margin:0!important;height:auto!important}
+.assn-dropdown{position:absolute;top:100%;left:0;right:0;background:var(--card);border:1px solid var(--border);border-radius:8px;margin-top:4px;max-height:200px;overflow-y:auto;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,.1)}
+.assn-item{padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border)}
+.assn-item:last-child{border-bottom:none}
+.assn-item:hover{background:var(--tag-bg)}
 html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);font-size:16px}
 #app{height:100%;display:flex;flex-direction:column;max-width:480px;margin:0 auto;position:relative}
 
@@ -3109,6 +3121,78 @@ window.submitComment = async function(taskId) {
   }
 };
 
+// ── Assignee picker (chips + dropdown search) ───────────────────────────────
+window._taskAssignees = [];   // [{id, name}]
+window._taskAllUsers = [];
+
+function _assigneePickerHtml() {
+  return `
+    <div class="assn-wrap">
+      <div class="assn-chips" id="t-assn-chips" onclick="document.getElementById('t-assn-search')?.focus()">
+        <span class="assn-empty">Не назначен</span>
+        <input type="text" class="assn-search" id="t-assn-search" placeholder="+ добавить..." autocomplete="off"
+               oninput="_onAssnInput()" onfocus="_onAssnInput()" onblur="setTimeout(()=>_hideAssnDropdown(),200)">
+      </div>
+      <div class="assn-dropdown" id="t-assn-dropdown" style="display:none"></div>
+    </div>
+  `;
+}
+
+function _renderAssigneeChips() {
+  const el = document.getElementById('t-assn-chips');
+  if (!el) return;
+  const input = `<input type="text" class="assn-search" id="t-assn-search" placeholder="${_taskAssignees.length ? '+ добавить...' : 'Найти...'}" autocomplete="off" oninput="_onAssnInput()" onfocus="_onAssnInput()" onblur="setTimeout(()=>_hideAssnDropdown(),200)">`;
+  if (!_taskAssignees.length) {
+    el.innerHTML = `<span class="assn-empty">Не назначен</span>${input}`;
+    return;
+  }
+  el.innerHTML = _taskAssignees.map(u => `
+    <span class="assn-chip">
+      ${esc(u.name)}
+      <button type="button" onclick="_removeAssignee('${u.id}');event.stopPropagation()">×</button>
+    </span>
+  `).join('') + input;
+}
+
+window._removeAssignee = function(id) {
+  _taskAssignees = _taskAssignees.filter(u => u.id !== id);
+  _renderAssigneeChips();
+};
+
+window._addAssignee = function(id) {
+  const user = _taskAllUsers.find(u => u.id === id);
+  if (!user) return;
+  if (_taskAssignees.some(a => a.id === id)) return;
+  _taskAssignees.push({ id: user.id, name: user.name });
+  _renderAssigneeChips();
+  setTimeout(() => document.getElementById('t-assn-search')?.focus(), 0);
+};
+
+window._hideAssnDropdown = function() {
+  const dd = document.getElementById('t-assn-dropdown');
+  if (dd) dd.style.display = 'none';
+};
+
+window._onAssnInput = function() {
+  const inp = document.getElementById('t-assn-search');
+  const dd = document.getElementById('t-assn-dropdown');
+  if (!inp || !dd) return;
+  const q = inp.value.toLowerCase().trim();
+  const assigned = new Set(_taskAssignees.map(u => u.id));
+  const filtered = _taskAllUsers
+    .filter(u => !assigned.has(u.id))
+    .filter(u => !q || u.name.toLowerCase().includes(q));
+  if (!filtered.length) {
+    dd.innerHTML = '<div style="padding:8px 12px;color:var(--text2);font-size:12px">' + (q ? 'Никого не нашли' : 'Все назначены') + '</div>';
+    dd.style.display = 'block';
+    return;
+  }
+  dd.innerHTML = filtered.slice(0, 15).map(u =>
+    `<div class="assn-item" onmousedown="event.preventDefault();_addAssignee('${u.id}')">${esc(u.name)}</div>`
+  ).join('');
+  dd.style.display = 'block';
+};
+
 function _taskTypeOptions(types, current = '') {
   const list = (types || []).map(t => `<option value="${esc(t.value)}"${t.value===current?' selected':''}>${esc(t.value)}</option>`).join('');
   return `<option value="">— тип —</option>${list}`;
@@ -3116,15 +3200,11 @@ function _taskTypeOptions(types, current = '') {
 
 window.openCreateTask = async function() {
   _taskNewAttachments = [];
+  _taskAssignees = [];
   const { users, projects, types } = await _loadTaskFormData();
+  _taskAllUsers = users || [];
   const projOpts = '<option value="">📌 Без проекта</option>' +
     projects.map(p => `<option value="${esc(p.code)}"${currentProject?.code===p.code?' selected':''}>${esc(p.name)}</option>`).join('');
-  const userChecks = users.map(u => `
-    <label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer">
-      <input type="checkbox" name="task-assignee" value="${u.id}" style="width:18px;height:18px">
-      <span>${esc(u.name)}</span>
-    </label>
-  `).join('');
   openModal('Новая задача', `
     <div class="form-group"><label>Название</label><input id="t-title" type="text" placeholder="Что нужно сделать" data-voice></div>
     <div class="form-group"><label>Описание (необязательно)</label><textarea id="t-desc" rows="3" placeholder="Детали" data-voice></textarea></div>
@@ -3136,16 +3216,14 @@ window.openCreateTask = async function() {
     </div>
     <div class="form-group"><label>Проект</label><select id="t-project">${projOpts}</select></div>
     <div class="form-group"><label>Срок (дата и время)</label><input id="t-due" type="datetime-local" value="${_nowLocalForDatetimeInput()}"></div>
-    <div class="form-group">
-      <label>Исполнители</label>
-      <div style="max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px 12px">${userChecks || '<div style="color:var(--text2);font-size:12px">Нет активных пользователей</div>'}</div>
-    </div>
+    <div class="form-group"><label>Исполнители</label>${_assigneePickerHtml()}</div>
     ${_taskAttachmentsBlock([])}
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
       <button class="btn" onclick="submitCreateTask()">Создать</button>
     </div>
   `);
+  _renderAssigneeChips();
   if (typeof attachVoiceMicsTo === 'function') attachVoiceMicsTo();
 };
 
@@ -3160,7 +3238,7 @@ window.submitCreateTask = async function() {
     project_code: document.getElementById('t-project').value || null,
     due_at: dueVal ? new Date(dueVal).toISOString() : null,
     priority: document.getElementById('t-priority').value || null,
-    assignee_ids: Array.from(document.querySelectorAll('input[name="task-assignee"]:checked')).map(el => el.value),
+    assignee_ids: _taskAssignees.map(a => a.id),
     attachment_ids: _taskNewAttachments.map(a => a.id),
   };
   try {
@@ -3179,15 +3257,10 @@ window.openEditTask = async function(id) {
     _taskNewAttachments = [];
     _cmtNewAttachments = [];
     const [task, { users, projects, types }] = await Promise.all([Tasks.get(id), _loadTaskFormData()]);
-    const assignedIds = new Set((task.assignees || []).map(a => a.id));
+    _taskAllUsers = users || [];
+    _taskAssignees = (task.assignees || []).map(a => ({ id: a.id, name: a.name }));
     const projOpts = '<option value="">📌 Без проекта</option>' +
       projects.map(p => `<option value="${esc(p.code)}"${task.project?.code===p.code?' selected':''}>${esc(p.name)}</option>`).join('');
-    const userChecks = users.map(u => `
-      <label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer">
-        <input type="checkbox" name="task-assignee" value="${u.id}" ${assignedIds.has(u.id)?'checked':''} style="width:18px;height:18px">
-        <span>${esc(u.name)}</span>
-      </label>
-    `).join('');
     openModal('Задача', `
       <div class="form-group"><label>Название</label><input id="t-title" type="text" value="${esc(task.title)}" data-voice></div>
       <div class="form-group"><label>Описание</label><textarea id="t-desc" rows="3" data-voice>${esc(task.description||'')}</textarea></div>
@@ -3211,10 +3284,7 @@ window.openEditTask = async function(id) {
           <option value="cancelled" ${task.status==='cancelled'?'selected':''}>❌ Отменена</option>
         </select>
       </div>
-      <div class="form-group">
-        <label>Исполнители</label>
-        <div style="max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px 12px">${userChecks}</div>
-      </div>
+      <div class="form-group"><label>Исполнители</label>${_assigneePickerHtml()}</div>
       ${_taskAttachmentsBlock(task.attachments || [])}
       ${_taskCommentsBlock(task)}
       <div style="font-size:11px;color:var(--text2);margin-bottom:10px">Автор: ${esc(task.creator?.name || '?')} · ${new Date(task.created_at).toLocaleString('ru-RU')}</div>
@@ -3224,6 +3294,7 @@ window.openEditTask = async function(id) {
         <button class="btn" onclick="submitEditTask('${task.id}')">Сохранить</button>
       </div>
     `);
+    _renderAssigneeChips();
     if (typeof attachVoiceMicsTo === 'function') attachVoiceMicsTo();
     _refreshCmtAttUI();
   } catch(e) {
@@ -3241,7 +3312,7 @@ window.submitEditTask = async function(id) {
     due_at: dueVal ? new Date(dueVal).toISOString() : null,
     priority: document.getElementById('t-priority').value || null,
     status: document.getElementById('t-status').value,
-    assignee_ids: Array.from(document.querySelectorAll('input[name="task-assignee"]:checked')).map(el => el.value),
+    assignee_ids: _taskAssignees.map(a => a.id),
     attachment_ids: _taskNewAttachments.map(a => a.id),
   };
   try {
