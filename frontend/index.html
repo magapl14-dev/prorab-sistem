@@ -161,6 +161,11 @@
 .pf-badge.plan{background:transparent;color:var(--text2);border:1px dashed var(--text3)}
 .pf-badge.advance{background:#fff3e0;color:var(--orange)}
 .pf-badge.overdue{background:transparent;color:var(--expense);border:1px solid var(--expense)}
+/* ── Priority chips ── */
+.prio-chips{display:flex;gap:6px;background:var(--bg);border-radius:12px;padding:4px}
+.prio-chip{flex:1;padding:9px 8px;border-radius:9px;font-size:13px;font-weight:700;color:var(--text2);background:transparent;border:none;cursor:pointer;transition:all .15s}
+.prio-chip:active{transform:scale(.97)}
+.prio-chip.active{background:var(--card);color:var(--text);box-shadow:var(--shadow)}
 /* ── Quick-add chooser cards ── */
 .qa-card{display:flex;flex-direction:column;gap:11px;padding:16px;border-radius:16px;background:var(--card);border:none;box-shadow:var(--shadow);text-align:left;align-items:flex-start;cursor:pointer;transition:transform .12s}
 .qa-card:active{transform:scale(.97)}
@@ -3399,7 +3404,7 @@ function _renderTaskAttachments(existing = []) {
     ...existing.map(a => ({ ...a, _existing: true })),
     ..._taskNewAttachments,
   ];
-  if (!all.length) return '<div style="color:var(--text2);font-size:12px;padding:8px">Нет вложений</div>';
+  if (!all.length) return ''; // ничего не показываем, чтобы не разрывать макет
   return all.map(a => {
     if (a.media_type === 'audio') {
       return `<div style="margin-bottom:6px">${_tgPlayerHtml(a.url, a.duration_sec)}</div>`;
@@ -3618,6 +3623,15 @@ function _taskAttachmentsBlock(existing = [], descValue = '') {
     </div>
   `;
 }
+
+window._pickPrio = function(v) {
+  const hidden = document.getElementById('t-priority');
+  if (hidden) hidden.value = v;
+  document.querySelectorAll('.prio-chip').forEach(b => {
+    b.classList.toggle('active', b.dataset.v === v);
+  });
+  if (typeof _scheduleTaskAutosave === 'function') _scheduleTaskAutosave();
+};
 
 window._onTaskDescInput = function() {
   const t = document.getElementById('t-desc');
@@ -3967,9 +3981,10 @@ function _assigneePickerHtml() {
 function _renderAssigneeChips() {
   const el = document.getElementById('t-assn-chips');
   if (!el) return;
-  const input = `<input type="text" class="assn-search" id="t-assn-search" placeholder="${_taskAssignees.length ? '+ добавить...' : 'Найти...'}" autocomplete="off" oninput="_onAssnInput()" onfocus="_onAssnInput()" onblur="setTimeout(()=>_hideAssnDropdown(),200)">`;
+  const ph = _taskAssignees.length ? '+ добавить...' : 'Назначить исполнителя...';
+  const input = `<input type="text" class="assn-search" id="t-assn-search" placeholder="${ph}" autocomplete="off" oninput="_onAssnInput()" onfocus="_onAssnInput()" onblur="setTimeout(()=>_hideAssnDropdown(),200)">`;
   if (!_taskAssignees.length) {
-    el.innerHTML = `<span class="assn-empty">Не назначен</span>${input}`;
+    el.innerHTML = input;
     return;
   }
   el.innerHTML = _taskAssignees.map(u => `
@@ -4036,11 +4051,14 @@ window.openCreateTask = async function() {
   openModal('Новая задача', `
     <div class="form-group"><label>Название</label><input id="t-title" type="text" placeholder="Что нужно сделать" data-voice></div>
     ${_taskAttachmentsBlock([])}
-    <div class="row-2">
-      <div class="form-group"><label>Тип</label><select id="t-type">${_taskTypeOptions(types)}</select></div>
-      <div class="form-group"><label>Приоритет</label>
-        <select id="t-priority"><option value="">обычный</option><option value="high">⬆ Высокий</option><option value="low">⬇ Низкий</option></select>
+    <div class="form-group"><label>Тип</label><select id="t-type">${_taskTypeOptions(types)}</select></div>
+    <div class="form-group"><label>Приоритет</label>
+      <div class="prio-chips">
+        <button type="button" class="prio-chip" data-v="high" onclick="_pickPrio('high')">⬆ Высокий</button>
+        <button type="button" class="prio-chip active" data-v="" onclick="_pickPrio('')">обычный</button>
+        <button type="button" class="prio-chip" data-v="low" onclick="_pickPrio('low')">⬇ Низкий</button>
       </div>
+      <input type="hidden" id="t-priority" value="">
     </div>
     <div class="form-group"><label>Проект</label><select id="t-project">${projOpts}</select></div>
     <div class="form-group"><label>Срок (дата и время)</label><input id="t-due" type="datetime-local" value="${_nowLocalForDatetimeInput()}"></div>
@@ -4091,15 +4109,14 @@ window.openEditTask = async function(id) {
     openModal('Задача', `
       <div class="form-group"><label>Название</label><input id="t-title" type="text" value="${esc(task.title)}" data-voice></div>
       ${_taskAttachmentsBlock(task.attachments || [], task.description || '')}
-      <div class="row-2">
-        <div class="form-group"><label>Тип</label><select id="t-type">${_taskTypeOptions(types, task.type || '')}</select></div>
-        <div class="form-group"><label>Приоритет</label>
-          <select id="t-priority">
-            <option value="" ${!task.priority?'selected':''}>обычный</option>
-            <option value="high" ${task.priority==='high'?'selected':''}>⬆ Высокий</option>
-            <option value="low" ${task.priority==='low'?'selected':''}>⬇ Низкий</option>
-          </select>
+      <div class="form-group"><label>Тип</label><select id="t-type">${_taskTypeOptions(types, task.type || '')}</select></div>
+      <div class="form-group"><label>Приоритет</label>
+        <div class="prio-chips">
+          <button type="button" class="prio-chip ${task.priority==='high'?'active':''}" data-v="high" onclick="_pickPrio('high')">⬆ Высокий</button>
+          <button type="button" class="prio-chip ${!task.priority?'active':''}" data-v="" onclick="_pickPrio('')">обычный</button>
+          <button type="button" class="prio-chip ${task.priority==='low'?'active':''}" data-v="low" onclick="_pickPrio('low')">⬇ Низкий</button>
         </div>
+        <input type="hidden" id="t-priority" value="${esc(task.priority || '')}">
       </div>
       <div class="form-group"><label>Проект</label><select id="t-project">${projOpts}</select></div>
       <div class="form-group"><label>Срок (дата и время)</label><input id="t-due" type="datetime-local" value="${_isoForDatetimeInput(task.due_at)}"></div>
