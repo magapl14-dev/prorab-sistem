@@ -2779,7 +2779,7 @@ function _recBarHtml() {
   `;
 }
 
-async function startVoiceRec(context) {
+window.startVoiceRec = async function startVoiceRec(context) {
   if (_voiceRec) return; // уже идёт запись
   if (!navigator.mediaDevices?.getUserMedia) { toast('Запись аудио не поддерживается'); return; }
 
