@@ -1,3 +1,4 @@
+import mimetypes
 from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI
@@ -8,6 +9,14 @@ from .core.config import settings
 from .core.database import engine
 from .core.redis import close_redis
 from .api.v1.router import api_router
+
+# Перерегистрируем .webm как audio — приложение использует webm только для аудиозаписей
+# (MediaRecorder). Без этого Starlette StaticFiles отдаёт Content-Type: video/webm
+# и audio-плеер браузера не работает.
+mimetypes.add_type("audio/webm", ".webm", strict=True)
+mimetypes.add_type("audio/webm", ".weba", strict=True)
+mimetypes.add_type("audio/ogg", ".ogg", strict=True)
+mimetypes.add_type("audio/mp4", ".m4a", strict=True)
 
 
 @asynccontextmanager

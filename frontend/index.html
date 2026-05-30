@@ -2817,12 +2817,19 @@ function _taskAttachmentsBlock(existing = []) {
   `;
 }
 
+function _formatDuration(sec) {
+  if (!sec || sec < 0) return '';
+  const s = Math.round(sec);
+  return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+}
+
 function _renderCommentItem(c) {
   const author = esc(c.author?.name || '?');
   const time = new Date(c.created_at).toLocaleString('ru-RU', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
   const atts = (c.attachments || []).map(a => {
     if (a.media_type === 'audio') {
-      return `<audio src="${esc(a.url)}" controls preload="metadata" style="height:32px;margin-top:6px;width:100%"></audio>`;
+      const dur = _formatDuration(a.duration_sec);
+      return `<div style="display:flex;align-items:center;gap:8px;margin-top:6px;width:100%"><span>🎙</span><audio src="${esc(a.url)}" controls preload="metadata" style="flex:1;height:32px"></audio>${dur?`<span style="font-size:11px;color:var(--text2)">${dur}</span>`:''}</div>`;
     }
     return `<img src="${esc(a.thumb_url || a.url)}" class="photo-thumb" style="cursor:pointer;margin:4px 4px 0 0" onclick="openLightbox('${esc(a.url)}')">`;
   }).join('');
