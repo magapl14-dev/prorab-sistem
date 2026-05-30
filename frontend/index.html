@@ -2718,7 +2718,7 @@ function _renderTaskAttachments(existing = []) {
 
 function _refreshTaskAttachmentsUI(existing = []) {
   const el = document.getElementById('t-att-list');
-  if (el) el.innerHTML = _renderTaskAttachments(existing);
+  if (el) { el.innerHTML = _renderTaskAttachments(existing); _fixAllAudiosIn(el); }
 }
 
 window.taskPickPhoto = function() {
@@ -2823,6 +2823,31 @@ function _formatDuration(sec) {
   return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
 }
 
+// MediaRecorder пишет WebM без duration в заголовке. Этот хак заставляет браузер
+// просканировать файл и определить реальную длительность для play/seek.
+function _fixAudioDuration(audio) {
+  if (!audio || audio._durFixed) return;
+  audio._durFixed = true;
+  const tryFix = () => {
+    if (audio.duration === Infinity || isNaN(audio.duration) || audio.duration === 0) {
+      audio.currentTime = 1e101;
+      const onTime = () => {
+        audio.removeEventListener('timeupdate', onTime);
+        try { audio.currentTime = 0; } catch(_) {}
+      };
+      audio.addEventListener('timeupdate', onTime);
+    }
+  };
+  if (audio.readyState >= 1) tryFix();
+  else audio.addEventListener('loadedmetadata', tryFix, { once: true });
+  audio.addEventListener('error', () => console.warn('Audio load error', audio.src));
+}
+
+function _fixAllAudiosIn(container) {
+  if (!container) return;
+  container.querySelectorAll('audio').forEach(_fixAudioDuration);
+}
+
 function _renderCommentItem(c) {
   const author = esc(c.author?.name || '?');
   const time = new Date(c.created_at).toLocaleString('ru-RU', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
@@ -2877,6 +2902,7 @@ function _refreshCmtAttUI() {
     }
     return `<img src="${esc(a.thumb_url || a.url)}" class="photo-thumb">`;
   }).join('');
+  _fixAllAudiosIn(el);
 }
 
 window.cmtPickPhoto = function() {

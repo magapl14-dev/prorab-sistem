@@ -49,6 +49,7 @@ export const Records = {
 
 export const Photos = {
   async upload(file, kind = "receipt", mediaType = "image") {
+    if (!file || !file.size) throw { detail: "Файл пустой (0 байт)" };
     const urlResp = await _post("/photos/upload-url", {
       filename: file.name || (mediaType === "audio" ? "audio.webm" : "photo.jpg"),
       size: file.size,
@@ -56,11 +57,15 @@ export const Photos = {
       kind,
       media_type: mediaType,
     });
-    await fetch(urlResp.upload_url, {
+    const resp = await fetch(urlResp.upload_url, {
       method: "PUT",
       body: file,
       headers: { "Content-Type": file.type || (mediaType === "audio" ? "audio/webm" : "image/jpeg") },
     });
+    if (!resp.ok) {
+      const body = await resp.text().catch(() => "");
+      throw { detail: `Upload failed ${resp.status}: ${body.slice(0, 200)}` };
+    }
     return urlResp.photo_id;
   },
 
