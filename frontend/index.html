@@ -640,12 +640,22 @@ body{background:var(--bg)}
           <div id="home-tasks-list"></div>
         </div>
 
+        <!-- Today's purchases -->
+        <div style="background:var(--card);border-radius:18px;padding:16px;margin:0 12px 12px;box-shadow:var(--shadow)">
+          <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
+            <span style="color:var(--text2)" data-icon="cart" data-icon-size="18"></span>
+            <span style="font-size:15.5px;font-weight:800">Закупки сегодня</span>
+            <span id="home-purchase-count" style="font-size:12px;font-weight:700;color:var(--expense);background:var(--expense-tint);border-radius:99px;padding:2px 9px">0</span>
+            <button onclick="showTab('expenses')" style="margin-left:auto;display:flex;align-items:center;gap:3px;font-size:12.5px;font-weight:700;color:var(--text2);background:none;border:none;cursor:pointer">Все ›</button>
+          </div>
+          <div id="home-purchase-list"></div>
+        </div>
+
         <!-- Master payments -->
         <div style="background:var(--card);border-radius:18px;padding:16px;margin:0 12px 12px;box-shadow:var(--shadow)">
           <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
             <span style="color:var(--text2)" data-icon="worker" data-icon-size="18"></span>
             <span style="font-size:15.5px;font-weight:800">Выплаты мастерам</span>
-            <span id="home-master-total" style="font-size:12px;font-weight:700;color:var(--expense);background:var(--expense-tint);border-radius:99px;padding:2px 9px"></span>
             <button onclick="showTab('masters')" style="margin-left:auto;display:flex;align-items:center;gap:3px;font-size:12.5px;font-weight:700;color:var(--text2);background:none;border:none;cursor:pointer">Все ›</button>
           </div>
           <div id="home-master-list"></div>
@@ -656,7 +666,6 @@ body{background:var(--bg)}
           <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
             <span style="color:var(--text2)" data-icon="wallet" data-icon-size="18"></span>
             <span style="font-size:15.5px;font-weight:800">Поступления от клиента</span>
-            <span id="home-client-total" style="font-size:12px;font-weight:700;color:var(--income);background:var(--income-tint);border-radius:99px;padding:2px 9px"></span>
             <button onclick="showTab('payments')" style="margin-left:auto;display:flex;align-items:center;gap:3px;font-size:12.5px;font-weight:700;color:var(--text2);background:none;border:none;cursor:pointer">Все ›</button>
           </div>
           <div id="home-client-list"></div>
@@ -1774,25 +1783,44 @@ async function loadHome() {
     const masterEl = document.getElementById('home-master-list');
     if (!masterItems.length) {
       masterEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2);font-size:13px">Нет выплат — добавьте через FAB</div>';
-      document.getElementById('home-master-total').textContent = '';
     } else {
       masterEl.innerHTML = masterItems.map(r => renderRow(r, 'expense')).join('');
-      const sum = masterItems.reduce((s, r) => s + (parseFloat(r.payment_amount) || 0), 0);
-      document.getElementById('home-master-total').textContent = '− ' + fmt(sum) + ' ₽';
     }
 
     const clientEl = document.getElementById('home-client-list');
     if (!clientItems.length) {
       clientEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2);font-size:13px">Поступлений пока нет</div>';
-      document.getElementById('home-client-total').textContent = '';
     } else {
       clientEl.innerHTML = clientItems.map(r => renderRow(r, 'income')).join('');
-      const sum = clientItems.reduce((s, r) => s + (parseFloat(r.payment_amount) || 0), 0);
-      document.getElementById('home-client-total').textContent = '+ ' + fmt(sum) + ' ₽';
+    }
+
+    // Today's purchases (today's expenses)
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const expRecs = await Records.list(currentProject.code, { kind: 'expense', date_from: todayStr, date_to: todayStr, limit: 20 }).catch(() => ({ items: [] }));
+    const expItems = (expRecs.items || []).sort((a, b) => (b.created_at || '').localeCompare(a.created_at || '')).slice(0, 5);
+    document.getElementById('home-purchase-count').textContent = expItems.length;
+    const expEl = document.getElementById('home-purchase-list');
+    if (!expItems.length) {
+      expEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2);font-size:13px">Сегодня закупок пока нет</div>';
+    } else {
+      expEl.innerHTML = expItems.map(r => {
+        const amt = -(parseFloat(r.sum_buy) || 0);
+        const cat = r.category || r.type || 'Расход';
+        return `
+          <div class="home-record-row">
+            <div class="home-record-avt" style="background:var(--expense-tint);color:var(--expense)" data-icon="cart" data-icon-size="20"></div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:14px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.name || 'Расход')}</div>
+              <div style="font-size:11.5px;color:var(--text2);margin-top:1px">${esc(cat)}${r.author?.name ? ' · ' + esc(r.author.name) : ''}</div>
+            </div>
+            <div style="font-weight:800;font-variant-numeric:tabular-nums;color:var(--expense);font-size:14.5px;white-space:nowrap">− ${fmt(Math.abs(amt))} ₽</div>
+          </div>
+        `;
+      }).join('');
     }
 
     if (window.renderIcons) {
-      renderIcons(masterEl); renderIcons(clientEl);
+      renderIcons(masterEl); renderIcons(clientEl); renderIcons(expEl);
     }
   } catch(_) {}
 }
