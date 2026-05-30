@@ -1674,7 +1674,6 @@ async function loadMotivation() {
       ? `🔥 ${streak} дн${best > streak ? ' (рекорд '+best+')' : ''}`
       : '🔥 0';
     // Three states based on today's earnings vs daily-goal proxy
-    const goalKey = `goal_${currentProject.code}_${_user.id}`;
     const monthGoal = parseFloat(localStorage.getItem(goalKey) || 0);
     const dailyGoal = monthGoal > 0 ? monthGoal / 22 : 5000;
     const emoji = document.getElementById('mot-emoji');
