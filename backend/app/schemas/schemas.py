@@ -53,6 +53,7 @@ class UserCreate(BaseModel):
     pin: str
     role: str
     email: Optional[str] = None
+    bitrix_user_id: Optional[str] = None
 
 
 class UserOut(BaseModel):
@@ -62,6 +63,7 @@ class UserOut(BaseModel):
     role: str
     email: Optional[str] = None
     active: bool
+    bitrix_user_id: Optional[str] = None
     created_at: datetime
     model_config = {"from_attributes": True}
 
@@ -81,6 +83,7 @@ class ProjectCreate(BaseModel):
     deadline: Optional[date] = None
     whatsapp_url: Optional[str] = None
     telegram_url: Optional[str] = None
+    bitrix_group_id: Optional[str] = None
 
 
 class ProjectUpdate(BaseModel):
@@ -96,6 +99,7 @@ class ProjectUpdate(BaseModel):
     whatsapp_url: Optional[str] = None
     telegram_url: Optional[str] = None
     gsheet_id: Optional[str] = None
+    bitrix_group_id: Optional[str] = None
     active: Optional[bool] = None
 
 
@@ -115,6 +119,7 @@ class ProjectOut(BaseModel):
     whatsapp_url: Optional[str] = None
     telegram_url: Optional[str] = None
     gsheet_id: Optional[str] = None
+    bitrix_group_id: Optional[str] = None
     created_at: datetime
     model_config = {"from_attributes": True}
 

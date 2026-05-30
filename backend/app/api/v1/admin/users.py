@@ -42,7 +42,11 @@ async def create_user(
     if existing:
         raise HTTPException(status.HTTP_409_CONFLICT, "User with this phone already exists")
 
-    user = User(phone=phone, name=data.name, pin_hash=hash_pin(data.pin), role=data.role, email=data.email)
+    user = User(
+        phone=phone, name=data.name, pin_hash=hash_pin(data.pin),
+        role=data.role, email=data.email,
+        bitrix_user_id=(data.bitrix_user_id or "").strip() or None,
+    )
     db.add(user)
     await db.commit()
     return user
@@ -65,6 +69,9 @@ async def update_user(
         user.pin_hash = hash_pin(str(data["pin"]))
     if "name" in data and data["name"]:
         user.name = data["name"]
+    if "bitrix_user_id" in data:
+        v = (data["bitrix_user_id"] or "").strip()
+        user.bitrix_user_id = v or None
     await db.commit()
     return {"ok": True}
 

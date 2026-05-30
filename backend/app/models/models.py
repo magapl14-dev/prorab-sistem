@@ -50,6 +50,7 @@ class Project(Base):
     whatsapp_url = Column(Text, nullable=True)
     telegram_url = Column(Text, nullable=True)
     gsheet_id = Column(String(100), nullable=True)
+    bitrix_group_id = Column(String(20), nullable=True)
     metadata_ = Column("metadata", JSONB, default={})
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

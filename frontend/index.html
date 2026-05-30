@@ -3701,7 +3701,7 @@ window.openAdminUsers = async function() {
             </div>
             <div class="admin-item-actions">
               <button onclick="openAssignUser('${u.id}','${esc(u.name)}')">🏗️ Проекты</button>
-              <button onclick="openEditUser('${u.id}','${esc(u.name)}','${esc(u.phone)}','${u.role}')">✏️ Изм.</button>
+              <button onclick="openEditUser('${u.id}','${esc(u.name)}','${esc(u.phone)}','${u.role}','${esc(u.bitrix_user_id || '')}')">✏️ Изм.</button>
               <button onclick="toggleUser('${u.id}',${u.active})">${u.active ? '🔴 Откл.' : '🟢 Вкл.'}</button>
               <button onclick="confirmDeleteUser('${u.id}','${esc(u.name)}')" style="color:var(--red)">🗑️</button>
             </div>
@@ -3753,6 +3753,11 @@ window.openCreateUser = async function() {
     <div class="form-group"><label>Роль</label>
       <select id="m-role">${opts}</select>
     </div>
+    <div class="form-group">
+      <label>Битрикс24 user ID <span style="color:var(--text2);font-weight:normal">(опционально)</span></label>
+      <input id="m-bxid" type="text" placeholder="42" inputmode="numeric">
+      <div style="font-size:11px;color:var(--text2);margin-top:4px">Если интеграция включена — задачи будут уходить именно на этого пользователя в Б24</div>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
       <button class="btn" onclick="submitCreateUser()">Создать</button>
@@ -3765,20 +3770,26 @@ window.submitCreateUser = async function() {
   const name = document.getElementById('m-name').value.trim();
   const pin = document.getElementById('m-pin').value.trim();
   const role = document.getElementById('m-role').value;
+  const bxid = document.getElementById('m-bxid')?.value.trim() || null;
   if (!phone || !name || pin.length !== 4) { toast('Заполните все поля'); return; }
   try {
-    await Admin.users.create({ phone, name, pin, role });
+    await Admin.users.create({ phone, name, pin, role, bitrix_user_id: bxid });
     closeModal(); toast('Пользователь создан'); openAdminUsers();
   } catch(e) { toast('Ошибка: ' + (e?.detail || JSON.stringify(e))); }
 };
 
-window.openEditUser = async function(id, name, phone, role) {
+window.openEditUser = async function(id, name, phone, role, bitrixId = '') {
   const roles = await loadRolesCache();
   const opts = roles.map(r => `<option value="${esc(r.name)}"${r.name===role?' selected':''}>${esc(r.label)}</option>`).join('');
   openModal('Изменить пользователя', `
     <div class="form-group"><label>Новый PIN (оставьте пустым чтобы не менять)</label><input id="m-newpin" type="text" maxlength="4" placeholder="----" inputmode="numeric"></div>
     <div class="form-group"><label>Роль</label>
       <select id="m-erole">${opts}</select>
+    </div>
+    <div class="form-group">
+      <label>Битрикс24 user ID <span style="color:var(--text2);font-weight:normal">(опционально)</span></label>
+      <input id="m-ebxid" type="text" value="${esc(bitrixId || '')}" placeholder="42" inputmode="numeric">
+      <div style="font-size:11px;color:var(--text2);margin-top:4px">Задачи будут уходить именно на этого пользователя в Б24</div>
     </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
@@ -3790,7 +3801,8 @@ window.openEditUser = async function(id, name, phone, role) {
 window.submitEditUser = async function(id) {
   const pin = document.getElementById('m-newpin').value.trim();
   const role = document.getElementById('m-erole').value;
-  const data = { role };
+  const bxid = document.getElementById('m-ebxid')?.value.trim();
+  const data = { role, bitrix_user_id: bxid };
   if (pin && pin.length === 4) data.pin = pin;
   try {
     await Admin.users.update(id, data);
@@ -3866,7 +3878,7 @@ window.openAdminProjects = async function() {
             <h3>${esc(p.name)} ${p.active ? '' : '<em style="font-size:12px;color:var(--red)">неактивен</em>'}</h3>
             <p style="font-size:13px;color:var(--text2);margin-top:3px">${esc(p.code)} · наценка ${p.markup_pct}% · ставка ${p.foreman_rate_pct}%</p>
             <div class="admin-item-actions">
-              <button onclick="openEditProject('${esc(p.code)}',${p.markup_pct},${p.foreman_rate_pct},${p.foreman_efficiency},${p.foreman_fixed},${p.plan_total},${p.plan_monthly},'${esc(p.name)}','${esc(p.gsheet_id||'')}',${p.rentier_foreman_share ?? 100})">✏️ Изм.</button>
+              <button onclick="openEditProject('${esc(p.code)}',${p.markup_pct},${p.foreman_rate_pct},${p.foreman_efficiency},${p.foreman_fixed},${p.plan_total},${p.plan_monthly},'${esc(p.name)}','${esc(p.gsheet_id||'')}',${p.rentier_foreman_share ?? 100},'${esc(p.bitrix_group_id||'')}')">✏️ Изм.</button>
               ${p.gsheet_id ? `<button onclick="syncSheets('${esc(p.code)}')" title="Синхронизировать с Google Sheets">📊 Sheets</button>` : ''}
               <button onclick="toggleProject('${esc(p.code)}',${p.active})">${p.active ? '🔴 Откл.' : '🟢 Вкл.'}</button>
               <button onclick="confirmDeleteProject('${esc(p.code)}','${esc(p.name)}')" style="color:var(--red)">🗑️</button>
@@ -3941,6 +3953,11 @@ window.openCreateProject = function() {
     <div class="form-group"><label>Доля прораба от раньтье %</label><input id="m-rentshare" type="number" value="100" step="1" min="0" max="100"></div>
     <div class="form-group"><label>Бюджет проекта ₽</label><input id="m-plan" type="number" value="0" step="10000"></div>
     <div class="form-group"><label>План на месяц ₽</label><input id="m-planm" type="number" value="0" step="10000"></div>
+    <div class="form-group">
+      <label>Битрикс24 group ID <span style="color:var(--text2);font-weight:normal">(опционально)</span></label>
+      <input id="m-bxgroup" type="text" placeholder="10" inputmode="numeric">
+      <div style="font-size:11px;color:var(--text2);margin-top:4px">Если интеграция включена — задачи проекта попадут именно в эту группу/проект Б24</div>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
       <button class="btn" onclick="submitCreateProject()">Создать</button>
@@ -3961,6 +3978,7 @@ window.submitCreateProject = async function() {
     rentier_foreman_share: parseFloat(document.getElementById('m-rentshare').value) || 100,
     plan_total: parseFloat(document.getElementById('m-plan').value) || 0,
     plan_monthly: parseFloat(document.getElementById('m-planm').value) || 0,
+    bitrix_group_id: document.getElementById('m-bxgroup')?.value.trim() || null,
   };
   try {
     await Admin.projects.create(data);
@@ -3968,7 +3986,7 @@ window.submitCreateProject = async function() {
   } catch(e) { toast('Ошибка: ' + (e?.detail || JSON.stringify(e))); }
 };
 
-window.openEditProject = function(code, markup, rate, eff, fixed, plan, planm, name, gsheet, rentShare) {
+window.openEditProject = function(code, markup, rate, eff, fixed, plan, planm, name, gsheet, rentShare, bxGroup = '') {
   openModal('Редактировать проект', `
     <div class="form-group"><label>Название</label><input id="m-epname" type="text" value="${esc(name)}"></div>
     <div class="form-group"><label>Наценка %</label><input id="m-emarkup" type="number" value="${markup}" step="0.5"></div>
@@ -3984,6 +4002,11 @@ window.openEditProject = function(code, markup, rate, eff, fixed, plan, planm, n
     <div class="form-group">
       <label>Google Sheets ID / URL <span style="font-size:11px;color:var(--text2)">(для синхронизации)</span></label>
       <input id="m-egsheet" type="text" value="${esc(gsheet||'')}" placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms">
+    </div>
+    <div class="form-group">
+      <label>Битрикс24 group ID <span style="font-size:11px;color:var(--text2)">(опционально)</span></label>
+      <input id="m-ebxgroup" type="text" value="${esc(bxGroup || '')}" placeholder="10" inputmode="numeric">
+      <div style="font-size:11px;color:var(--text2);margin-top:4px">Если интеграция включена — задачи этого проекта попадут именно в эту группу Б24</div>
     </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
@@ -4004,6 +4027,7 @@ window.submitEditProject = async function(code) {
     plan_monthly: parseFloat(document.getElementById('m-eplanm').value),
     rentier_foreman_share: parseFloat(document.getElementById('m-erentshare').value),
     gsheet_id: gsheet || null,
+    bitrix_group_id: document.getElementById('m-ebxgroup')?.value.trim() || null,
   };
   try {
     await Admin.projects.update(code, data);
@@ -4128,22 +4152,21 @@ window.openAdminBitrix = async function() {
         <div style="font-size:11px;color:var(--text2);margin-top:4px">${s.has_webhook_key ? 'Уже сохранён' : 'Из URL вебхука'}</div>
       </div>
     </div>
-    <div class="row-2">
-      <div class="form-group">
-        <label>Исполнитель по умолчанию</label>
-        <input id="bx-resp" type="text" value="${esc(s.default_responsible_id || '')}" placeholder="42" inputmode="numeric">
-        <div style="font-size:11px;color:var(--text2);margin-top:4px">Б24 user ID для задач, у которых исполнитель не задан</div>
-      </div>
-      <div class="form-group">
-        <label>Группа / проект</label>
-        <input id="bx-group" type="text" value="${esc(s.default_group_id || '')}" placeholder="10" inputmode="numeric">
-        <div style="font-size:11px;color:var(--text2);margin-top:4px">Опционально</div>
-      </div>
+    <div style="background:#e3f2fd;border:1px solid #1976d2;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;line-height:1.5;color:#0d47a1">
+      <strong>Маппинг исполнителей и проектов задаётся отдельно:</strong><br>
+      • <strong>Пользователи</strong> → у каждого сотрудника укажи его <code>Б24 user ID</code> в админке «👥 Пользователи». Задача уйдёт именно на него.<br>
+      • <strong>Проекты</strong> → у каждого проекта в админке «🏗️ Проекты» укажи Б24 group ID. Тогда задача попадёт в правильную группу/проект.
     </div>
+    <div class="form-group">
+      <label>Резервный исполнитель</label>
+      <input id="bx-resp" type="text" value="${esc(s.default_responsible_id || '')}" placeholder="1" inputmode="numeric">
+      <div style="font-size:11px;color:var(--text2);margin-top:4px">Используется только если у назначенца в нашем приложении не указан Б24 ID. Лучше — оставь админа Б24.</div>
+    </div>
+    <input type="hidden" id="bx-group" value="">
     <div style="background:#fff3e0;border:1px solid var(--orange);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;line-height:1.45;color:#7a4a00">
       <strong>Как получить ключ:</strong><br>
       1. В Битрикс24: Приложения → Разработчикам → Другое → Входящий вебхук<br>
-      2. Дайте скоуп <code>task</code><br>
+      2. Дайте скоуп <code>task</code> (и <code>user</code> для test'а)<br>
       3. Скопируйте URL вида <code>https://&lt;домен&gt;/rest/&lt;ID&gt;/&lt;ключ&gt;/</code><br>
       4. <code>&lt;домен&gt;</code> сюда в «Адрес портала», <code>&lt;ID&gt;</code> в «ID пользователя», <code>&lt;ключ&gt;</code> в «Секретный ключ»
     </div>
