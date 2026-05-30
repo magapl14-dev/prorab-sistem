@@ -132,6 +132,8 @@ async def list_tasks(
     status_filter: Optional[str] = Query(None, alias="status"),
     assignee: Optional[str] = None,  # 'me' or user UUID
     creator: Optional[str] = None,   # 'me' or user UUID
+    due_from: Optional[datetime] = None,
+    due_to: Optional[datetime] = None,
     include_done: bool = True,
     user: User = Depends(require_permission("tasks", "view")),
     db: AsyncSession = Depends(get_db),
@@ -166,6 +168,10 @@ async def list_tasks(
     if creator:
         uid = user.id if creator == "me" else UUID(creator)
         filters.append(Task.created_by == uid)
+    if due_from:
+        filters.append(Task.due_at >= due_from)
+    if due_to:
+        filters.append(Task.due_at <= due_to)
 
     rows = (await db.execute(
         select(Task)

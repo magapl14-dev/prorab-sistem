@@ -569,6 +569,14 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
         <div class="filter-chip" data-filter="done" onclick="setTaskFilter('done',this)">✓ Готово</div>
         <div class="filter-chip" data-filter="all" onclick="setTaskFilter('all',this)">Все</div>
       </div>
+      <div class="filters" id="task-date-filters" style="border-top:1px dashed var(--border)">
+        <div class="filter-chip active" data-date="all" onclick="setTaskDateFilter('all',this)">📅 За всё время</div>
+        <div class="filter-chip" data-date="today" onclick="setTaskDateFilter('today',this)">🔥 Сегодня</div>
+        <div class="filter-chip" data-date="week" onclick="setTaskDateFilter('week',this)">Неделя</div>
+        <div class="filter-chip" data-date="month" onclick="setTaskDateFilter('month',this)">Месяц</div>
+        <div class="filter-chip" data-date="overdue" onclick="setTaskDateFilter('overdue',this)">⚠️ Просрочено</div>
+        <div class="filter-chip" id="task-date-custom" data-date="custom" onclick="openTaskDateRange()">Произвольно</div>
+      </div>
       <div class="content" id="tasks-list"></div>
     </div>
 
@@ -2610,11 +2618,77 @@ async function loadDashboard() {
 
 // ── Tasks ─────────────────────────────────────────────────────────────────────
 let _taskFilter = 'active';
+let _taskDateFilter = 'all';
+let _taskCustomFrom = null, _taskCustomTo = null;
 
 window.setTaskFilter = function(filter, btn) {
   _taskFilter = filter;
   document.querySelectorAll('#task-filters .filter-chip').forEach(c => c.classList.remove('active'));
   btn.classList.add('active');
+  loadTasks();
+};
+
+window.setTaskDateFilter = function(filter, btn) {
+  _taskDateFilter = filter;
+  document.querySelectorAll('#task-date-filters .filter-chip').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  loadTasks();
+};
+
+function _taskDateRange() {
+  const now = new Date();
+  if (_taskDateFilter === 'today') {
+    const start = new Date(now); start.setHours(0,0,0,0);
+    const end = new Date(now); end.setHours(23,59,59,999);
+    return { from: start.toISOString(), to: end.toISOString() };
+  }
+  if (_taskDateFilter === 'week') {
+    const day = now.getDay();
+    const diff = day === 0 ? -6 : 1 - day; // от понедельника
+    const start = new Date(now); start.setDate(now.getDate() + diff); start.setHours(0,0,0,0);
+    const end = new Date(start); end.setDate(start.getDate() + 6); end.setHours(23,59,59,999);
+    return { from: start.toISOString(), to: end.toISOString() };
+  }
+  if (_taskDateFilter === 'month') {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    return { from: start.toISOString(), to: end.toISOString() };
+  }
+  if (_taskDateFilter === 'overdue') {
+    return { from: null, to: now.toISOString(), overdueOnly: true };
+  }
+  if (_taskDateFilter === 'custom' && _taskCustomFrom && _taskCustomTo) {
+    return {
+      from: new Date(_taskCustomFrom + 'T00:00:00').toISOString(),
+      to: new Date(_taskCustomTo + 'T23:59:59').toISOString(),
+    };
+  }
+  return { from: null, to: null };
+}
+
+window.openTaskDateRange = function() {
+  const today = new Date().toISOString().slice(0, 10);
+  const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  openModal('Выбрать период', `
+    <div class="form-group"><label>С</label><input id="t-rng-from" type="date" value="${_taskCustomFrom || monthAgo}"></div>
+    <div class="form-group"><label>По</label><input id="t-rng-to" type="date" value="${_taskCustomTo || today}"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn" onclick="applyTaskDateRange()">Применить</button>
+    </div>
+  `);
+};
+
+window.applyTaskDateRange = function() {
+  _taskCustomFrom = document.getElementById('t-rng-from').value;
+  _taskCustomTo = document.getElementById('t-rng-to').value;
+  if (!_taskCustomFrom || !_taskCustomTo) { toast('Укажите обе даты'); return; }
+  if (_taskCustomFrom > _taskCustomTo) { toast('«С» должна быть раньше «По»'); return; }
+  _taskDateFilter = 'custom';
+  document.querySelectorAll('#task-date-filters .filter-chip').forEach(c => c.classList.remove('active'));
+  document.getElementById('task-date-custom').classList.add('active');
+  document.getElementById('task-date-custom').textContent = `📅 ${_taskCustomFrom} — ${_taskCustomTo}`;
+  closeModal();
   loadTasks();
 };
 
@@ -2627,9 +2701,13 @@ async function loadTasks() {
   else if (_taskFilter === 'project') { params.project_code = currentProject?.code || ''; }
   else if (_taskFilter === 'noproject') { params.project_code = 'none'; }
   else if (_taskFilter === 'done') { params.status = 'done'; }
-  // all — без фильтров
+  // all — без category-фильтров
+  const range = _taskDateRange();
+  if (range.from) params.due_from = range.from;
+  if (range.to) params.due_to = range.to;
   try {
-    const tasks = await Tasks.list(params);
+    let tasks = await Tasks.list(params);
+    if (range.overdueOnly) tasks = tasks.filter(t => t.due_at && new Date(t.due_at) < new Date() && t.status !== 'done');
     renderTaskList(tasks);
   } catch(e) {
     el.innerHTML = '<div class="empty">Ошибка: ' + esc(e?.detail || JSON.stringify(e)) + '</div>';
