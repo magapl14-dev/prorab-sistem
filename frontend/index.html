@@ -70,6 +70,14 @@
 .rec-cancel{background:#f5f5f5;color:#c62828}
 [data-theme="dark"] .rec-cancel{background:#2a2a2a}
 .rec-send{background:#2e7d32;color:#fff}
+/* ── Comment composer (Telegram-style compact) ── */
+.cmt-composer{display:flex;align-items:flex-end;gap:4px;background:var(--input-bg);border:1px solid var(--border);border-radius:22px;padding:4px 6px}
+.cmt-input{flex:1;border:none!important;background:transparent!important;resize:none;padding:8px 4px!important;font-size:14px;max-height:120px;outline:none;line-height:1.3;color:var(--text);font-family:inherit;margin:0!important}
+.cmt-input:focus{outline:none;box-shadow:none}
+.cmt-icon{background:transparent;border:none;cursor:pointer;font-size:18px;width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--text2);flex-shrink:0;padding:0;transition:background .15s}
+.cmt-icon:hover{background:var(--tag-bg)}
+.cmt-icon.cmt-send-active{color:#fff;background:var(--orange)}
+.cmt-icon.cmt-send-active:hover{background:var(--orange-dark)}
 html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);font-size:16px}
 #app{height:100%;display:flex;flex-direction:column;max-width:480px;margin:0 auto;position:relative}
 
@@ -2981,19 +2989,52 @@ function _taskCommentsBlock(task) {
       <div id="t-comments-list" data-task-id="${task.id}" style="margin-bottom:8px;max-height:300px;overflow-y:auto">
         ${comments || '<div style="color:var(--text2);font-size:12px;padding:8px 0">Пока нет комментариев</div>'}
       </div>
-      <textarea id="t-cmt-text" rows="2" placeholder="Написать комментарий..." data-voice style="margin-bottom:6px"></textarea>
-      <div id="t-cmt-att-list" style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:6px;flex-direction:column"></div>
+      <div id="t-cmt-att-list" style="display:flex;flex-wrap:wrap;gap:6px;flex-direction:column"></div>
       <div id="t-cmt-rec-buttons">
-        <div style="display:flex;gap:8px">
-          <button type="button" class="btn btn-secondary" onclick="cmtPickPhoto()" style="flex:1;padding:8px;font-size:13px">📷 Фото</button>
-          <button type="button" class="btn btn-secondary" onclick="startVoiceRec('comment')" style="flex:1;padding:8px;font-size:13px">🎙 Запись</button>
-          <button type="button" class="btn" onclick="submitComment('${task.id}')" style="flex:1.4;padding:8px;font-size:13px">Отправить</button>
+        <div class="cmt-composer">
+          <button class="cmt-icon" type="button" title="Прикрепить фото" onclick="cmtPickPhoto()">📎</button>
+          <textarea id="t-cmt-text" rows="1" placeholder="Сообщение..." class="cmt-input" oninput="_onCmtInput()"></textarea>
+          <button class="cmt-icon" id="t-cmt-act-btn" type="button" title="Запись" onclick="cmtSendOrRec('${task.id}')">🎤</button>
         </div>
       </div>
       <input type="file" id="t-cmt-photo-input" accept="image/*" multiple style="display:none" onchange="cmtOnPhotoSelected(event)">
     </div>
   `;
 }
+
+window._onCmtInput = function() {
+  const txt = document.getElementById('t-cmt-text');
+  if (!txt) return;
+  txt.style.height = 'auto';
+  txt.style.height = Math.min(120, txt.scrollHeight) + 'px';
+  _updateCmtActionBtn();
+};
+
+function _updateCmtActionBtn() {
+  const txt = document.getElementById('t-cmt-text');
+  const btn = document.getElementById('t-cmt-act-btn');
+  if (!txt || !btn) return;
+  const hasContent = !!txt.value.trim() || _cmtNewAttachments.length > 0;
+  if (hasContent) {
+    btn.textContent = '➤';
+    btn.title = 'Отправить';
+    btn.classList.add('cmt-send-active');
+  } else {
+    btn.textContent = '🎤';
+    btn.title = 'Голосовое сообщение';
+    btn.classList.remove('cmt-send-active');
+  }
+}
+
+window.cmtSendOrRec = function(taskId) {
+  const txt = document.getElementById('t-cmt-text');
+  const hasContent = (txt && txt.value.trim()) || _cmtNewAttachments.length > 0;
+  if (hasContent) {
+    submitComment(taskId);
+  } else {
+    startVoiceRec('comment');
+  }
+};
 
 window._cmtNewAttachments = [];
 window._cmtMediaRecorder = null;
@@ -3003,15 +3044,27 @@ window._cmtRecordStart = 0;
 function _refreshCmtAttUI() {
   const el = document.getElementById('t-cmt-att-list');
   if (!el) return;
-  el.innerHTML = _cmtNewAttachments.map(a => {
-    if (a.media_type === 'audio') {
-      const dur = a.duration_sec ? `${Math.floor(a.duration_sec/60)}:${String(a.duration_sec%60).padStart(2,'0')}` : '';
-      return `<div style="display:flex;align-items:center;gap:8px;padding:6px;background:var(--tag-bg);border-radius:6px"><span>🎙</span><audio src="${esc(a.url)}" controls preload="metadata" style="flex:1;height:30px"></audio>${dur?`<span style="font-size:11px;color:var(--text2)">${dur}</span>`:''}</div>`;
-    }
-    return `<img src="${esc(a.thumb_url || a.url)}" class="photo-thumb">`;
-  }).join('');
-  _fixAllAudiosIn(el);
+  if (_cmtNewAttachments.length === 0) {
+    el.innerHTML = '';
+    el.style.marginBottom = '0';
+  } else {
+    el.style.marginBottom = '6px';
+    el.innerHTML = _cmtNewAttachments.map((a, idx) => {
+      if (a.media_type === 'audio') {
+        const dur = a.duration_sec ? `${Math.floor(a.duration_sec/60)}:${String(a.duration_sec%60).padStart(2,'0')}` : '';
+        return `<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--tag-bg);border-radius:18px;font-size:12px"><span>🎙</span><audio src="${esc(a.url)}" controls preload="metadata" style="flex:1;height:28px"></audio>${dur?`<span style="color:var(--text2)">${dur}</span>`:''}<button type="button" onclick="_removeCmtAtt(${idx})" style="background:transparent;border:none;cursor:pointer;color:var(--text2);font-size:14px">✕</button></div>`;
+      }
+      return `<div style="position:relative;display:inline-block;margin-right:6px"><img src="${esc(a.thumb_url || a.url)}" class="photo-thumb"><button type="button" onclick="_removeCmtAtt(${idx})" style="position:absolute;top:-4px;right:-4px;background:#c62828;border:none;color:#fff;width:20px;height:20px;border-radius:50%;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center">✕</button></div>`;
+    }).join('');
+    _fixAllAudiosIn(el);
+  }
+  _updateCmtActionBtn();
 }
+
+window._removeCmtAtt = function(idx) {
+  _cmtNewAttachments.splice(idx, 1);
+  _refreshCmtAttUI();
+};
 
 window.cmtPickPhoto = function() {
   document.getElementById('t-cmt-photo-input')?.click();
@@ -3047,7 +3100,8 @@ window.submitComment = async function(taskId) {
         : '<div style="color:var(--text2);font-size:12px;padding:8px 0">Пока нет комментариев</div>';
       list.scrollTop = list.scrollHeight;
     }
-    document.getElementById('t-cmt-text').value = '';
+    const txt = document.getElementById('t-cmt-text');
+    if (txt) { txt.value = ''; txt.style.height = 'auto'; }
     _cmtNewAttachments = [];
     _refreshCmtAttUI();
   } catch(e) {
@@ -3123,6 +3177,7 @@ window.submitCreateTask = async function() {
 window.openEditTask = async function(id) {
   try {
     _taskNewAttachments = [];
+    _cmtNewAttachments = [];
     const [task, { users, projects, types }] = await Promise.all([Tasks.get(id), _loadTaskFormData()]);
     const assignedIds = new Set((task.assignees || []).map(a => a.id));
     const projOpts = '<option value="">📌 Без проекта</option>' +
@@ -3170,6 +3225,7 @@ window.openEditTask = async function(id) {
       </div>
     `);
     if (typeof attachVoiceMicsTo === 'function') attachVoiceMicsTo();
+    _refreshCmtAttUI();
   } catch(e) {
     toast('Ошибка: ' + (e?.detail || ''));
   }
