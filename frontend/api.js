@@ -136,6 +136,14 @@ export const Admin = {
   },
 };
 
+export const Masters = {
+  list: (includeInactive = false) => _get(`/masters${includeInactive ? '?include_inactive=true' : ''}`),
+  get: (id) => _get(`/masters/${id}`),
+  create: (data) => _post("/masters", data),
+  update: (id, data) => _patch(`/masters/${id}`, data),
+  delete: (id) => _delete(`/masters/${id}`),
+};
+
 export const Tasks = {
   list: (params = {}) => {
     const qs = new URLSearchParams();

@@ -99,6 +99,7 @@ class Record(Base):
     payment_amount = Column(Numeric(12, 2), nullable=True)
     payment_date = Column(Date, nullable=True)
     is_advance = Column(Boolean, default=False, nullable=False)  # only for client_payment
+    master_id = Column(UUID(as_uuid=True), ForeignKey("masters.id"), nullable=True)  # для master_payment
     author_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     metadata_ = Column("metadata", JSONB, default={})
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -238,6 +239,23 @@ class Task(Base):
     assignees_link = relationship("TaskAssignee", back_populates="task", cascade="all, delete-orphan")
     attachments = relationship("Photo", back_populates="task", foreign_keys="Photo.task_id")
     comments = relationship("TaskComment", back_populates="task", cascade="all, delete-orphan")
+
+
+class Master(Base):
+    __tablename__ = "masters"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(200), nullable=False)
+    phone = Column(String(30), nullable=True)
+    specialty = Column(String(100), nullable=True)  # "сантехник", "электрик"...
+    default_rate = Column(Numeric(12, 2), nullable=True)
+    color = Column(String(20), nullable=True)
+    notes = Column(Text, nullable=True)
+    active = Column(Boolean, default=True, nullable=False)
+    created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
 
 
 class TaskComment(Base):

@@ -146,6 +146,7 @@ class RecordCreate(BaseModel):
     payment_date: Optional[date] = None
     is_advance: bool = False
     rentier_gross: Optional[Decimal] = None
+    master_id: Optional[UUID] = None
     photo_ids: List[UUID] = []
 
 
@@ -374,6 +375,42 @@ class TaskAssigneeBrief(BaseModel):
 class TaskProjectBrief(BaseModel):
     code: str
     name: str
+    model_config = {"from_attributes": True}
+
+
+class MasterCreate(BaseModel):
+    name: str
+    phone: Optional[str] = None
+    specialty: Optional[str] = None
+    default_rate: Optional[Decimal] = None
+    color: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class MasterUpdate(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    specialty: Optional[str] = None
+    default_rate: Optional[Decimal] = None
+    color: Optional[str] = None
+    notes: Optional[str] = None
+    active: Optional[bool] = None
+
+
+class MasterOut(BaseModel):
+    id: UUID
+    name: str
+    phone: Optional[str] = None
+    specialty: Optional[str] = None
+    default_rate: Optional[Decimal] = None
+    color: Optional[str] = None
+    notes: Optional[str] = None
+    active: bool
+    # агрегаты по выплатам
+    total_paid: Decimal = Decimal("0")
+    payments_count: int = 0
+    last_paid_at: Optional[date] = None
+    created_at: datetime
     model_config = {"from_attributes": True}
 
 
