@@ -599,6 +599,7 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
           <button class="btn btn-secondary" id="admin-projects-btn" style="margin-bottom:10px" onclick="openAdminProjects()">🏗️ Проекты</button>
           <button class="btn btn-secondary" id="admin-dict-btn" style="margin-bottom:10px" onclick="openAdminDictionaries()">📋 Справочники</button>
           <button class="btn btn-secondary" id="admin-perms-btn" style="margin-bottom:10px" onclick="openAdminPermissions()">🔐 Роли и права</button>
+          <button class="btn btn-secondary" id="admin-bitrix-btn" style="margin-bottom:10px" onclick="openAdminBitrix()">🔗 Интеграция Битрикс24</button>
           <button class="btn btn-secondary" id="admin-brand-btn" onclick="openAdminBranding()">🎨 Брендинг (имя/лого/фавикон)</button>
         </div>
       </div>
@@ -1216,6 +1217,7 @@ window.applyPermissions = function() {
     'admin-projects-btn': 'projects',
     'admin-dict-btn': 'dictionaries',
     'admin-perms-btn': 'permissions',
+    'admin-bitrix-btn': 'branding',
     'admin-brand-btn': 'branding',
   };
   let anyAdmin = false;
@@ -4090,6 +4092,118 @@ window.submitBranding = async function() {
     toast('Ошибка: ' + (e?.detail || JSON.stringify(e)));
   }
 };
+
+// ── Admin: Bitrix24 integration ──────────────────────────────────────────────
+window.openAdminBitrix = async function() {
+  openModal('🔗 Интеграция Битрикс24', '<div class="loader"><div class="spinner"></div></div>');
+  let s;
+  try { s = await Admin.bitrix.get(); }
+  catch(e) {
+    document.getElementById('modal-body').innerHTML = '<div style="color:var(--danger)">Ошибка загрузки: ' + esc(e?.detail || '') + '</div>';
+    return;
+  }
+  const keyPlaceholder = s.has_webhook_key ? '••••••• (введите для замены)' : 'секретный ключ из URL вебхука';
+  openModal('🔗 Интеграция Битрикс24', `
+    <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input id="bx-enabled" type="checkbox" ${s.enabled ? 'checked' : ''} style="width:18px;height:18px;margin:0">
+        <span><strong>Включить интеграцию</strong></span>
+      </label>
+      <div style="font-size:11px;color:var(--text2);margin-top:4px">Если выключено — задачи не будут синхронизироваться с Битрикс24</div>
+    </div>
+    <div class="form-group">
+      <label>Адрес портала</label>
+      <input id="bx-domain" type="url" value="${esc(s.domain || '')}" placeholder="https://company.bitrix24.ru">
+      <div style="font-size:11px;color:var(--text2);margin-top:4px">Без слеша на конце</div>
+    </div>
+    <div class="row-2">
+      <div class="form-group">
+        <label>ID пользователя</label>
+        <input id="bx-user-id" type="text" value="${esc(s.user_id || '')}" placeholder="1" inputmode="numeric">
+        <div style="font-size:11px;color:var(--text2);margin-top:4px">Кто создаёт вебхук</div>
+      </div>
+      <div class="form-group">
+        <label>Секретный ключ</label>
+        <input id="bx-key" type="text" placeholder="${esc(keyPlaceholder)}">
+        <div style="font-size:11px;color:var(--text2);margin-top:4px">${s.has_webhook_key ? 'Уже сохранён' : 'Из URL вебхука'}</div>
+      </div>
+    </div>
+    <div class="row-2">
+      <div class="form-group">
+        <label>Исполнитель по умолчанию</label>
+        <input id="bx-resp" type="text" value="${esc(s.default_responsible_id || '')}" placeholder="42" inputmode="numeric">
+        <div style="font-size:11px;color:var(--text2);margin-top:4px">Б24 user ID для задач, у которых исполнитель не задан</div>
+      </div>
+      <div class="form-group">
+        <label>Группа / проект</label>
+        <input id="bx-group" type="text" value="${esc(s.default_group_id || '')}" placeholder="10" inputmode="numeric">
+        <div style="font-size:11px;color:var(--text2);margin-top:4px">Опционально</div>
+      </div>
+    </div>
+    <div style="background:#fff3e0;border:1px solid var(--orange);border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;line-height:1.45;color:#7a4a00">
+      <strong>Как получить ключ:</strong><br>
+      1. В Битрикс24: Приложения → Разработчикам → Другое → Входящий вебхук<br>
+      2. Дайте скоуп <code>task</code><br>
+      3. Скопируйте URL вида <code>https://&lt;домен&gt;/rest/&lt;ID&gt;/&lt;ключ&gt;/</code><br>
+      4. <code>&lt;домен&gt;</code> сюда в «Адрес портала», <code>&lt;ID&gt;</code> в «ID пользователя», <code>&lt;ключ&gt;</code> в «Секретный ключ»
+    </div>
+    <div id="bx-test-result" style="margin-bottom:10px;font-size:13px"></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-secondary" onclick="testBitrix()" style="background:#1976d2;color:#fff;border-color:#1976d2">🔌 Проверить связь</button>
+      <button class="btn" onclick="submitBitrix()">Сохранить</button>
+    </div>
+  `);
+};
+
+window.submitBitrix = async function() {
+  const data = {
+    enabled: document.getElementById('bx-enabled').checked,
+    domain: document.getElementById('bx-domain').value.trim(),
+    user_id: document.getElementById('bx-user-id').value.trim(),
+    default_responsible_id: document.getElementById('bx-resp').value.trim(),
+    default_group_id: document.getElementById('bx-group').value.trim(),
+  };
+  const key = document.getElementById('bx-key').value.trim();
+  if (key) data.webhook_key = key; // только если ввели — иначе оставляем как было
+  try {
+    await Admin.bitrix.update(data);
+    toast('Сохранено');
+    closeModal();
+  } catch(e) {
+    toast('Ошибка: ' + (e?.detail || JSON.stringify(e)));
+  }
+};
+
+window.testBitrix = async function() {
+  const res = document.getElementById('bx-test-result');
+  // Сначала сохраним текущие значения чтобы тест видел свежие
+  await submitBitrixSilent();
+  res.innerHTML = '<span style="color:var(--text2)">Проверяю...</span>';
+  try {
+    const out = await Admin.bitrix.test();
+    if (out.ok) {
+      res.innerHTML = `<span style="color:#2e7d32">✅ Связь установлена. Подключён как: <strong>${esc(out.user_name || '?')}</strong></span>`;
+    } else {
+      res.innerHTML = `<span style="color:var(--danger)">❌ ${esc(out.error || 'неизвестная ошибка')}</span>`;
+    }
+  } catch(e) {
+    res.innerHTML = `<span style="color:var(--danger)">❌ ${esc(e?.detail || JSON.stringify(e))}</span>`;
+  }
+};
+
+async function submitBitrixSilent() {
+  const data = {
+    enabled: document.getElementById('bx-enabled').checked,
+    domain: document.getElementById('bx-domain').value.trim(),
+    user_id: document.getElementById('bx-user-id').value.trim(),
+    default_responsible_id: document.getElementById('bx-resp').value.trim(),
+    default_group_id: document.getElementById('bx-group').value.trim(),
+  };
+  const key = document.getElementById('bx-key').value.trim();
+  if (key) data.webhook_key = key;
+  try { await Admin.bitrix.update(data); } catch(_) {}
+}
 
 // ── Admin: Permissions matrix ────────────────────────────────────────────────
 const RESOURCE_LABELS = {

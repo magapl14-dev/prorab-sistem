@@ -300,6 +300,32 @@ class AppSettingUpdate(BaseModel):
     primary_color: Optional[str] = None
 
 
+# ── Bitrix24 integration settings ─────────────────────────────────────────────
+
+class BitrixSettingsOut(BaseModel):
+    enabled: bool
+    domain: Optional[str] = None
+    user_id: Optional[str] = None
+    has_webhook_key: bool = False  # реальный ключ наружу не отдаём
+    default_responsible_id: Optional[str] = None
+    default_group_id: Optional[str] = None
+
+
+class BitrixSettingsUpdate(BaseModel):
+    enabled: Optional[bool] = None
+    domain: Optional[str] = None
+    user_id: Optional[str] = None
+    webhook_key: Optional[str] = None  # передавать только при обновлении
+    default_responsible_id: Optional[str] = None
+    default_group_id: Optional[str] = None
+
+
+class BitrixTestResult(BaseModel):
+    ok: bool
+    user_name: Optional[str] = None
+    error: Optional[str] = None
+
+
 # ── Permissions ───────────────────────────────────────────────────────────────
 
 class PermissionItem(BaseModel):

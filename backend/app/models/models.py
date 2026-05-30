@@ -22,6 +22,7 @@ class User(Base):
     failed_attempts = Column(Integer, default=0, nullable=False)
     locked_until = Column(DateTime(timezone=True), nullable=True)
     last_login_at = Column(DateTime(timezone=True), nullable=True)
+    bitrix_user_id = Column(String(20), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     deleted_at = Column(DateTime(timezone=True), nullable=True)
@@ -177,6 +178,13 @@ class AppSetting(Base):
     favicon_url = Column(Text, nullable=True)
     photo_camera_only = Column(Boolean, nullable=False, default=False, server_default="false")
     primary_color = Column(String(20), nullable=True)
+    # ── Bitrix24 integration ──
+    bitrix_enabled = Column(Boolean, nullable=False, default=False, server_default="false")
+    bitrix_domain = Column(String(200), nullable=True)        # https://company.bitrix24.ru
+    bitrix_user_id = Column(String(20), nullable=True)        # user_id для вебхука
+    bitrix_webhook_key = Column(String(200), nullable=True)   # секретный ключ
+    bitrix_default_responsible_id = Column(String(20), nullable=True)  # дефолтный исполнитель в Б24
+    bitrix_default_group_id = Column(String(20), nullable=True)        # дефолтная группа
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 
@@ -219,6 +227,7 @@ class Task(Base):
     created_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     completed_at = Column(DateTime(timezone=True), nullable=True)
     completed_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    bitrix_task_id = Column(String(20), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     deleted_at = Column(DateTime(timezone=True), nullable=True)

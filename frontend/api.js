@@ -129,6 +129,11 @@ export const Admin = {
     create: (data) => _post("/admin/roles", data),
     delete: (name) => _delete(`/admin/roles/${encodeURIComponent(name)}`),
   },
+  bitrix: {
+    get: () => _get("/admin/bitrix"),
+    update: (data) => _patch("/admin/bitrix", data),
+    test: () => _post("/admin/bitrix/test", {}),
+  },
 };
 
 export const Tasks = {
