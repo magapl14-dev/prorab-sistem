@@ -2780,6 +2780,7 @@ window.taskOnPhotoSelected = async function(e) {
       toast('Ошибка загрузки фото');
     }
   }
+  if (typeof _scheduleTaskAutosave === 'function') _scheduleTaskAutosave();
 };
 
 // ── Universal voice recorder (Telegram-style) ────────────────────────────────
@@ -2916,6 +2917,7 @@ function _onVoiceStop() {
         _taskNewAttachments.push(item);
         const existingJson = document.getElementById('t-existing-att')?.dataset.list || '[]';
         _refreshTaskAttachmentsUI(JSON.parse(existingJson));
+        if (typeof _scheduleTaskAutosave === 'function') _scheduleTaskAutosave();
       } else {
         _cmtNewAttachments.push(item);
         _refreshCmtAttUI();
@@ -3321,6 +3323,7 @@ function _renderAssigneeChips() {
 window._removeAssignee = function(id) {
   _taskAssignees = _taskAssignees.filter(u => u.id !== id);
   _renderAssigneeChips();
+  if (typeof _scheduleTaskAutosave === 'function') _scheduleTaskAutosave();
 };
 
 window._addAssignee = function(id) {
@@ -3329,6 +3332,7 @@ window._addAssignee = function(id) {
   if (_taskAssignees.some(a => a.id === id)) return;
   _taskAssignees.push({ id: user.id, name: user.name });
   _renderAssigneeChips();
+  if (typeof _scheduleTaskAutosave === 'function') _scheduleTaskAutosave();
   setTimeout(() => document.getElementById('t-assn-search')?.focus(), 0);
 };
 
@@ -3449,13 +3453,16 @@ window.openEditTask = async function(id) {
       </div>
       <div class="form-group"><label>Исполнители</label>${_assigneePickerHtml()}</div>
       ${_taskCommentsBlock(task)}
-      <div style="font-size:11px;color:var(--text2);margin-bottom:10px">Автор: ${esc(task.creator?.name || '?')} · ${new Date(task.created_at).toLocaleString('ru-RU')}</div>
-      <div class="modal-actions">
-        <button class="btn btn-danger" onclick="deleteTask('${task.id}')">Удалить</button>
-        <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
-        <button class="btn" onclick="submitEditTask('${task.id}')">Сохранить</button>
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--text2);margin-bottom:10px;padding:0 4px">
+        <span>Автор: ${esc(task.creator?.name || '?')} · ${new Date(task.created_at).toLocaleString('ru-RU')}</span>
+        <span id="t-save-status" style="color:var(--text2);font-size:11px"></span>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+        <button type="button" onclick="deleteTask('${task.id}')" style="background:transparent;border:none;color:var(--text2);font-size:12px;cursor:pointer;padding:6px 10px;text-decoration:underline">🗑 Удалить задачу</button>
       </div>
     `);
+    _taskEditId = task.id;
+    _attachTaskAutosave();
     _renderAssigneeChips();
     if (typeof attachVoiceMicsTo === 'function') attachVoiceMicsTo();
     _refreshCmtAttUI();
@@ -3465,27 +3472,77 @@ window.openEditTask = async function(id) {
 };
 
 window.submitEditTask = async function(id) {
-  const dueVal = document.getElementById('t-due').value;
+  // используется при принудительном сохранении (закрытие модалки и т.п.)
+  await _saveTask(id, true);
+  closeModal();
+  loadTasks();
+};
+
+// ── Auto-save for task edit modal ────────────────────────────────────────────
+window._taskEditId = null;
+window._taskAutosaveTimer = null;
+window._taskLastSavedJson = null;
+
+function _readTaskFormData() {
+  const titleEl = document.getElementById('t-title');
+  if (!titleEl) return null;
+  const dueVal = document.getElementById('t-due')?.value;
   const data = {
-    title: document.getElementById('t-title').value.trim(),
-    description: document.getElementById('t-desc').value.trim() || null,
+    title: titleEl.value.trim(),
+    description: document.getElementById('t-desc')?.value.trim() || null,
     type: document.getElementById('t-type')?.value || null,
-    project_code: document.getElementById('t-project').value,  // "" → бэк уберёт привязку
+    project_code: document.getElementById('t-project')?.value || '',
     due_at: dueVal ? new Date(dueVal).toISOString() : null,
-    priority: document.getElementById('t-priority').value || null,
-    status: document.getElementById('t-status').value,
+    priority: document.getElementById('t-priority')?.value || null,
+    status: document.getElementById('t-status')?.value,
     assignee_ids: _taskAssignees.map(a => a.id),
-    attachment_ids: _taskNewAttachments.map(a => a.id),
   };
+  return data;
+}
+
+async function _saveTask(id, forceWithAttachments = false) {
+  const data = _readTaskFormData();
+  if (!data) return; // модалка закрыта
+  if (!data.title) return; // не сохраняем пустой заголовок
+  const stableJson = JSON.stringify(data); // без attachment_ids — это «снимок» формы
+  const hasNewAtt = _taskNewAttachments.length > 0;
+  if (stableJson === _taskLastSavedJson && !hasNewAtt && !forceWithAttachments) return;
+  if (hasNewAtt || forceWithAttachments) {
+    data.attachment_ids = _taskNewAttachments.map(a => a.id);
+  }
+  _setSaveStatus('Сохраняется...');
   try {
     await Tasks.update(id, data);
     _taskNewAttachments = [];
-    closeModal();
-    toast('Сохранено');
-    loadTasks();
+    _taskLastSavedJson = stableJson;
+    _setSaveStatus('Сохранено ✓');
+    setTimeout(() => _setSaveStatus(''), 1500);
   } catch(e) {
-    toast('Ошибка: ' + (e?.detail || JSON.stringify(e)));
+    _setSaveStatus('Не сохранено: ' + (e?.detail || 'ошибка'));
   }
+}
+
+function _setSaveStatus(text) {
+  const el = document.getElementById('t-save-status');
+  if (el) el.textContent = text;
+}
+
+window._scheduleTaskAutosave = function() {
+  if (!_taskEditId) return;
+  clearTimeout(_taskAutosaveTimer);
+  _taskAutosaveTimer = setTimeout(() => _saveTask(_taskEditId), 700);
+};
+
+window._attachTaskAutosave = function() {
+  if (!_taskEditId) return;
+  _taskLastSavedJson = JSON.stringify(_readTaskFormData());
+  const ids = ['t-title','t-desc','t-type','t-priority','t-project','t-due','t-status'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const evt = (el.tagName === 'SELECT' || el.type === 'date' || el.type === 'datetime-local') ? 'change' : 'input';
+    el.addEventListener(evt, _scheduleTaskAutosave);
+  });
 };
 
 window.deleteTask = async function(id) {
@@ -3532,6 +3589,15 @@ function openModal(title, bodyHtml) {
 }
 window.closeModal = function(e) {
   if (e && e.target !== document.getElementById('modal-overlay')) return;
+  // Принудительно дофлашить autosave задачи
+  if (_taskEditId) {
+    clearTimeout(_taskAutosaveTimer);
+    _saveTask(_taskEditId, _taskNewAttachments.length > 0).finally(() => {
+      _taskEditId = null;
+      _taskLastSavedJson = null;
+      loadTasks();
+    });
+  }
   document.getElementById('modal-overlay').classList.remove('open');
 };
 
