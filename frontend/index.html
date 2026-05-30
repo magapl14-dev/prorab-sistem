@@ -964,10 +964,6 @@ body{background:var(--bg)}
     </div>
     <div id="master-fields" style="display:none">
       <div class="form-group">
-        <label>Имя мастера / получателя</label>
-        <input type="text" id="f-master-name" placeholder="Иван Петров" data-voice>
-      </div>
-      <div class="form-group">
         <label>Сумма (₽)</label>
         <input type="number" id="f-payment-amount" class="amount-big" min="0" step="any" placeholder="0" oninput="updateRentierDistribution&&updateRentierDistribution()">
         <div class="amount-quick">
@@ -978,14 +974,25 @@ body{background:var(--bg)}
         </div>
       </div>
       <div class="form-group">
-        <label>Тип выплаты</label>
-        <select id="f-master-paytype">
-          <option value="salary">Зарплата / окончательный расчёт</option>
-          <option value="advance">💰 Аванс</option>
-          <option value="bonus">⭐ Премия</option>
-          <option value="debt">💸 Возврат долга</option>
-        </select>
+        <label>Имя мастера</label>
+        <input type="text" id="f-master-name" placeholder="напр. Алексей Сидоров" data-voice>
       </div>
+      <div class="form-group" id="f-master-suggest-wrap" style="display:none">
+        <label>Кто из бригады</label>
+        <div class="scroll-chips" id="f-master-suggest"></div>
+      </div>
+      <div class="form-group">
+        <label>Тип выплаты</label>
+        <div class="prio-chips" id="f-master-paytype-chips">
+          <button type="button" class="prio-chip active" data-v="salary" onclick="_pickPayType('salary')">Зарплата</button>
+          <button type="button" class="prio-chip" data-v="advance" onclick="_pickPayType('advance')">Аванс</button>
+          <button type="button" class="prio-chip" data-v="bonus" onclick="_pickPayType('bonus')">Премия</button>
+          <button type="button" class="prio-chip" data-v="debt" onclick="_pickPayType('debt')">Возврат долга</button>
+        </div>
+        <input type="hidden" id="f-master-paytype" value="salary">
+      </div>
+      <button type="button" class="btn btn-secondary all-fields-toggle" data-target="master-extra" onclick="_toggleAllFields(this)" style="margin:4px 0 12px;padding:11px;font-size:13px">▾ Все поля</button>
+      <div id="master-extra" style="display:none">
       <button type="button" id="f-rentier-toggle" onclick="toggleRentierBlock()" class="btn btn-secondary" style="margin-bottom:10px;padding:10px;font-size:13px">💼 Добавить раньтье от мастера</button>
       <div id="f-rentier-block" style="display:none;background:var(--tag-bg);padding:12px;border-radius:10px;margin-bottom:12px;border:1px solid var(--border)">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
@@ -1008,12 +1015,9 @@ body{background:var(--bg)}
         </div>
         <div style="font-size:11px;color:var(--text2);margin-top:8px;line-height:1.4">Раньтье — это бонус, который мастер платит вам за контракт. Видно только вам.</div>
       </div>
+      </div><!-- /master-extra -->
     </div>
     <div id="client-fields" style="display:none">
-      <div class="form-group">
-        <label>Представитель клиента</label>
-        <input type="text" id="f-rep-name" placeholder="Имя представителя" data-voice>
-      </div>
       <div class="form-group">
         <label>Сумма платежа (₽)</label>
         <input type="number" id="f-client-amount" class="amount-big" min="0" step="any" placeholder="0">
@@ -1028,7 +1032,15 @@ body{background:var(--bg)}
         <input type="checkbox" id="f-is-advance" style="width:20px;height:20px;cursor:pointer;flex-shrink:0">
         <label for="f-is-advance" style="cursor:pointer;font-size:14px;margin:0">💰 Это аванс (не оплата за работу)</label>
       </div>
+      <button type="button" class="btn btn-secondary all-fields-toggle" data-target="client-extra" onclick="_toggleAllFields(this)" style="margin:4px 0 12px;padding:11px;font-size:13px">▾ Все поля</button>
+      <div id="client-extra" style="display:none">
+        <div class="form-group">
+          <label>Представитель клиента</label>
+          <input type="text" id="f-rep-name" placeholder="Имя представителя" data-voice>
+        </div>
+      </div>
     </div>
+    <div id="common-extra" style="display:none">
     <div class="form-group">
       <label>Комментарий</label>
       <textarea id="f-comment" placeholder="Необязательно..." data-voice></textarea>
@@ -1040,7 +1052,9 @@ body{background:var(--bg)}
       </div>
       <input type="file" id="photo-input" accept="image/*" capture="environment" style="display:none" onchange="onPhotoSelected(event)" multiple data-camera-only="1">
     </div>
-    <button class="btn" onclick="saveRecord()" id="save-btn">Сохранить</button>
+    </div>
+    <button type="button" class="btn btn-secondary all-fields-toggle" data-target="common-extra" onclick="_toggleAllFields(this)" style="margin:4px 0 12px;padding:11px;font-size:13px;display:none" id="common-extra-toggle">▾ Комментарий и фото</button>
+    <button class="btn" onclick="saveRecord()" id="save-btn">✓ Сохранить</button>
     <div class="error-msg" id="form-error"></div>
   </div>
 </div>
@@ -2392,6 +2406,27 @@ window.openAddForm = function(kind) {
   document.getElementById('expense-fields').style.display = kind === 'expense' ? '' : 'none';
   document.getElementById('master-fields').style.display = kind === 'master_payment' ? '' : 'none';
   document.getElementById('client-fields').style.display = kind === 'client_payment' ? '' : 'none';
+  // Show common "Комментарий и фото" toggle for master/client (expense form has its own)
+  const commonToggle = document.getElementById('common-extra-toggle');
+  const commonExtra = document.getElementById('common-extra');
+  if (commonToggle && commonExtra) {
+    const showCommon = (kind === 'master_payment' || kind === 'client_payment');
+    commonToggle.style.display = showCommon ? '' : 'none';
+    commonExtra.style.display = 'none';
+    commonToggle.textContent = '▾ Комментарий и фото';
+  }
+  // Reset master-extra / client-extra to collapsed
+  ['master-extra', 'client-extra'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  document.querySelectorAll('.all-fields-toggle').forEach(b => {
+    b.textContent = b.textContent.replace('▴', '▾');
+  });
+  // Reset pay-type chips
+  if (kind === 'master_payment') _pickPayType('salary');
+  // Populate masters suggestion chips from recent history
+  if (kind === 'master_payment') _loadMasterSuggest();
 
   // Smart defaults — fill in last used values for this kind+project
   const def = loadDefaults(kind);
@@ -2400,7 +2435,7 @@ window.openAddForm = function(kind) {
     if (def.category) document.getElementById('f-category').value = def.category;
     if (def.kassa) document.getElementById('f-kassa').value = def.kassa;
   } else if (kind === 'master_payment') {
-    if (def.master_paytype) document.getElementById('f-master-paytype').value = def.master_paytype;
+    if (def.master_paytype) _pickPayType(def.master_paytype);
   }
 
   const titles = { expense: 'Добавить расход', master_payment: 'Оплата мастеру', client_payment: 'Платёж клиента' };
@@ -3650,6 +3685,52 @@ function _taskAttachmentsBlock(existing = [], descValue = '') {
     </div>
   `;
 }
+
+window._toggleAllFields = function(btn) {
+  const target = document.getElementById(btn.dataset.target);
+  if (!target) return;
+  const open = target.style.display === 'none';
+  target.style.display = open ? '' : 'none';
+  btn.textContent = (open ? '▴' : '▾') + btn.textContent.slice(1);
+};
+
+window._pickPayType = function(v) {
+  const hidden = document.getElementById('f-master-paytype');
+  if (hidden) hidden.value = v;
+  document.querySelectorAll('#f-master-paytype-chips .prio-chip').forEach(b => {
+    b.classList.toggle('active', b.dataset.v === v);
+  });
+};
+
+async function _loadMasterSuggest() {
+  if (!currentProject) return;
+  try {
+    const recs = await Records.list(currentProject.code, { kind: 'master_payment', limit: 50 });
+    const seen = new Set();
+    const names = [];
+    for (const r of (recs.items || [])) {
+      const n = (r.name || '').trim();
+      if (n && !seen.has(n)) { seen.add(n); names.push(n); }
+      if (names.length >= 6) break;
+    }
+    const el = document.getElementById('f-master-suggest');
+    const wrap = document.getElementById('f-master-suggest-wrap');
+    if (!el || !wrap) return;
+    if (!names.length) { wrap.style.display = 'none'; return; }
+    wrap.style.display = '';
+    el.innerHTML = names.map(n => `<button type="button" onclick="_pickMaster('${esc(n).replace(/'/g,'')}')">${esc(n)}</button>`).join('');
+  } catch(_) {}
+}
+
+window._pickMaster = function(name) {
+  const inp = document.getElementById('f-master-name');
+  if (inp) {
+    inp.value = name;
+    document.querySelectorAll('#f-master-suggest button').forEach(b => {
+      b.classList.toggle('active', b.textContent === name);
+    });
+  }
+};
 
 window._addAmt = function(fieldId, n) {
   const el = document.getElementById(fieldId);
