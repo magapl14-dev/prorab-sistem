@@ -214,7 +214,76 @@ function _buildUrl(path, params = {}) {
   return path + (q ? "?" + q : "");
 }
 
-const _get = (path, params) => _request("GET", _buildUrl(path, params));
+// ── GET cache (для оффлайн-чтения исторических данных) ──────────────────────
+const _CACHE_PREFIX = "apicache_v1_";
+const _CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 дней
+const _CACHE_MAX_ENTRIES = 200;
+const _CACHE_INDEX_KEY = "apicache_index_v1";
+
+function _cacheGet(url) {
+  try {
+    const raw = localStorage.getItem(_CACHE_PREFIX + url);
+    if (!raw) return null;
+    const { ts, data } = JSON.parse(raw);
+    if (Date.now() - ts > _CACHE_TTL_MS) return null;
+    return { data, ts };
+  } catch (_) { return null; }
+}
+function _cacheSet(url, data) {
+  try {
+    const payload = JSON.stringify({ ts: Date.now(), data });
+    // Не кешируем гигантские ответы (>500KB)
+    if (payload.length > 500_000) return;
+    localStorage.setItem(_CACHE_PREFIX + url, payload);
+    let idx;
+    try { idx = JSON.parse(localStorage.getItem(_CACHE_INDEX_KEY) || "[]"); } catch (_) { idx = []; }
+    idx = idx.filter(u => u !== url);
+    idx.push(url);
+    // LRU-эвикция: если слишком много, выкидываем старые
+    while (idx.length > _CACHE_MAX_ENTRIES) {
+      const old = idx.shift();
+      localStorage.removeItem(_CACHE_PREFIX + old);
+    }
+    localStorage.setItem(_CACHE_INDEX_KEY, JSON.stringify(idx));
+  } catch (e) {
+    // Quota exceeded — чистим кеш и забываем
+    if (e?.name === "QuotaExceededError") {
+      try {
+        const idx = JSON.parse(localStorage.getItem(_CACHE_INDEX_KEY) || "[]");
+        // Удалим половину
+        const drop = idx.splice(0, Math.ceil(idx.length / 2));
+        drop.forEach(u => localStorage.removeItem(_CACHE_PREFIX + u));
+        localStorage.setItem(_CACHE_INDEX_KEY, JSON.stringify(idx));
+      } catch (_) {}
+    }
+  }
+}
+
+const _get = async (path, params) => {
+  const url = _buildUrl(path, params);
+  // Если знаем, что оффлайн — сразу из кеша
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    const c = _cacheGet(url);
+    if (c) return c.data;
+    throw { status: 0, detail: "Нет связи — данные не закешированы" };
+  }
+  try {
+    const data = await _request("GET", url);
+    _cacheSet(url, data);
+    return data;
+  } catch (e) {
+    // Сеть отвалилась — пробуем из кеша
+    const isNetErr = e?.status === 0 || /Failed to fetch|NetworkError|net::/i.test(String(e?.message || e?.detail || ""));
+    if (isNetErr) {
+      const c = _cacheGet(url);
+      if (c) {
+        try { window.dispatchEvent(new CustomEvent("apicache:hit", { detail: { url, age: Date.now() - c.ts } })); } catch (_) {}
+        return c.data;
+      }
+    }
+    throw e;
+  }
+};
 const _post = (path, body, auth = true) => _request("POST", path, body, auth);
 const _patch = (path, body) => _request("PATCH", path, body);
 const _delete = (path) => _request("DELETE", path);
