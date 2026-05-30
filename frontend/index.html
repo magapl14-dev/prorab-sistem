@@ -166,6 +166,21 @@
 .prio-chip{flex:1;padding:9px 8px;border-radius:9px;font-size:13px;font-weight:700;color:var(--text2);background:transparent;border:none;cursor:pointer;transition:all .15s}
 .prio-chip:active{transform:scale(.97)}
 .prio-chip.active{background:var(--card);color:var(--text);box-shadow:var(--shadow)}
+/* ── Big voice button at top of add forms ── */
+#voice-form-btn{width:100%;display:flex;align-items:center;justify-content:center;gap:9px;background:linear-gradient(135deg, var(--orange), var(--orange-dark))!important;color:#fff!important;font-weight:800!important;font-size:15px!important;padding:15px!important;border-radius:14px!important;border:none!important;box-shadow:0 10px 24px -10px var(--orange);margin-bottom:16px!important;cursor:pointer;transition:transform .12s}
+#voice-form-btn:active{transform:scale(.98)}
+/* ── Big tabular amount field + quick-add chips ── */
+.amount-big{font-size:30px!important;font-weight:800!important;text-align:center!important;font-variant-numeric:tabular-nums;letter-spacing:-.01em!important;padding:18px 14px!important}
+.amount-quick{display:flex;gap:7px;overflow-x:auto;padding:2px 0;margin:8px 0 0;scrollbar-width:none}
+.amount-quick::-webkit-scrollbar{display:none}
+.amount-quick button{flex-shrink:0;padding:7px 12px;border-radius:99px;font-size:12.5px;font-weight:700;background:var(--card);color:var(--text2);border:none;cursor:pointer;box-shadow:var(--shadow);transition:transform .12s}
+.amount-quick button:active{transform:scale(.96)}
+/* ── Horizontal scroll chips for type/category ── */
+.scroll-chips{display:flex;gap:7px;overflow-x:auto;padding:2px 0;scrollbar-width:none;margin:0 -16px;padding-left:16px;padding-right:16px}
+.scroll-chips::-webkit-scrollbar{display:none}
+.scroll-chips button{flex-shrink:0;padding:8px 13px;border-radius:99px;font-size:13px;font-weight:600;background:var(--card);color:var(--text2);border:none;cursor:pointer;box-shadow:var(--shadow);white-space:nowrap;transition:all .15s}
+.scroll-chips button.active{background:var(--orange);color:#fff;box-shadow:0 6px 14px -7px var(--orange)}
+.scroll-chips button:active{transform:scale(.96)}
 /* ── Quick-add chooser cards ── */
 .qa-card{display:flex;flex-direction:column;gap:11px;padding:16px;border-radius:16px;background:var(--card);border:none;box-shadow:var(--shadow);text-align:left;align-items:flex-start;cursor:pointer;transition:transform .12s}
 .qa-card:active{transform:scale(.97)}
@@ -954,7 +969,13 @@ body{background:var(--bg)}
       </div>
       <div class="form-group">
         <label>Сумма (₽)</label>
-        <input type="number" id="f-payment-amount" min="0" step="any" placeholder="0" oninput="updateRentierDistribution&&updateRentierDistribution()">
+        <input type="number" id="f-payment-amount" class="amount-big" min="0" step="any" placeholder="0" oninput="updateRentierDistribution&&updateRentierDistribution()">
+        <div class="amount-quick">
+          <button type="button" onclick="_addAmt('f-payment-amount',1000)">+ 1 000</button>
+          <button type="button" onclick="_addAmt('f-payment-amount',5000)">+ 5 000</button>
+          <button type="button" onclick="_addAmt('f-payment-amount',10000)">+ 10 000</button>
+          <button type="button" onclick="_addAmt('f-payment-amount',50000)">+ 50 000</button>
+        </div>
       </div>
       <div class="form-group">
         <label>Тип выплаты</label>
@@ -995,7 +1016,13 @@ body{background:var(--bg)}
       </div>
       <div class="form-group">
         <label>Сумма платежа (₽)</label>
-        <input type="number" id="f-client-amount" min="0" step="any" placeholder="0">
+        <input type="number" id="f-client-amount" class="amount-big" min="0" step="any" placeholder="0">
+        <div class="amount-quick">
+          <button type="button" onclick="_addAmt('f-client-amount',10000)">+ 10 000</button>
+          <button type="button" onclick="_addAmt('f-client-amount',50000)">+ 50 000</button>
+          <button type="button" onclick="_addAmt('f-client-amount',100000)">+ 100 000</button>
+          <button type="button" onclick="_addAmt('f-client-amount',500000)">+ 500 000</button>
+        </div>
       </div>
       <div class="form-group" style="display:flex;align-items:center;gap:10px;background:var(--tag-bg);padding:10px 12px;border-radius:8px">
         <input type="checkbox" id="f-is-advance" style="width:20px;height:20px;cursor:pointer;flex-shrink:0">
@@ -3623,6 +3650,14 @@ function _taskAttachmentsBlock(existing = [], descValue = '') {
     </div>
   `;
 }
+
+window._addAmt = function(fieldId, n) {
+  const el = document.getElementById(fieldId);
+  if (!el) return;
+  const cur = parseFloat((el.value || '').toString().replace(/\s/g, '')) || 0;
+  el.value = String(cur + n);
+  el.dispatchEvent(new Event('input', { bubbles: true }));
+};
 
 window._pickPrio = function(v) {
   const hidden = document.getElementById('t-priority');
