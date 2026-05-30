@@ -8,15 +8,29 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>WELL DOM</title>
 <link rel="manifest" href="/manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{
   --blue:#1565c0;--blue-light:#1976d2;--blue-dark:#0d47a1;
   --green:#2e7d32;--red:#c62828;
+  /* ── Refreshed warm palette (designed by Claude) ── */
   --orange:#e07820;--orange-dark:#c86418;--orange-light:#f5a04a;
-  --bg:#f5f0ea;--card:#fff;--text:#2c2416;--text2:#7a6a55;--border:#e0d5c8;
+  --accent-tint: oklch(0.95 0.05 66);
+  --income: oklch(0.58 0.12 158); --income-tint: oklch(0.95 0.04 158);
+  --expense: oklch(0.56 0.165 27); --expense-tint: oklch(0.955 0.04 30);
+  --warn: oklch(0.62 0.16 45);
+  --bg: oklch(0.965 0.016 74);
+  --card:#fff;
+  --text: oklch(0.27 0.012 65);
+  --text2: oklch(0.49 0.012 65);
+  --text3: oklch(0.64 0.012 65);
+  --border: oklch(0.905 0.014 72);
+  --hair: oklch(0.93 0.012 72);
   --input-bg:#fff;--chip-bg:#f0ebe3;--icon-bg:#f5f0ea;--tag-bg:#fff3e0;
-  --shadow:0 2px 8px rgba(0,0,0,.10);
+  --shadow: 0 1px 2px rgba(78,52,22,.05), 0 8px 22px -10px rgba(78,52,22,.14);
   --radius:12px;--h:56px;
 }
 [data-theme="dark"]{
@@ -98,7 +112,38 @@
 .tg-wave-bar{flex:1;background:var(--text2);border-radius:2px;min-height:4px;opacity:.45;transition:opacity .15s,background .15s;min-width:2px;max-width:5px}
 .tg-wave-bar.played{background:var(--orange);opacity:1}
 .tg-time{font-family:monospace;font-size:11px;color:var(--text2);flex-shrink:0;min-width:36px;text-align:right}
-html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);font-size:16px}
+/* ── Motivation bar (refreshed) ── */
+#motivation-bar{display:none;cursor:pointer;color:#fff;padding:10px 14px;align-items:center;gap:9px;flex-shrink:0;border-radius:13px;margin:0 12px 6px;box-shadow:0 7px 18px -10px #2e7d32;background:linear-gradient(90deg,#2e7d32,#43a047);transition:background .25s,box-shadow .25s}
+#motivation-bar.show{display:flex}
+#motivation-bar.zero{background:linear-gradient(90deg, oklch(0.86 0.05 150), oklch(0.9 0.04 150));color:#1f5e2a;box-shadow:none}
+#motivation-bar.hot{animation:motpulse 1.8s ease-in-out infinite}
+@keyframes motpulse{0%,100%{transform:scale(1)}50%{transform:scale(1.015)}}
+/* ── Confetti + "+1 ✓" celebration ── */
+.celebrate-layer{position:fixed;inset:0;z-index:9999;pointer-events:none;overflow:hidden}
+.celebrate-layer i{position:absolute;width:9px;height:9px;border-radius:2px;animation:conf 1.1s ease-out forwards}
+@keyframes conf{from{transform:translate(0,0) rotate(0);opacity:1}to{transform:translate(var(--dx),var(--dy)) rotate(var(--r));opacity:0}}
+.plus1-float{position:fixed;z-index:10000;font-weight:800;color:#2e9e4a;font-size:22px;pointer-events:none;animation:plus1 .9s ease-out forwards;text-shadow:0 2px 8px rgba(0,0,0,.15)}
+@keyframes plus1{0%{transform:translate(-50%,0);opacity:0}20%{opacity:1}100%{transform:translate(-50%,-48px);opacity:0}}
+/* ── Tasks: day chips + streak ── */
+.task-day-chips{display:flex;gap:8px;padding:0 16px 8px;flex-shrink:0}
+.dchip{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 6px;border-radius:13px;background:var(--card);border:1px solid var(--border);box-shadow:var(--shadow);cursor:pointer;transition:transform .15s}
+.dchip:active{transform:scale(.97)}
+.dchip .dv{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums}
+.dchip .dl{font-size:10px;font-weight:600;color:var(--text2)}
+.dchip.good .dv{color:var(--income)}
+.dchip.warn .dv{color:var(--expense)}
+.dchip.bump{animation:bump .4s ease}
+@keyframes bump{0%,100%{transform:scale(1)}40%{transform:scale(1.12)}}
+.task-streak{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;font-size:12px;font-weight:800;color:#b5560f;background:linear-gradient(90deg,#ffe6c2,#ffd5a3);border-radius:99px;padding:5px 11px;margin-left:8px}
+/* ── Task urgency left bar ── */
+.task-card-urg{position:relative;overflow:hidden}
+.task-card-urg::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--text3);border-radius:0 2px 2px 0}
+.task-card-urg.urg-today::before{background:var(--orange)}
+.task-card-urg.urg-tomorrow::before{background:#e0a11e}
+.task-card-urg.urg-week::before{background:#7cb342}
+.task-card-urg.urg-overdue::before{background:var(--expense);width:5px}
+.task-card-urg.urg-done::before{background:#9e9e9e}
+html,body{height:100%;font-family:'Golos Text',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);font-size:16px}
 #app{height:100%;display:flex;flex-direction:column;max-width:480px;margin:0 auto;position:relative}
 
 /* ── screens ── */
@@ -459,9 +504,11 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
     <button class="icon-btn" onclick="toggleTheme()" id="theme-btn-top" title="Тема" style="margin-right:4px">🌙</button>
     <button class="user-avatar" onclick="showTab('profile')" id="user-avatar-btn">М</button>
   </div>
-  <div id="motivation-bar" onclick="showTab('dashboard')" style="display:none;cursor:pointer;background:linear-gradient(90deg,#2e7d32,#43a047);color:#fff;padding:8px 14px;display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:600;gap:10px;flex-shrink:0">
-    <span>💰 Сегодня: <span id="mot-today">+0 ₽</span></span>
-    <span style="opacity:.95;white-space:nowrap"><span id="mot-streak">🔥 0</span></span>
+  <div id="motivation-bar" onclick="showTab('dashboard')">
+    <span id="mot-emoji" style="font-size:17px;flex-shrink:0">💪</span>
+    <span id="mot-text" style="flex:1;font-size:13.5px;font-weight:700">Сегодня: <span id="mot-today">+0 ₽</span></span>
+    <span style="opacity:.85"><span id="mot-streak">🔥 0</span></span>
+    <span style="flex-shrink:0;opacity:.85">›</span>
   </div>
   <div style="flex:1;overflow:hidden;display:flex;flex-direction:column">
 
@@ -558,8 +605,19 @@ html,body{height:100%;font-family:system-ui,-apple-system,sans-serif;background:
     <!-- TASKS TAB -->
     <div class="tab" id="tab-tasks">
       <div class="section-header">
-        <h2>Задачи</h2>
+        <h2>Задачи <span class="task-streak" id="task-streak" style="display:none">🔥 <span id="task-streak-n">0</span> дн</span></h2>
         <button class="add-btn" id="add-task-btn" onclick="openCreateTask()">+ Задача</button>
+      </div>
+      <div class="task-day-chips" id="task-day-chips">
+        <div class="dchip good" id="dchip-closed" onclick="setTaskFilter('done', document.querySelector('#task-filters [data-filter=done]'))">
+          <span class="dv" id="dchip-closed-n">0</span><span class="dl">сегодня закрыто</span>
+        </div>
+        <div class="dchip" id="dchip-active" onclick="setTaskFilter('active', document.querySelector('#task-filters [data-filter=active]'))">
+          <span class="dv" id="dchip-active-n">0</span><span class="dl">активных</span>
+        </div>
+        <div class="dchip" id="dchip-overdue" onclick="setTaskDateFilter('overdue', document.querySelector('#task-date-filters [data-date=overdue]'))">
+          <span class="dv" id="dchip-overdue-n">0</span><span class="dl">просрочено</span>
+        </div>
       </div>
       <div class="filters" id="task-filters">
         <div class="filter-chip active" data-filter="active" onclick="setTaskFilter('active',this)">Активные</div>
@@ -1615,15 +1673,66 @@ async function loadMotivation() {
     document.getElementById('mot-streak').textContent = streak > 0
       ? `🔥 ${streak} дн${best > streak ? ' (рекорд '+best+')' : ''}`
       : '🔥 0';
-    bar.style.display = 'flex';
-    // Colour: green if earned today, neutral if not
-    bar.style.background = today > 0
-      ? 'linear-gradient(90deg,#2e7d32,#43a047)'
-      : 'linear-gradient(90deg,#5d4037,#795548)';
+    // Three states based on today's earnings vs daily-goal proxy
+    const goalKey = `goal_${currentProject.code}_${_user.id}`;
+    const monthGoal = parseFloat(localStorage.getItem(goalKey) || 0);
+    const dailyGoal = monthGoal > 0 ? monthGoal / 22 : 5000;
+    const emoji = document.getElementById('mot-emoji');
+    const text = document.getElementById('mot-text');
+    bar.classList.remove('zero', 'hot');
+    bar.classList.add('show');
+    if (today <= 0) {
+      bar.classList.add('zero');
+      emoji.textContent = '🌅';
+      text.innerHTML = 'Начнём день — внесите первую запись';
+    } else if (today >= dailyGoal) {
+      bar.classList.add('hot');
+      emoji.textContent = '🔥';
+      text.innerHTML = `Сегодня заработано: <span id="mot-today">+${fmt(today)} ₽</span>`;
+    } else {
+      emoji.textContent = '💪';
+      text.innerHTML = `Сегодня: <span id="mot-today">+${fmt(today)} ₽</span> · можно ещё`;
+    }
   } catch (_) {
-    bar.style.display = 'none';
+    bar.classList.remove('show');
   }
 }
+
+// ── Celebration helpers ──────────────────────────────────────────────────────
+window.celebrateTaskClosed = function(originEl) {
+  // confetti burst from origin
+  const rect = originEl ? originEl.getBoundingClientRect() : { left: window.innerWidth/2, top: window.innerHeight/2, width: 0, height: 0 };
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  const layer = document.createElement('div');
+  layer.className = 'celebrate-layer';
+  document.body.appendChild(layer);
+  const colors = ['#2e7d32', '#43a047', '#e07820', '#6B53A0', '#3F6FA3', '#C9A23A'];
+  const n = 14;
+  for (let i = 0; i < n; i++) {
+    const ang = (Math.PI * 2 * i) / n + (i % 3);
+    const dist = 60 + (i % 5) * 18;
+    const ic = document.createElement('i');
+    ic.style.left = cx + 'px';
+    ic.style.top = cy + 'px';
+    ic.style.background = colors[i % colors.length];
+    ic.style.setProperty('--dx', Math.round(Math.cos(ang) * dist) + 'px');
+    ic.style.setProperty('--dy', Math.round(Math.sin(ang) * dist - 30) + 'px');
+    ic.style.setProperty('--r', ((i * 47) % 360) + 'deg');
+    layer.appendChild(ic);
+  }
+  // floating "+1 ✓"
+  const p = document.createElement('div');
+  p.className = 'plus1-float';
+  p.textContent = '+1 ✓';
+  p.style.left = cx + 'px';
+  p.style.top = cy + 'px';
+  document.body.appendChild(p);
+  setTimeout(() => { layer.remove(); p.remove(); }, 1200);
+  // bump the "closed today" chip if visible
+  const chip = document.getElementById('dchip-closed');
+  if (chip) { chip.classList.remove('bump'); void chip.offsetWidth; chip.classList.add('bump'); }
+};
 
 // Smart defaults: remember last values per kind+project
 function _defaultsKey(kind) { return `defaults_${currentProject?.code}_${kind}`; }
@@ -2694,7 +2803,47 @@ window.applyTaskDateRange = function() {
   loadTasks();
 };
 
+async function _updateTaskCounters() {
+  // Загрузим все ОТКРЫТЫЕ + закрытые сегодня, чтобы посчитать счётчики
+  try {
+    const today = new Date(); today.setHours(0,0,0,0);
+    const tStart = today.toISOString();
+    const tEnd = new Date(today.getTime() + 86399000).toISOString();
+    const [all, doneToday] = await Promise.all([
+      Tasks.list({ include_done: false }),
+      Tasks.list({ status: 'done' }).catch(() => []),
+    ]);
+    const myId = _user?.id;
+    const myTasks = all.filter(t => !myId || t.creator?.id === myId || (t.assignees || []).some(a => a.id === myId));
+    const activeN = myTasks.length;
+    const overdueN = myTasks.filter(t => t.due_at && new Date(t.due_at) < new Date() && t.status !== 'done').length;
+    const closedTodayN = doneToday.filter(t => t.completed_at && new Date(t.completed_at) >= today).length;
+    const setN = (id, n) => { const e = document.getElementById(id); if (e) e.textContent = n; };
+    setN('dchip-closed-n', closedTodayN);
+    setN('dchip-active-n', activeN);
+    setN('dchip-overdue-n', overdueN);
+    const overdueChip = document.getElementById('dchip-overdue');
+    if (overdueChip) overdueChip.classList.toggle('warn', overdueN > 0);
+    // streak — дней подряд с закрытыми задачами
+    const streakDays = new Set((doneToday || []).map(t => (t.completed_at || '').slice(0, 10)).filter(Boolean));
+    let streak = 0;
+    for (let i = 0; i < 60; i++) {
+      const d = new Date(); d.setDate(d.getDate() - i);
+      const k = d.toISOString().slice(0, 10);
+      if (streakDays.has(k)) streak++;
+      else if (i > 0) break;
+    }
+    const ste = document.getElementById('task-streak');
+    const stn = document.getElementById('task-streak-n');
+    if (ste && stn) {
+      if (streak > 0) { ste.style.display = ''; stn.textContent = streak; }
+      else ste.style.display = 'none';
+    }
+  } catch(_) {}
+}
+
 async function loadTasks() {
+  _updateTaskCounters();
   const el = document.getElementById('tasks-list');
   el.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
   const params = {};
@@ -2755,6 +2904,19 @@ function renderTaskList(tasks) {
     el.innerHTML = '<div class="empty">Нет задач</div>';
     return;
   }
+  const _urgClass = (t) => {
+    if (t.status === 'done') return 'urg-done';
+    if (t.due_at && new Date(t.due_at) < new Date()) return 'urg-overdue';
+    if (!t.due_at) return '';
+    const today = new Date(); today.setHours(0,0,0,0);
+    const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1); tomorrow.setHours(23,59,59,999);
+    const weekEnd = new Date(today); weekEnd.setDate(today.getDate() + 7);
+    const due = new Date(t.due_at);
+    if (due <= tomorrow && due.toDateString() === new Date().toDateString()) return 'urg-today';
+    if (due <= tomorrow) return 'urg-tomorrow';
+    if (due <= weekEnd) return 'urg-week';
+    return '';
+  };
   el.innerHTML = tasks.map(t => {
     const done = t.status === 'done';
     const assignees = (t.assignees || []).map(a => esc(a.name)).join(', ') || '—';
@@ -2767,10 +2929,10 @@ function renderTaskList(tasks) {
       : '';
     const typeBadge = t.type ? `<span style="background:var(--chip-bg);padding:2px 6px;border-radius:4px;font-size:10px;color:var(--text2)">${esc(t.type)}</span>` : '';
     const completeBtn = done
-      ? `<button onclick="event.stopPropagation();toggleTaskDone('${t.id}', false)" title="Открыть снова" style="background:var(--tag-bg);border:1px solid var(--border);padding:5px 9px;border-radius:6px;cursor:pointer;font-size:13px">↩</button>`
-      : `<button onclick="event.stopPropagation();toggleTaskDone('${t.id}', true)" title="Завершить" style="background:#2e7d32;border:none;color:#fff;padding:5px 9px;border-radius:6px;cursor:pointer;font-size:13px">✓</button>`;
+      ? `<button onclick="event.stopPropagation();toggleTaskDone('${t.id}', false, this)" title="Открыть снова" style="background:var(--tag-bg);border:1px solid var(--border);padding:5px 9px;border-radius:6px;cursor:pointer;font-size:13px">↩</button>`
+      : `<button onclick="event.stopPropagation();toggleTaskDone('${t.id}', true, this)" title="Завершить" style="background:#2e7d32;border:none;color:#fff;padding:5px 9px;border-radius:6px;cursor:pointer;font-size:13px;transition:transform .12s" onmousedown="this.style.transform='scale(.92)'" onmouseup="this.style.transform=''">✓</button>`;
     return `
-      <div class="record-card" style="${done ? 'opacity:.55' : ''};border-left:3px solid ${done ? '#9e9e9e' : 'var(--orange)'};position:relative">
+      <div class="record-card task-card-urg ${_urgClass(t)}" style="${done ? 'opacity:.55' : ''};position:relative;padding-left:14px">
         <div style="display:flex;align-items:flex-start;gap:10px">
           <div style="flex:1;min-width:0;padding-right:80px" onclick="openEditTask('${t.id}')">
             <div style="font-weight:600;font-size:15px;${done ? 'text-decoration:line-through' : ''}">${esc(t.title)}</div>
@@ -2794,9 +2956,12 @@ function renderTaskList(tasks) {
   }).join('');
 }
 
-window.toggleTaskDone = async function(id, checked) {
+window.toggleTaskDone = async function(id, checked, btnEl) {
   try {
     await Tasks.update(id, { status: checked ? 'done' : 'open' });
+    if (checked) {
+      try { celebrateTaskClosed(btnEl); } catch(_) {}
+    }
     loadTasks();
   } catch(e) {
     toast('Ошибка: ' + (e?.detail || ''));
