@@ -1,8 +1,18 @@
 /* REST API wrapper — replaces google.script.run */
 
-const API_BASE = window.location.hostname === "localhost"
-  ? "http://localhost:8000/api/v1"
-  : "/api/v1";
+// API base URL detection:
+// - Native Capacitor app (Android/iOS) → абсолютный URL продакшн-бекенда
+// - Локальная разработка через localhost → http://localhost:8000
+// - Иначе (веб) → относительный путь, тот же домен
+const API_BASE = (() => {
+  // Capacitor: WebView отдаёт страницу с протокола capacitor:// (Android)
+  // или https://localhost (iOS), поэтому относительный путь не сработает
+  const isCap = (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform())
+    || /^capacitor:/i.test(window.location.protocol);
+  if (isCap) return "https://welldom05.duckdns.org/api/v1";
+  if (window.location.hostname === "localhost") return "http://localhost:8000/api/v1";
+  return "/api/v1";
+})();
 
 let _accessToken = localStorage.getItem("access_token") || null;
 let _refreshToken = localStorage.getItem("refresh_token") || null;
