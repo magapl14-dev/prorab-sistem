@@ -758,6 +758,9 @@ body{background:var(--bg)}
             </select>
           </div>
         </div>
+        <div class="rpt-filter-row" id="rpt-master-filter-row">
+          <div class="rpt-chip active" id="rpt-m-all" onclick="setRptMaster('',this)">👷 Все мастера</div>
+        </div>
       </div>
       <div class="content" id="rpt-content" style="padding-top:8px"></div>
     </div>
@@ -2869,8 +2872,37 @@ let _rptTab = 'list';
 let _rptPeriod = 'all';
 let _rptType = 'all';
 let _rptCategory = '';
+let _rptMaster = '';   // master_id фильтра (пусто = все мастера)
 let _rptMine = false;
 let _rptAllRecs = null; // null = loading, [] = loaded-empty, [...] = loaded-with-data
+
+window.setRptMaster = function(masterId, el) {
+  _rptMaster = masterId;
+  document.querySelectorAll('#rpt-master-filter-row .rpt-chip').forEach(e => e.classList.remove('active'));
+  if (el) el.classList.add('active');
+  renderRptContent();
+};
+
+async function _populateRptMasterChips() {
+  const row = document.getElementById('rpt-master-filter-row');
+  if (!row || row.dataset.populated === '1') return;
+  try {
+    const masters = await Masters.list();
+    if (!masters.length) { row.dataset.populated = '1'; return; }
+    const chips = masters.map(m => {
+      const init = (m.name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+      const cnt = m.payments_count || 0;
+      return `<div class="rpt-chip" data-mid="${esc(m.id)}" onclick="setRptMaster('${esc(m.id)}',this)" title="${esc(m.name)}">
+        <span style="display:inline-flex;align-items:center;gap:6px">
+          <span style="width:18px;height:18px;border-radius:50%;background:${esc(m.color || 'var(--orange)')};color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:800">${esc(init)}</span>
+          ${esc(m.name.split(' ').slice(0, 2).join(' '))}${cnt ? ` <span style="opacity:.5">·${cnt}</span>` : ''}
+        </span>
+      </div>`;
+    }).join('');
+    row.insertAdjacentHTML('beforeend', chips);
+    row.dataset.populated = '1';
+  } catch(_) {}
+}
 
 window.switchRptTab = function(tab) {
   _rptTab = tab;
@@ -2927,6 +2959,9 @@ async function loadReport() {
       Earnings.plan(currentProject.code).catch(() => null),
     ]);
     _rptAllRecs = allRecs.items || [];
+
+    // Populate master filter chips (one-time, async, won't block render)
+    _populateRptMasterChips();
 
     // Fill category select
     const cats = [...new Set(_rptAllRecs.filter(r=>r.category).map(r=>r.category))].sort();
@@ -3022,11 +3057,17 @@ function renderRptContent() {
     return;
   }
 
+  // Если выбран мастер — показываем только его выплаты (master_payment с master_id)
+  // _rptAllRecs остаётся неизменным, фильтруем view-список:
+  const viewRecs = _rptMaster
+    ? _rptAllRecs.filter(r => r.kind === 'master_payment' && r.master_id === _rptMaster)
+    : _rptAllRecs;
+
   const existingPlan = el.querySelector('.dash-card');
   const planHtml = existingPlan ? existingPlan.outerHTML : '';
 
   if (_rptTab === 'photos') {
-    const photos = _rptAllRecs.flatMap(r => r.photos || []).filter(p => p.url);
+    const photos = viewRecs.flatMap(r => r.photos || []).filter(p => p.url);
     el.innerHTML = planHtml + (photos.length
       ? `<div class="rpt-photo-grid">${photos.map(p=>`<img src="${p.url}" loading="lazy">`).join('')}</div>`
       : '<div class="empty"><div class="icon">🖼</div>Нет фотографий</div>');
@@ -3034,7 +3075,7 @@ function renderRptContent() {
   }
 
   if (_rptTab === 'masters') {
-    const masters = _rptAllRecs.filter(r => r.kind === 'master_payment');
+    const masters = viewRecs.filter(r => r.kind === 'master_payment');
     el.innerHTML = planHtml + '<div style="padding:8px 0">' + (masters.length ? masters.map(r => {
       const d = r.operation_date ? r.operation_date.slice(0,10).split('-').reverse().join('.') : '';
       return `<div class="rpt-masters-item">
@@ -3046,7 +3087,7 @@ function renderRptContent() {
   }
 
   if (_rptTab === 'analytics') {
-    const expenses = _rptAllRecs.filter(r => r.kind === 'expense');
+    const expenses = viewRecs.filter(r => r.kind === 'expense');
 
     // Group by type
     const byType = {};
@@ -3107,7 +3148,7 @@ function renderRptContent() {
   }
 
   // ── Список (default)
-  let recs = [..._rptAllRecs];
+  let recs = [...viewRecs];
   if (_rptType !== 'all') recs = recs.filter(r => r.kind === _rptType);
   if (_rptCategory) recs = recs.filter(r => r.category === _rptCategory);
   recs.sort((a,b) => (b.operation_date||'').localeCompare(a.operation_date||''));
