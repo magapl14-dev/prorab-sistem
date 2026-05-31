@@ -2367,9 +2367,37 @@ window._payToMaster = function(masterId, masterName) {
 
 window.openMasterEdit = async function(masterId) {
   let m = null;
+  let history = [];
   if (masterId) {
     try { m = await Masters.get(masterId); } catch(_) {}
+    // подгрузим выплаты этого мастера из текущего проекта
+    if (currentProject) {
+      try {
+        const recs = await Records.list(currentProject.code, { kind: 'master_payment', limit: 200 });
+        history = (recs.items || []).filter(r => r.master_id === masterId || (m && (r.name || '').trim() === m.name));
+      } catch(_) {}
+    }
   }
+  const historyHtml = !m ? '' : (history.length
+    ? `<div style="margin:14px -4px 0">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text2);padding:0 4px 8px">История выплат — ${history.length}</div>
+        <div style="max-height:260px;overflow-y:auto;background:var(--bg);border-radius:12px;padding:4px">
+          ${history.map(r => {
+            const amt = parseFloat(r.payment_amount || 0);
+            const date = r.operation_date ? new Date(r.operation_date).toLocaleDateString('ru-RU', { day:'2-digit', month:'2-digit', year:'2-digit' }) : '';
+            const typeLabel = r.type || (r.is_advance ? 'Аванс' : 'Зарплата');
+            const tint = typeLabel === 'Аванс' ? '#fff3e0' : typeLabel === 'Премия' ? '#e8f5e9' : typeLabel === 'Возврат долга' ? '#fee' : 'var(--card)';
+            const ink = typeLabel === 'Аванс' ? '#b5560f' : typeLabel === 'Премия' ? '#2e7d32' : typeLabel === 'Возврат долга' ? '#c62828' : 'var(--text2)';
+            return `<div style="display:flex;align-items:center;gap:10px;padding:9px 10px;border-bottom:1px solid var(--hair)">
+              <div style="font-size:11.5px;font-weight:700;background:${tint};color:${ink};padding:3px 8px;border-radius:99px;flex-shrink:0">${esc(typeLabel)}</div>
+              <div style="font-size:12px;color:var(--text2);flex:1">${date}</div>
+              <div style="font-weight:800;font-variant-numeric:tabular-nums;color:var(--expense)">− ${fmt(amt)} ₽</div>
+            </div>`;
+          }).join('')}
+        </div>
+       </div>`
+    : `<div style="text-align:center;padding:16px;color:var(--text2);font-size:12.5px">Пока нет выплат</div>`);
+
   openModal(masterId ? 'Карточка мастера' : 'Новый мастер', `
     <div class="form-group"><label>Имя</label><input id="m-mname" type="text" value="${esc(m?.name || '')}" placeholder="Иван Петров"></div>
     <div class="row-2">
@@ -2378,11 +2406,14 @@ window.openMasterEdit = async function(masterId) {
     </div>
     <div class="form-group"><label>Ставка / тариф (опц)</label><input id="m-mrate" type="number" value="${m?.default_rate || ''}" placeholder="3000"></div>
     <div class="form-group"><label>Заметки</label><textarea id="m-mnotes" placeholder="Особенности, контакты бригады...">${esc(m?.notes || '')}</textarea></div>
-    ${m ? `<div style="background:var(--bg);border-radius:12px;padding:12px;margin-bottom:14px;font-size:12.5px">
-      <div>Выплачено всего: <strong style="color:var(--expense);font-variant-numeric:tabular-nums">${fmt(m.total_paid || 0)} ₽</strong></div>
-      <div style="color:var(--text2);margin-top:3px">${m.payments_count || 0} выплат</div>
-    </div>` : ''}
-    <div class="modal-actions">
+    ${m ? `<div style="background:var(--bg);border-radius:12px;padding:12px;margin-bottom:6px;display:flex;gap:12px;align-items:center">
+      <div style="flex:1;font-size:12.5px">
+        <div>Выплачено всего: <strong style="color:var(--expense);font-variant-numeric:tabular-nums">${fmt(m.total_paid || 0)} ₽</strong></div>
+        <div style="color:var(--text2);margin-top:3px">${m.payments_count || 0} выплат · посл. ${m.last_paid_at || '—'}</div>
+      </div>
+      <button onclick="closeModal();_payToMaster('${m.id}','${esc(m.name).replace(/'/g,'')}')" style="background:var(--orange);color:#fff;border:none;border-radius:10px;padding:9px 13px;font-weight:700;font-size:13px;cursor:pointer">+ Выплата</button>
+    </div>${historyHtml}` : ''}
+    <div class="modal-actions" style="margin-top:16px">
       ${m ? `<button class="btn btn-danger" onclick="_deleteMaster('${m.id}')">Удалить</button>` : ''}
       <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
       <button class="btn" onclick="${m ? `_saveMaster('${m.id}')` : '_saveMaster()'}">${m ? 'Сохранить' : 'Создать'}</button>
