@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">WELL DOM</string>
+    <string name="title_activity_main">WELL DOM</string>
+    <string name="package_name">ru.welldom.app</string>
+    <string name="custom_url_scheme">ru.welldom.app</string>
+</resources>

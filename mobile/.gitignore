@@ -6,9 +6,11 @@ android/app/build/
 android/local.properties
 android/app/release/
 android/captures/
+android/.idea/
 ios/App/Pods/
 ios/App/build/
 ios/DerivedData/
+ios/App/App.xcworkspace/xcuserdata/
 *.apk
 *.ipa
 *.aab
