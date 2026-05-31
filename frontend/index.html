@@ -251,7 +251,8 @@ body{background:var(--bg)}
 /* ── main app ── */
 #main-screen{flex:1;overflow:hidden}
 .top-bar{background:var(--bg);color:var(--text);padding:10px 14px;display:flex;align-items:center;gap:10px;flex-shrink:0;position:relative;z-index:5}
-.top-bar-logo{font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;display:flex;align-items:center;gap:6px;flex-shrink:0;background:var(--card);border-radius:13px;padding:9px 12px;box-shadow:var(--shadow)}
+.top-bar-logo{font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;display:flex;align-items:center;gap:6px;flex-shrink:0;background:var(--card);border-radius:13px;padding:9px 12px;box-shadow:var(--shadow);border:none;cursor:pointer;font-family:inherit;transition:transform .12s}
+.top-bar-logo:active{transform:scale(.96)}
 .top-bar-logo .logo-house{font-size:20px}
 .project-pill{background:var(--card);color:var(--text);border:none;border-radius:13px;padding:8px 12px;font-size:14px;font-weight:700;cursor:pointer;flex:1;min-width:0;display:flex;align-items:center;gap:8px;overflow:hidden;box-shadow:var(--shadow);transition:transform .12s}
 .project-pill:active{transform:scale(.98)}
@@ -563,10 +564,10 @@ body{background:var(--bg)}
 <!-- MAIN APP SCREEN -->
 <div id="main-screen" class="screen">
   <div class="top-bar">
-    <div class="top-bar-logo">
+    <button type="button" class="top-bar-logo" onclick="showTab('home')" aria-label="На главную" style="cursor:pointer">
       <span class="logo-house">🏠</span>
       <span>WELL DOM</span>
-    </div>
+    </button>
     <button class="project-pill" onclick="goBack()" id="project-pill-btn">
       <span class="pill-dot"></span>
       <span id="project-title">Проект</span>
