@@ -7,8 +7,8 @@
     "sync-web": "node sync-web.js",
     "open:android": "npm run sync-web && npx cap sync android && npx cap open android",
     "open:ios": "npm run sync-web && npx cap sync ios && npx cap open ios",
-    "build:android": "npm run sync-web && npx cap sync android && cd android && ./gradlew assembleRelease",
-    "build:android:debug": "npm run sync-web && npx cap sync android && cd android && ./gradlew assembleDebug",
+    "build:android": "npm run sync-web && npx cap sync android && cd android && .\\gradlew.bat assembleRelease",
+    "build:android:debug": "npm run sync-web && npx cap sync android && cd android && .\\gradlew.bat assembleDebug",
     "init:android": "npx cap add android",
     "init:ios": "npx cap add ios"
   },
