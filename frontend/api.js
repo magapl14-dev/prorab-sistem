@@ -144,6 +144,14 @@ export const Admin = {
     update: (data) => _patch("/admin/bitrix", data),
     test: () => _post("/admin/bitrix/test", {}),
   },
+  analytics: {
+    users: (params = {}) => {
+      const qs = new URLSearchParams();
+      Object.entries(params).forEach(([k, v]) => { if (v) qs.set(k, v); });
+      const s = qs.toString();
+      return _get(`/admin/analytics/users${s ? '?' + s : ''}`);
+    },
+  },
 };
 
 export const Masters = {

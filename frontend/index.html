@@ -840,6 +840,7 @@ body{background:var(--bg);position:fixed;inset:0;width:100%;height:100dvh}
           <button class="btn btn-secondary" id="admin-projects-btn" style="margin-bottom:10px" onclick="openAdminProjects()">🏗️ Проекты</button>
           <button class="btn btn-secondary" id="admin-dict-btn" style="margin-bottom:10px" onclick="openAdminDictionaries()">📋 Справочники</button>
           <button class="btn btn-secondary" id="admin-perms-btn" style="margin-bottom:10px" onclick="openAdminPermissions()">🔐 Роли и права</button>
+          <button class="btn btn-secondary" id="admin-analytics-btn" style="margin-bottom:10px" onclick="openAdminAnalytics()">📊 Аналитика пользователей</button>
           <button class="btn btn-secondary" id="admin-bitrix-btn" style="margin-bottom:10px" onclick="openAdminBitrix()">🔗 Интеграция Битрикс24</button>
           <button class="btn btn-secondary" id="admin-brand-btn" onclick="openAdminBranding()">🎨 Брендинг (имя/лого/фавикон)</button>
         </div>
@@ -5247,6 +5248,124 @@ window.submitBranding = async function() {
 };
 
 // ── Admin: Bitrix24 integration ──────────────────────────────────────────────
+// ── Admin: Analytics ──────────────────────────────────────────────────────────
+let _analyticsRange = 'all';
+let _analyticsProject = 'all';
+
+window.openAdminAnalytics = async function() {
+  openSheet('detail-sheet');
+  document.getElementById('detail-title').textContent = 'Аналитика пользователей';
+  document.getElementById('detail-body').innerHTML = '<div class="loader"><div class="spinner"></div></div>';
+  _analyticsRange = 'all';
+  _analyticsProject = currentProject?.code || 'all';
+  await _renderAnalytics();
+};
+
+function _analyticsRangeParams() {
+  const now = new Date();
+  if (_analyticsRange === 'today') {
+    const s = new Date(now); s.setHours(0,0,0,0);
+    const e = new Date(now); e.setHours(23,59,59,999);
+    return { date_from: s.toISOString(), date_to: e.toISOString() };
+  }
+  if (_analyticsRange === 'week') {
+    const s = new Date(now); s.setDate(now.getDate() - 7); s.setHours(0,0,0,0);
+    return { date_from: s.toISOString() };
+  }
+  if (_analyticsRange === 'month') {
+    const s = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    return { date_from: s.toISOString() };
+  }
+  return {};
+}
+
+async function _renderAnalytics() {
+  const el = document.getElementById('detail-body');
+  el.innerHTML = `
+    <div style="padding:0 4px 14px">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+        <button onclick="_setAnalyticsRange('all',this)" class="filter-chip ${_analyticsRange==='all'?'active':''}">За всё время</button>
+        <button onclick="_setAnalyticsRange('today',this)" class="filter-chip ${_analyticsRange==='today'?'active':''}">Сегодня</button>
+        <button onclick="_setAnalyticsRange('week',this)" class="filter-chip ${_analyticsRange==='week'?'active':''}">Неделя</button>
+        <button onclick="_setAnalyticsRange('month',this)" class="filter-chip ${_analyticsRange==='month'?'active':''}">Месяц</button>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+        <button onclick="_setAnalyticsProject('all',this)" class="filter-chip ${_analyticsProject==='all'?'active':''}">Все проекты</button>
+        ${currentProject ? `<button onclick="_setAnalyticsProject('${esc(currentProject.code)}',this)" class="filter-chip ${_analyticsProject===currentProject.code?'active':''}">🏗️ ${esc(currentProject.name)}</button>` : ''}
+      </div>
+      <div id="analytics-list"><div class="loader"><div class="spinner"></div></div></div>
+    </div>
+  `;
+
+  const listEl = document.getElementById('analytics-list');
+  try {
+    const params = _analyticsRangeParams();
+    if (_analyticsProject !== 'all') params.project_code = _analyticsProject;
+    const rows = await Admin.analytics.users(params);
+    if (!rows.length) { listEl.innerHTML = '<div class="empty">Нет данных</div>'; return; }
+
+    // Sort: most active first
+    rows.sort((a, b) => (b.records_total + b.tasks_completed) - (a.records_total + a.tasks_completed));
+
+    listEl.innerHTML = rows.map((r, i) => {
+      const init = (r.name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+      const lastSeen = r.last_activity_at
+        ? new Date(r.last_activity_at).toLocaleDateString('ru-RU', { day:'2-digit', month:'2-digit', year:'2-digit' })
+        : '—';
+      const totalSpent = parseFloat(r.expenses_sum || 0) + parseFloat(r.master_payments_sum || 0);
+      const totalIn = parseFloat(r.client_payments_sum || 0);
+      const rank = i < 3 ? ['🥇','🥈','🥉'][i] : '';
+      return `
+        <div class="record-card" style="margin-bottom:10px">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+            <div style="width:44px;height:44px;border-radius:13px;background:var(--orange);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px">${esc(init)}</div>
+            <div style="flex:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:6px">
+                <span style="font-weight:700;font-size:15px">${esc(r.name)}</span>
+                ${rank ? `<span>${rank}</span>` : ''}
+              </div>
+              <div style="font-size:11.5px;color:var(--text2);margin-top:2px">${esc(roleLabel(r.role))} · посл. ${lastSeen}${!r.active ? ' · <span style="color:var(--expense)">неактивен</span>' : ''}</div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div style="background:var(--bg);border-radius:10px;padding:9px 11px">
+              <div style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text2)">Записей</div>
+              <div style="font-size:17px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:2px">${r.records_total}</div>
+              <div style="font-size:11px;color:var(--text2);margin-top:2px">сегодня ${r.records_today} · нед. ${r.records_week}</div>
+            </div>
+            <div style="background:var(--bg);border-radius:10px;padding:9px 11px">
+              <div style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text2)">Задачи</div>
+              <div style="font-size:17px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:2px">${r.tasks_completed}<span style="font-size:13px;color:var(--text2);font-weight:600"> / ${r.tasks_assigned_open + r.tasks_completed}</span></div>
+              <div style="font-size:11px;color:var(--text2);margin-top:2px">создал ${r.tasks_created}</div>
+            </div>
+            <div style="background:var(--expense-tint);border-radius:10px;padding:9px 11px">
+              <div style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--expense)">Расходы (закуп + мастера)</div>
+              <div style="font-size:14.5px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--expense);margin-top:2px">− ${fmt(totalSpent)} ₽</div>
+              <div style="font-size:10.5px;color:var(--text2);margin-top:2px">з: ${r.expenses_count} · м: ${r.master_payments_count}</div>
+            </div>
+            <div style="background:var(--income-tint);border-radius:10px;padding:9px 11px">
+              <div style="font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--income)">Платежи клиента</div>
+              <div style="font-size:14.5px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--income);margin-top:2px">+ ${fmt(totalIn)} ₽</div>
+              <div style="font-size:10.5px;color:var(--text2);margin-top:2px">${r.client_payments_count} штук</div>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch(e) {
+    listEl.innerHTML = `<div class="empty">Ошибка: ${esc(e?.detail || JSON.stringify(e))}</div>`;
+  }
+}
+
+window._setAnalyticsRange = function(r, el) {
+  _analyticsRange = r;
+  _renderAnalytics();
+};
+window._setAnalyticsProject = function(p, el) {
+  _analyticsProject = p;
+  _renderAnalytics();
+};
+
 window.openAdminBitrix = async function() {
   openModal('🔗 Интеграция Битрикс24', '<div class="loader"><div class="spinner"></div></div>');
   let s;
