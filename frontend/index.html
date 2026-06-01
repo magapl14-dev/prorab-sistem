@@ -1682,6 +1682,13 @@ window.goBack = async function() {
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
+  // При смене экрана (особенно при logout / переходе на login) принудительно
+  // закрываем все sheet'ы и модалки чтобы не висели поверх нового экрана
+  document.querySelectorAll('.sheet').forEach(s => s.classList.remove('open'));
+  const overlay = document.getElementById('overlay');
+  if (overlay) overlay.classList.remove('open');
+  const modalOverlay = document.getElementById('modal-overlay');
+  if (modalOverlay) modalOverlay.classList.remove('open');
 }
 
 window.showTab = function(tab) {
