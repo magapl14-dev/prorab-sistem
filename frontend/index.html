@@ -3807,7 +3807,60 @@ function _refreshTaskAttachmentsUI(existing = []) {
   if (el) { el.innerHTML = _renderTaskAttachments(existing); _fixAllAudiosIn(el); }
 }
 
-window.taskPickPhoto = function() {
+// ── Photo picker via Capacitor Camera (asks: camera or gallery) ──────────────
+async function _captureNativePhoto() {
+  const Camera = window.Capacitor?.Plugins?.Camera;
+  if (!Camera) return null;
+  try {
+    const perm = await Camera.checkPermissions();
+    if (perm.camera !== 'granted' || perm.photos !== 'granted') {
+      const req = await Camera.requestPermissions();
+      if (req.camera !== 'granted' && req.photos !== 'granted') {
+        toast('Нужно разрешение камеры/галереи');
+        return null;
+      }
+    }
+    const photo = await Camera.getPhoto({
+      quality: 82,
+      allowEditing: false,
+      resultType: 'base64',
+      source: 'Prompt',
+      promptLabelHeader: 'Прикрепить фото',
+      promptLabelPhoto: '🖼 Из галереи',
+      promptLabelPicture: '📷 Сделать фото',
+      promptLabelCancel: 'Отмена',
+      saveToGallery: false,
+    });
+    const fmt = photo.format || 'jpeg';
+    const mime = 'image/' + fmt;
+    const resp = await fetch(`data:${mime};base64,${photo.base64String}`);
+    const blob = await resp.blob();
+    return new File([blob], `photo_${Date.now()}.${fmt}`, { type: mime });
+  } catch (e) {
+    if (e?.message && !/cancel/i.test(e.message)) toast('Камера: ' + e.message);
+    return null;
+  }
+}
+
+window.taskPickPhoto = async function() {
+  const isCap = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  if (isCap) {
+    const file = await _captureNativePhoto();
+    if (!file) return;
+    const existingJson = document.getElementById('t-existing-att')?.dataset.list || '[]';
+    const existing = JSON.parse(existingJson);
+    try {
+      const photoId = await Photos.upload(file, 'task', 'image');
+      const confirmed = await Photos.confirm(photoId, {});
+      _taskNewAttachments.push({
+        id: photoId, url: confirmed.url, thumb_url: confirmed.thumb_url,
+        media_type: 'image', mime_type: file.type,
+      });
+      _refreshTaskAttachmentsUI(existing);
+      if (typeof _scheduleTaskAutosave === 'function') _scheduleTaskAutosave();
+    } catch(_) { toast('Ошибка загрузки фото'); }
+    return;
+  }
   const inp = document.getElementById('t-photo-input');
   if (inp) inp.click();
 };
@@ -3853,14 +3906,118 @@ function _recBarHtml() {
   `;
 }
 
+// Capacitor native voice recorder branch
+async function _startNativeVoiceRec(context, buttonsHolder) {
+  const VR = window.Capacitor?.Plugins?.VoiceRecorder;
+  if (!VR) { toast('Плагин записи недоступен'); return; }
+  try {
+    const can = await VR.canDeviceVoiceRecord();
+    if (!can?.value) { toast('Это устройство не поддерживает запись'); return; }
+    const perm = await VR.hasAudioRecordingPermission();
+    if (!perm?.value) {
+      const req = await VR.requestAudioRecordingPermission();
+      if (!req?.value) { toast('Нужно разрешение микрофона'); return; }
+    }
+
+    const prevHtml = buttonsHolder.innerHTML;
+    const formSnapshot = {};
+    buttonsHolder.querySelectorAll('input, textarea, select').forEach(el => {
+      if (el.id) formSnapshot[el.id] = el.value;
+    });
+    buttonsHolder.innerHTML = _recBarHtml();
+
+    const startTs = Date.now();
+    _voiceRec = {
+      ctx: context, buttonsHolder, prevHtml, formSnapshot,
+      cancelled: false, startTime: startTs, native: true, vr: VR,
+      timerInterval: 0, rafId: 0,
+    };
+
+    await VR.startRecording();
+
+    const barsEls = buttonsHolder.querySelectorAll('.rec-wave-bar');
+    const timerEl = buttonsHolder.querySelector('.rec-timer');
+    // Имитация бегущих волн (без анализатора, плагин не даёт уровень громкости)
+    const animate = () => {
+      if (!_voiceRec) return;
+      barsEls.forEach((b, i) => {
+        const h = 4 + Math.abs(Math.sin((Date.now() / 200) + i * 0.5)) * 22;
+        b.style.height = h + 'px';
+      });
+      _voiceRec.rafId = requestAnimationFrame(animate);
+    };
+    _voiceRec.rafId = requestAnimationFrame(animate);
+    _voiceRec.timerInterval = setInterval(() => {
+      if (!_voiceRec) return;
+      const sec = Math.floor((Date.now() - _voiceRec.startTime) / 1000);
+      if (timerEl) timerEl.textContent = `${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`;
+    }, 250);
+  } catch(e) {
+    toast('Запись: ' + (e?.message || String(e)));
+  }
+}
+
+async function _stopNativeVoiceRec() {
+  if (!_voiceRec || !_voiceRec.native) return;
+  const rec = _voiceRec;
+  _voiceRec = null;
+  cancelAnimationFrame(rec.rafId);
+  clearInterval(rec.timerInterval);
+  rec.buttonsHolder.innerHTML = rec.prevHtml;
+  Object.entries(rec.formSnapshot || {}).forEach(([id, val]) => {
+    const el = document.getElementById(id);
+    if (el && val !== undefined && val !== '') {
+      el.value = val;
+      try { el.dispatchEvent(new Event('input', { bubbles: true })); } catch(_) {}
+    }
+  });
+
+  let result;
+  try { result = await rec.vr.stopRecording(); } catch(_) { return; }
+  if (rec.cancelled) return;
+  const recVal = result?.value;
+  if (!recVal?.recordDataBase64) { toast('Запись пустая'); return; }
+  const mime = recVal.mimeType || 'audio/aac';
+  const ext = mime.includes('mp4') || mime.includes('aac') ? 'm4a' : mime.includes('ogg') ? 'ogg' : 'webm';
+  const duration = Math.max(1, Math.round((recVal.msDuration || (Date.now() - rec.startTime)) / 1000));
+  const resp = await fetch(`data:${mime};base64,${recVal.recordDataBase64}`);
+  const blob = await resp.blob();
+  if (blob.size < 200) { toast('Запись слишком короткая'); return; }
+  const file = new File([blob], `audio_${Date.now()}.${ext}`, { type: mime });
+
+  try {
+    const photoId = await Photos.upload(file, 'task', 'audio');
+    const confirmed = await Photos.confirm(photoId, { durationSec: duration });
+    const item = {
+      id: photoId, url: confirmed.url, media_type: 'audio',
+      mime_type: mime, duration_sec: duration,
+    };
+    if (rec.ctx === 'task') {
+      _taskNewAttachments.push(item);
+      const existingJson = document.getElementById('t-existing-att')?.dataset.list || '[]';
+      _refreshTaskAttachmentsUI(JSON.parse(existingJson));
+      if (typeof _scheduleTaskAutosave === 'function') _scheduleTaskAutosave();
+    } else {
+      _cmtNewAttachments.push(item);
+      _refreshCmtAttUI();
+    }
+  } catch(e) {
+    toast('Ошибка аудио: ' + (e?.detail || e?.message || ''));
+  }
+}
+
 window.startVoiceRec = async function startVoiceRec(context) {
   if (_voiceRec) return; // уже идёт запись
-  if (!navigator.mediaDevices?.getUserMedia) { toast('Запись аудио не поддерживается'); return; }
-
+  const isCap = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
   const buttonsHolder = context === 'task'
     ? document.getElementById('t-rec-buttons')
     : document.getElementById('t-cmt-rec-buttons');
   if (!buttonsHolder) return;
+  if (isCap) {
+    await _startNativeVoiceRec(context, buttonsHolder);
+    return;
+  }
+  if (!navigator.mediaDevices?.getUserMedia) { toast('Запись аудио не поддерживается'); return; }
 
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -3984,11 +4141,13 @@ function _onVoiceStop() {
 window.finishVoiceRec = function() {
   if (!_voiceRec) return;
   _voiceRec.cancelled = false;
+  if (_voiceRec.native) { _stopNativeVoiceRec(); return; }
   try { _voiceRec.mediaRecorder.stop(); } catch(_) {}
 };
 window.cancelVoiceRec = function() {
   if (!_voiceRec) return;
   _voiceRec.cancelled = true;
+  if (_voiceRec.native) { _stopNativeVoiceRec(); return; }
   try { _voiceRec.mediaRecorder.stop(); } catch(_) {}
 };
 
@@ -4419,7 +4578,19 @@ window._removeCmtAtt = function(idx) {
   _refreshCmtAttUI();
 };
 
-window.cmtPickPhoto = function() {
+window.cmtPickPhoto = async function() {
+  const isCap = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  if (isCap) {
+    const file = await _captureNativePhoto();
+    if (!file) return;
+    try {
+      const id = await Photos.upload(file, 'task', 'image');
+      const c = await Photos.confirm(id, {});
+      _cmtNewAttachments.push({ id, url: c.url, thumb_url: c.thumb_url, media_type: 'image' });
+      _refreshCmtAttUI();
+    } catch(_) { toast('Ошибка загрузки фото'); }
+    return;
+  }
   document.getElementById('t-cmt-photo-input')?.click();
 };
 window.cmtOnPhotoSelected = async function(e) {
