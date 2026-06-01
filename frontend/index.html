@@ -3996,13 +3996,16 @@ window.taskToggleRecord = function() { startVoiceRec('task'); };
 function _taskAttachmentsBlock(existing = [], descValue = '') {
   return `
     <div class="form-group">
-      <label>Описание и вложения</label>
-      <div id="t-att-list" style="display:flex;flex-wrap:wrap;gap:6px;flex-direction:column">${_renderTaskAttachments(existing)}</div>
+      <label>Описание</label>
+      <textarea id="t-desc" rows="3" placeholder="Что нужно сделать, детали, требования..." data-voice oninput="_onTaskDescInput()">${esc(descValue)}</textarea>
+    </div>
+    <div class="form-group">
+      <label>Вложения</label>
+      <div id="t-att-list" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px">${_renderTaskAttachments(existing)}</div>
       <div id="t-rec-buttons">
-        <div class="cmt-composer">
-          <button class="cmt-icon" type="button" onclick="taskPickPhoto()" title="Прикрепить фото">📎</button>
-          <textarea id="t-desc" rows="1" class="cmt-input" placeholder="Описание (можно оставить пустым)..." oninput="_onTaskDescInput()">${esc(descValue)}</textarea>
-          <button class="cmt-icon" type="button" onclick="startVoiceRec('task')" title="Голосовая заметка">🎤</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-secondary" type="button" onclick="taskPickPhoto()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;padding:11px">📎 Фото / файл</button>
+          <button class="btn btn-secondary" type="button" onclick="startVoiceRec('task')" style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;padding:11px">🎙 Голосовая</button>
         </div>
       </div>
       <input type="file" id="t-photo-input" accept="image/*" multiple style="display:none" onchange="taskOnPhotoSelected(event)">
@@ -4063,6 +4066,57 @@ window._addAmt = function(fieldId, n) {
   const cur = parseFloat((el.value || '').toString().replace(/\s/g, '')) || 0;
   el.value = String(cur + n);
   el.dispatchEvent(new Event('input', { bubbles: true }));
+};
+
+window.startVoiceTaskForm = async function() {
+  const btn = document.getElementById('voice-form-btn-task');
+  if (!btn) return;
+  const isCap = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  btn.textContent = '⏹ Слушаю...';
+  btn.style.background = 'var(--expense)';
+  const fillFromText = (text) => {
+    if (!text) return;
+    const titleEl = document.getElementById('t-title');
+    const descEl = document.getElementById('t-desc');
+    // Простой эвристик: первое предложение — название, остальное — описание
+    const parts = text.split(/[.!?]\s+/);
+    if (titleEl && parts[0]) titleEl.value = parts[0].trim();
+    if (descEl && parts.length > 1) descEl.value = parts.slice(1).join('. ').trim();
+    // Приоритет
+    if (/срочн|важн|быстр|сейчас|немедл/i.test(text)) _pickPrio('high');
+    else if (/потом|когда|необяз|медлен/i.test(text)) _pickPrio('low');
+  };
+  const reset = () => { btn.textContent = '🎙 Сказать всё голосом'; btn.style.background = ''; };
+  if (isCap) {
+    const SR = window.Capacitor?.Plugins?.SpeechRecognition;
+    if (!SR) { toast('Голос недоступен'); reset(); return; }
+    try {
+      const perm = await SR.requestPermissions();
+      if (perm?.speechRecognition !== 'granted') { toast('Нужно разрешение микрофона'); reset(); return; }
+      const sub = await SR.addListener('partialResults', (data) => fillFromText((data?.matches || [])[0]));
+      await SR.start({ language: 'ru-RU', popup: false, partialResults: true });
+      try { sub?.remove?.(); } catch(_) {}
+      reset();
+    } catch(e) { toast('Голос: ' + (e?.message || '')); reset(); }
+    return;
+  }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { toast('Голос не поддерживается'); reset(); return; }
+  const r = new SR(); r.lang = 'ru-RU'; r.interimResults = false;
+  r.onresult = (e) => fillFromText(e.results[0][0].transcript);
+  r.onerror = reset; r.onend = reset;
+  try { r.start(); } catch(_) { reset(); }
+};
+
+window._pickStatus = function(v) {
+  const hidden = document.getElementById('t-status');
+  if (hidden) hidden.value = v;
+  document.querySelectorAll('.prio-chip').forEach(b => {
+    if (['open','in_progress','done','cancelled'].includes(b.dataset.v)) {
+      b.classList.toggle('active', b.dataset.v === v);
+    }
+  });
+  if (typeof _scheduleTaskAutosave === 'function') _scheduleTaskAutosave();
 };
 
 window._pickPrio = function(v) {
@@ -4278,17 +4332,22 @@ function _renderCommentItem(c) {
 
 function _taskCommentsBlock(task) {
   const comments = (task.comments || []).map(_renderCommentItem).join('');
+  const cnt = (task.comments || []).length;
   return `
-    <div class="form-group">
-      <label>Комментарии — процесс исполнения</label>
-      <div id="t-comments-list" data-task-id="${task.id}" style="margin-bottom:8px;max-height:300px;overflow-y:auto">
-        ${comments || '<div style="color:var(--text2);font-size:12px;padding:8px 0">Пока нет комментариев</div>'}
+    <div style="margin:18px -16px 0;padding:18px 16px 14px;border-top:6px solid var(--bg);background:var(--card)">
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:12px">
+        <span style="font-size:18px">💬</span>
+        <span style="font-size:15.5px;font-weight:800;letter-spacing:-.01em">Комментарии · ход работ</span>
+        ${cnt ? `<span style="font-size:12px;font-weight:700;color:var(--orange);background:var(--accent-tint);border-radius:99px;padding:2px 9px">${cnt}</span>` : ''}
       </div>
-      <div id="t-cmt-att-list" style="display:flex;flex-wrap:wrap;gap:6px;flex-direction:column"></div>
+      <div id="t-comments-list" data-task-id="${task.id}" style="margin-bottom:12px;max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:8px">
+        ${comments || '<div style="text-align:center;padding:20px;color:var(--text2);font-size:13px">Напишите как идут работы — это видно всем участникам</div>'}
+      </div>
+      <div id="t-cmt-att-list" style="display:flex;flex-wrap:wrap;gap:6px;flex-direction:column;margin-bottom:8px"></div>
       <div id="t-cmt-rec-buttons">
         <div class="cmt-composer">
           <button class="cmt-icon" type="button" title="Прикрепить фото" onclick="cmtPickPhoto()">📎</button>
-          <textarea id="t-cmt-text" rows="1" placeholder="Сообщение..." class="cmt-input" oninput="_onCmtInput()"></textarea>
+          <textarea id="t-cmt-text" rows="1" placeholder="Написать комментарий..." class="cmt-input" oninput="_onCmtInput()"></textarea>
           <button class="cmt-icon" id="t-cmt-act-btn" type="button" title="Запись" onclick="cmtSendOrRec('${task.id}')">🎤</button>
         </div>
       </div>
@@ -4490,6 +4549,7 @@ window.openCreateTask = async function() {
   const projOpts = '<option value="">📌 Без проекта</option>' +
     projects.map(p => `<option value="${esc(p.code)}"${currentProject?.code===p.code?' selected':''}>${esc(p.name)}</option>`).join('');
   openModal('Новая задача', `
+    <button type="button" id="voice-form-btn-task" onclick="startVoiceTaskForm()" style="width:100%;display:flex;align-items:center;justify-content:center;gap:9px;background:linear-gradient(135deg, var(--orange), var(--orange-dark));color:#fff;font-weight:800;font-size:15px;padding:14px;border-radius:14px;border:none;box-shadow:0 10px 24px -10px var(--orange);margin-bottom:14px;cursor:pointer">🎙 Сказать всё голосом</button>
     <div class="form-group"><label>Название</label><input id="t-title" type="text" placeholder="Что нужно сделать" data-voice></div>
     ${_taskAttachmentsBlock([])}
     <div class="form-group"><label>Тип</label><select id="t-type">${_taskTypeOptions(types)}</select></div>
@@ -4591,12 +4651,13 @@ window.openEditTask = async function(id) {
       <div class="form-group"><label>Проект</label><select id="t-project">${projOpts}</select></div>
       <div class="form-group"><label>Срок (дата и время)</label><input id="t-due" type="datetime-local" value="${_isoForDatetimeInput(task.due_at)}"></div>
       <div class="form-group"><label>Статус</label>
-        <select id="t-status">
-          <option value="open" ${task.status==='open'?'selected':''}>📋 Открыта</option>
-          <option value="in_progress" ${task.status==='in_progress'?'selected':''}>⏳ В работе</option>
-          <option value="done" ${task.status==='done'?'selected':''}>✅ Готово</option>
-          <option value="cancelled" ${task.status==='cancelled'?'selected':''}>❌ Отменена</option>
-        </select>
+        <div class="prio-chips" style="grid-template-columns:repeat(4,1fr);display:grid">
+          <button type="button" class="prio-chip ${task.status==='open'?'active':''}" data-v="open" onclick="_pickStatus('open')">📋 Открыта</button>
+          <button type="button" class="prio-chip ${task.status==='in_progress'?'active':''}" data-v="in_progress" onclick="_pickStatus('in_progress')">⏳ В работе</button>
+          <button type="button" class="prio-chip ${task.status==='done'?'active':''}" data-v="done" onclick="_pickStatus('done')">✅ Готово</button>
+          <button type="button" class="prio-chip ${task.status==='cancelled'?'active':''}" data-v="cancelled" onclick="_pickStatus('cancelled')">❌ Отмена</button>
+        </div>
+        <input type="hidden" id="t-status" value="${esc(task.status || 'open')}">
       </div>
       <div class="form-group"><label>Исполнители</label>${_assigneePickerHtml()}</div>
       ${_taskCommentsBlock(task)}
