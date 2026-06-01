@@ -4351,14 +4351,14 @@ function _tgInitState(id) {
   const el = document.getElementById(id);
   if (!el) return null;
   const audio = new Audio();
-  audio.preload = 'metadata';
-  audio.src = el.dataset.url;
-  _fixAudioDuration(audio); // костыль для webm без duration
+  audio.preload = 'auto';
 
   const state = {
     audio, el,
     peaks: null,
     duration: parseFloat(el.dataset.duration) || 0,
+    ready: false,
+    blobUrl: null,
   };
   _tgAudios[id] = state;
 
@@ -4370,6 +4370,7 @@ function _tgInitState(id) {
       if (t) t.textContent = _formatDuration(state.duration);
     }
   });
+  audio.addEventListener('canplaythrough', () => { state.ready = true; });
   audio.addEventListener('ended', () => {
     const b = el.querySelector('.tg-play');
     if (b) b.textContent = '▶';
@@ -4377,17 +4378,48 @@ function _tgInitState(id) {
     _tgUpdateProgress(id);
   });
 
-  // Генерим волны асинхронно
-  _tgGenerateWaveform(el.dataset.url).then(peaks => {
-    if (!peaks) return;
-    state.peaks = peaks;
-    const bars = el.querySelectorAll('.tg-wave-bar');
-    peaks.forEach((p, i) => {
-      if (!bars[i]) return;
-      const h = Math.max(4, p * 26);
-      bars[i].style.height = h + 'px';
-    });
-  });
+  // ── Полная загрузка файла в Blob перед проигрыванием —
+  //    избавляет от заиканий на медленной сети / Capacitor WebView
+  (async () => {
+    try {
+      const resp = await fetch(el.dataset.url);
+      if (!resp.ok) throw new Error('fetch failed');
+      const buf = await resp.arrayBuffer();
+      const blob = new Blob([buf], { type: resp.headers.get('content-type') || 'audio/mp4' });
+      state.blobUrl = URL.createObjectURL(blob);
+      audio.src = state.blobUrl;
+      // Волны из этих же байт — не качаем второй раз
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const audioBuf = await ctx.decodeAudioData(buf.slice(0));
+        ctx.close();
+        const ch = audioBuf.getChannelData(0);
+        const samples = Math.floor(ch.length / _TG_BARS);
+        const peaks = [];
+        for (let i = 0; i < _TG_BARS; i++) {
+          let max = 0;
+          const start = i * samples;
+          const end = Math.min(start + samples, ch.length);
+          for (let j = start; j < end; j++) {
+            const v = Math.abs(ch[j]);
+            if (v > max) max = v;
+          }
+          peaks.push(max);
+        }
+        const m = Math.max(...peaks, 0.01);
+        state.peaks = peaks.map(p => p / m);
+        const bars = el.querySelectorAll('.tg-wave-bar');
+        state.peaks.forEach((p, i) => {
+          if (!bars[i]) return;
+          bars[i].style.height = Math.max(4, p * 26) + 'px';
+        });
+      } catch(_) {}
+    } catch(_) {
+      // фолбэк — обычный стриминг с URL
+      audio.src = el.dataset.url;
+      _fixAudioDuration(audio);
+    }
+  })();
 
   return state;
 }
