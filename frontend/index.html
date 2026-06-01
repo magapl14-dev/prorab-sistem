@@ -5595,16 +5595,43 @@ window.closeSheet = function() {
 };
 
 // ── Voice input ───────────────────────────────────────────────────────────────
-window.startVoiceForm = function() {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { toast('Голосовой ввод не поддерживается'); return; }
+window.startVoiceForm = async function() {
   const btn = document.getElementById('voice-form-btn');
+  if (!btn) return;
+  const isCap = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  btn.textContent = '⏹ Слушаю...';
+  btn.style.background = 'var(--red)';
+
+  if (isCap) {
+    const SR = window.Capacitor?.Plugins?.SpeechRecognition;
+    if (!SR) { toast('Плагин голоса недоступен'); resetVoiceBtn(); return; }
+    try {
+      const avail = await SR.available();
+      if (!avail?.available) { toast('Голос не поддерживается'); resetVoiceBtn(); return; }
+      const perm = await SR.requestPermissions();
+      if (perm?.speechRecognition !== 'granted') { toast('Нужно разрешение микрофона'); resetVoiceBtn(); return; }
+      const sub = await SR.addListener('partialResults', (data) => {
+        const txt = (data?.matches || [])[0];
+        if (txt) parseVoiceCommand(txt.toLowerCase());
+      });
+      // в Capacitor stop срабатывает по таймауту или через btn click; держим до 30 сек
+      await SR.start({ language: 'ru-RU', popup: false, partialResults: true, maxResults: 1, prompt: 'Говорите' });
+      try { sub?.remove?.(); } catch(_) {}
+      resetVoiceBtn();
+    } catch(e) {
+      toast('Голос: ' + (e?.message || String(e)));
+      resetVoiceBtn();
+    }
+    return;
+  }
+
+  // Браузер — Web Speech API
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { toast('Голосовой ввод не поддерживается'); resetVoiceBtn(); return; }
   const r = new SR();
   r.lang = 'ru-RU';
   r.interimResults = false;
   r.maxAlternatives = 1;
-  btn.textContent = '⏹ Слушаю...';
-  btn.style.background = 'var(--red)';
   r.onresult = (e) => {
     const text = e.results[0][0].transcript.toLowerCase();
     parseVoiceCommand(text);
@@ -5659,14 +5686,61 @@ function parseVoiceCommand(text) {
 
 (function initVoiceInputs() {
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) return;
+  const isCapacitor = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 
-  let activeRec = null;
   let activeBtn = null;
+  let stopper = null;
 
   function stopActive() {
-    if (activeRec) { try { activeRec.stop(); } catch(_) {} activeRec = null; }
+    if (stopper) { try { stopper(); } catch(_) {} stopper = null; }
     if (activeBtn) { activeBtn.textContent = '🎤'; activeBtn.classList.remove('listening'); activeBtn = null; }
+  }
+
+  // Use Capacitor speech-recognition plugin on native (Web Speech API not in Android WebView)
+  async function startNative(el, btn) {
+    const SpeechRecognition = window.Capacitor?.Plugins?.SpeechRecognition;
+    if (!SpeechRecognition) { toast('Голосовой плагин недоступен'); stopActive(); return; }
+    try {
+      const avail = await SpeechRecognition.available();
+      if (!avail?.available) { toast('Голосовой ввод не поддерживается'); stopActive(); return; }
+      const perm = await SpeechRecognition.requestPermissions();
+      if (perm?.speechRecognition !== 'granted') { toast('Нужно разрешение микрофона'); stopActive(); return; }
+      // start streaming partial results to input
+      const subscription = await SpeechRecognition.addListener('partialResults', (data) => {
+        const txt = (data?.matches || [])[0];
+        if (txt) {
+          el.value = txt;
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          if (el.dataset.voice === 'calc') calcSum();
+        }
+      });
+      await SpeechRecognition.start({ language: 'ru-RU', popup: false, partialResults: true });
+      stopper = async () => {
+        try { await SpeechRecognition.stop(); } catch(_) {}
+        try { subscription?.remove?.(); } catch(_) {}
+      };
+    } catch(e) {
+      toast('Микрофон: ' + (e?.message || String(e)));
+      stopActive();
+    }
+  }
+
+  function startWeb(el, btn) {
+    if (!SR) { toast('Голосовой ввод не поддерживается в этом браузере'); stopActive(); return; }
+    const r = new SR();
+    r.lang = 'ru-RU';
+    r.interimResults = false;
+    r.maxAlternatives = 1;
+    r.onresult = (e) => {
+      const text = e.results[0][0].transcript;
+      el.value = text;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      if (el.dataset.voice === 'calc') calcSum();
+    };
+    r.onerror = () => { toast('Ошибка голосового ввода'); stopActive(); };
+    r.onend = () => stopActive();
+    try { r.start(); stopper = () => { try { r.stop(); } catch(_) {} }; }
+    catch(e) { toast('Не удалось запустить микрофон'); stopActive(); }
   }
 
   function attachMic(el) {
@@ -5686,29 +5760,12 @@ function parseVoiceCommand(text) {
     wrap.appendChild(btn);
 
     btn.addEventListener('click', () => {
-      if (activeRec) { stopActive(); return; }
-
-      const r = new SR();
-      r.lang = 'ru-RU';
-      r.interimResults = false;
-      r.maxAlternatives = 1;
-
-      activeRec = r;
+      if (stopper) { stopActive(); return; }
       activeBtn = btn;
       btn.textContent = '⏹';
       btn.classList.add('listening');
-
-      r.onresult = (e) => {
-        const text = e.results[0][0].transcript;
-        el.value = text;
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-        if (el.dataset.voice === 'calc') calcSum();
-      };
-
-      r.onerror = () => { toast('Ошибка голосового ввода'); stopActive(); };
-      r.onend = () => stopActive();
-
-      try { r.start(); } catch(e) { toast('Не удалось запустить микрофон'); stopActive(); }
+      if (isCapacitor) startNative(el, btn);
+      else startWeb(el, btn);
     });
   }
 
