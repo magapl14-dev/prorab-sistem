@@ -4642,26 +4642,51 @@ window.cmtToggleRecord = function() { startVoiceRec('comment'); };
 window.submitComment = async function(taskId) {
   const text = document.getElementById('t-cmt-text').value.trim();
   if (!text && !_cmtNewAttachments.length) { toast('Текст или вложение'); return; }
+
+  const list = document.getElementById('t-comments-list');
+  // Удаляем плейсхолдер «нет комментариев» (с любым текстом) — он мешает вставке
+  if (list) {
+    const empty = list.querySelector('div[style*="text-align:center"]');
+    if (empty) empty.remove();
+  }
+  // Оптимистично рисуем комментарий сразу — без ожидания сети
+  const optimistic = {
+    id: 'opt-' + Date.now(),
+    text: text || null,
+    author: { id: _user?.id, name: _user?.name || '?' },
+    attachments: _cmtNewAttachments.map(a => ({
+      url: a.url, thumb_url: a.thumb_url, media_type: a.media_type, duration_sec: a.duration_sec
+    })),
+    created_at: new Date().toISOString(),
+  };
+  const optHtml = `<div data-opt-id="${optimistic.id}" style="opacity:.7">${_renderCommentItem(optimistic)}</div>`;
+  if (list) {
+    list.insertAdjacentHTML('beforeend', optHtml);
+    requestAnimationFrame(() => { list.scrollTop = list.scrollHeight; });
+  }
+  // очищаем композер сразу
+  const txt = document.getElementById('t-cmt-text');
+  if (txt) { txt.value = ''; txt.style.height = 'auto'; }
+  const sentAttachments = _cmtNewAttachments.slice();
+  _cmtNewAttachments = [];
+  _refreshCmtAttUI();
+
   try {
-    await Tasks.comments.add(taskId, {
+    const created = await Tasks.comments.add(taskId, {
       text: text || null,
-      attachment_ids: _cmtNewAttachments.map(a => a.id),
+      attachment_ids: sentAttachments.map(a => a.id),
     });
-    // Перезагружаем список из БД — гарантирует что все комментарии видны как лента
-    const all = await Tasks.comments.list(taskId);
-    const list = document.getElementById('t-comments-list');
-    if (list) {
-      list.innerHTML = all.length
-        ? all.map(_renderCommentItem).join('')
-        : '<div style="color:var(--text2);font-size:12px;padding:8px 0">Пока нет комментариев</div>';
-      list.scrollTop = list.scrollHeight;
-    }
-    const txt = document.getElementById('t-cmt-text');
-    if (txt) { txt.value = ''; txt.style.height = 'auto'; }
-    _cmtNewAttachments = [];
-    _refreshCmtAttUI();
+    // Заменяем оптимистичный блок на реальный (с серверным id и временем)
+    const opt = list?.querySelector(`[data-opt-id="${optimistic.id}"]`);
+    if (opt) opt.outerHTML = _renderCommentItem(created);
   } catch(e) {
-    toast('Ошибка: ' + (e?.detail || ''));
+    // Откатываем оптимизм
+    const opt = list?.querySelector(`[data-opt-id="${optimistic.id}"]`);
+    if (opt) opt.remove();
+    if (txt) txt.value = text;
+    _cmtNewAttachments = sentAttachments;
+    _refreshCmtAttUI();
+    toast('Ошибка отправки: ' + (e?.detail || ''));
   }
 };
 
@@ -4925,6 +4950,15 @@ async function _saveTask(id, forceWithAttachments = false) {
   _setSaveStatus('Сохраняется...');
   try {
     await Tasks.update(id, data);
+    // Переносим только что сохранённые вложения в "existing" чтобы они
+    // не пропали из UI при следующем добавлении фото/аудио
+    if (hasNewAtt) {
+      const existingEl = document.getElementById('t-existing-att');
+      let existing = [];
+      try { existing = JSON.parse(existingEl?.dataset.list || '[]'); } catch(_) {}
+      existing = [...existing, ..._taskNewAttachments.map(a => ({ ...a, _existing: true }))];
+      if (existingEl) existingEl.dataset.list = JSON.stringify(existing);
+    }
     _taskNewAttachments = [];
     _taskLastSavedJson = stableJson;
     _setSaveStatus('Сохранено ✓');
