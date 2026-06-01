@@ -40,7 +40,11 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins_list(self) -> list[str]:
-        return [o.strip() for o in self.cors_origins.split(",")]
+        configured = [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+        # Capacitor нативные приложения шлют запросы с этих origins —
+        # включаем всегда, чтобы Android/iOS APK работали без правки .env
+        native = ["https://localhost", "capacitor://localhost", "ionic://localhost"]
+        return list({*configured, *native})
 
 
 settings = Settings()
