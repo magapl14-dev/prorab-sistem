@@ -734,8 +734,11 @@ body{background:var(--bg);position:fixed;inset:0;width:100%;height:100dvh}
         <div class="rpt-sum"><div class="rpt-sum-val" id="rpt-balance">—</div><div class="rpt-sum-lbl">Баланс</div></div>
       </div>
       <div class="rpt-price" id="rpt-price-card" style="display:none">
-        <div class="rpt-price-row"><span>Цена закупа</span><span id="rpt-buy">—</span></div>
-        <div class="rpt-price-row"><span id="rpt-markup-lbl">Наценка за ведение</span><span class="green" id="rpt-markup-val">—</span></div>
+        <div class="rpt-price-row"><span>Материалы (закуп)</span><span id="rpt-buy">—</span></div>
+        <div class="rpt-price-row" id="rpt-labor-row" style="display:none"><span>Работы (мастерам)</span><span id="rpt-labor">—</span></div>
+        <div class="rpt-price-row"><span id="rpt-markup-mat-lbl">Наценка на материалы</span><span class="green" id="rpt-markup-mat-val">—</span></div>
+        <div class="rpt-price-row" id="rpt-markup-lab-row" style="display:none"><span id="rpt-markup-lab-lbl">Наценка на работы</span><span class="green" id="rpt-markup-lab-val">—</span></div>
+        <div class="rpt-price-row" style="border-top:1px solid var(--hair);padding-top:8px;margin-top:4px"><span><b>Итого заработано</b></span><span class="green" style="font-weight:800" id="rpt-earned-total">—</span></div>
         <div class="rpt-price-row"><span>ИТОГО клиенту</span><span class="orange" id="rpt-sell">—</span></div>
       </div>
       <div class="rpt-subtabs">
@@ -3176,13 +3179,44 @@ async function loadReport() {
     balEl.textContent = (balance >= 0 ? '+' : '') + fmt(balance) + ' ₽';
     balEl.className = 'rpt-sum-val ' + (balance >= 0 ? 'green' : 'red');
 
-    // Price breakdown
+    // Price breakdown — материалы отдельно, работы (мастерам) отдельно.
+    // По каждой части применяем наценку проекта (markup_pct) и суммируем.
     const priceCard = document.getElementById('rpt-price-card');
     priceCard.style.display = '';
+    const mkPct = parseFloat(currentProject?.markup_pct || 0);
+
+    // Материалы: наценка = totalSell - totalBuy (уже посчитана backend'ом
+    // на момент создания записи, поэтому пользуемся снимком).
+    const materialsMarkup = markup;  // totalSell - totalBuy
+
+    // Работы: на master_payment наценки нет в БД, поэтому применяем
+    // актуальный markup_pct к сумме выплат.
+    const laborMarkup = totalMasterOut * mkPct / 100;
+    const laborSell   = totalMasterOut + laborMarkup;
+
+    const earnedTotal = materialsMarkup + laborMarkup;
+    const totalToClient = (totalSell || totalBuy) + laborSell;
+
     document.getElementById('rpt-buy').textContent = fmt(totalBuy) + ' ₽';
-    document.getElementById('rpt-markup-lbl').textContent = `Наценка за ведение ${currentProject.markup_pct||''}%`;
-    document.getElementById('rpt-markup-val').textContent = '+' + fmt(markup) + ' ₽';
-    document.getElementById('rpt-sell').textContent = fmt(totalSell || totalBuy) + ' ₽';
+
+    // Строка «Работы» показываем только если выплаты мастерам были
+    const laborRow    = document.getElementById('rpt-labor-row');
+    const laborMkRow  = document.getElementById('rpt-markup-lab-row');
+    if (totalMasterOut > 0) {
+      laborRow.style.display = '';
+      laborMkRow.style.display = '';
+      document.getElementById('rpt-labor').textContent = fmt(totalMasterOut) + ' ₽';
+      document.getElementById('rpt-markup-lab-lbl').textContent = `Наценка на работы ${mkPct}%`;
+      document.getElementById('rpt-markup-lab-val').textContent = '+' + fmt(laborMarkup) + ' ₽';
+    } else {
+      laborRow.style.display = 'none';
+      laborMkRow.style.display = 'none';
+    }
+
+    document.getElementById('rpt-markup-mat-lbl').textContent = `Наценка на материалы ${mkPct}%`;
+    document.getElementById('rpt-markup-mat-val').textContent = '+' + fmt(materialsMarkup) + ' ₽';
+    document.getElementById('rpt-earned-total').textContent = '+' + fmt(earnedTotal) + ' ₽';
+    document.getElementById('rpt-sell').textContent = fmt(totalToClient) + ' ₽';
 
     // Plan block (reuse existing rendering)
     if (plan) {
