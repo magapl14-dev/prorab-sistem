@@ -154,6 +154,31 @@ export const Admin = {
   },
 };
 
+export const AI = {
+  // Отправляет голосовой Blob в Grok и получает поля формы.
+  // context: "expense" | "master_payment" | "client_payment" | "task"
+  // currentValues: объект уже заполненных полей (чтобы Grok не перебивал).
+  // Возвращает { transcript, fields, warnings }.
+  // Кидает { status: 503, ... } если Grok не настроен — фронт по этому статусу
+  // сваливается на браузерный STT.
+  async voiceFill(audioBlob, context, currentValues = {}) {
+    const form = new FormData();
+    form.append("audio", audioBlob, audioBlob.name || "voice.webm");
+    form.append("context", context);
+    form.append("current_json", JSON.stringify(currentValues || {}));
+    const headers = {};
+    if (_accessToken) headers["Authorization"] = `Bearer ${_accessToken}`;
+    const res = await fetch(API_BASE + "/ai/voice-fill", {
+      method: "POST",
+      body: form,
+      headers,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw { status: res.status, detail: data.detail || data };
+    return data;
+  },
+};
+
 export const Masters = {
   list: (includeInactive = false, projectCode = null) => {
     const q = new URLSearchParams();

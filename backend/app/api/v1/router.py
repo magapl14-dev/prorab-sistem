@@ -12,6 +12,7 @@ from .admin.roles import router as admin_roles_router
 from .admin.bitrix import router as admin_bitrix_router
 from .admin.analytics import router as admin_analytics_router
 from .settings import router as settings_router
+from .ai import router as ai_router
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -28,3 +29,4 @@ api_router.include_router(admin_roles_router)
 api_router.include_router(admin_bitrix_router)
 api_router.include_router(admin_analytics_router)
 api_router.include_router(settings_router)
+api_router.include_router(ai_router)

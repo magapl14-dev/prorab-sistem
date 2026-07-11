@@ -1112,7 +1112,7 @@ body{background:var(--bg);position:fixed;inset:0;width:100%;height:100dvh}
 </div>
 
 <script type="module">
-import { Auth, Records, Photos, Earnings, Admin, Tasks, Masters, Settings } from '/api.js';
+import { Auth, Records, Photos, Earnings, Admin, Tasks, Masters, Settings, AI } from '/api.js';
 
 // ── Icon library (stroke set, from Claude design) ────────────────────────────
 const _ICON_PATHS = {
@@ -4251,7 +4251,187 @@ window._addAmt = function(fieldId, n) {
   el.dispatchEvent(new Event('input', { bubbles: true }));
 };
 
+// ── Grok voice: общий рекордер + отправка + fallback ────────────────────────
+// Одна кнопка-toggle: первый клик — запись, второй (или таймаут 30с) — стоп + отправка.
+let _grokVoiceState = null;
+
+function _grokBtnReset(btn, originalLabel, originalBg) {
+  if (!btn) return;
+  btn.textContent = originalLabel;
+  btn.style.background = originalBg;
+  btn.disabled = false;
+}
+
+async function _grokStartRec() {
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus'
+             : MediaRecorder.isTypeSupported('audio/webm')             ? 'audio/webm'
+             : MediaRecorder.isTypeSupported('audio/mp4')              ? 'audio/mp4'
+             : '';
+  const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+  const chunks = [];
+  const done = new Promise((resolve, reject) => {
+    rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+    rec.onerror = reject;
+    rec.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+      const blob = new Blob(chunks, { type: mime || 'audio/webm' });
+      blob.name = mime.includes('mp4') ? 'voice.m4a' : 'voice.webm';
+      resolve(blob);
+    };
+  });
+  rec.start();
+  return { rec, done };
+}
+
+async function _grokVoiceFillCommon({ context, currentValues, apply, btn, fallbackFn }) {
+  if (!btn) return;
+  // Второй клик — стоп ранее начатой записи
+  if (_grokVoiceState && _grokVoiceState.btn === btn) {
+    try { _grokVoiceState.rec.stop(); } catch(_) {}
+    clearTimeout(_grokVoiceState.autostop);
+    clearInterval(_grokVoiceState.tick);
+    return;
+  }
+  const originalLabel = btn.textContent;
+  const originalBg = btn.style.background;
+
+  let recData;
+  try {
+    recData = await _grokStartRec();
+  } catch (e) {
+    toast('Микрофон недоступен: ' + (e?.message || ''));
+    return;
+  }
+
+  const startedAt = Date.now();
+  btn.style.background = 'var(--red)';
+  const tick = setInterval(() => {
+    const sec = Math.round((Date.now() - startedAt) / 1000);
+    btn.textContent = `⏹ Идёт запись ${sec}с — нажмите чтобы отправить`;
+  }, 500);
+  const autostop = setTimeout(() => { try { recData.rec.stop(); } catch(_) {} }, 30000);
+  _grokVoiceState = { rec: recData.rec, btn, autostop, tick };
+
+  let blob;
+  try {
+    blob = await recData.done;
+  } finally {
+    clearInterval(tick);
+    clearTimeout(autostop);
+    _grokVoiceState = null;
+  }
+
+  if (!blob || !blob.size) {
+    _grokBtnReset(btn, originalLabel, originalBg);
+    toast('Пустая запись');
+    return;
+  }
+
+  btn.textContent = '🧠 Расшифровываю...';
+  btn.disabled = true;
+  try {
+    const data = await AI.voiceFill(blob, context, currentValues);
+    if (data.transcript) toast('«' + data.transcript.slice(0, 80) + (data.transcript.length > 80 ? '…' : '') + '»');
+    if (data.fields) apply(data.fields);
+  } catch (e) {
+    if (e?.status === 503) {
+      toast('AI выключен, использую браузер');
+      _grokBtnReset(btn, originalLabel, originalBg);
+      if (fallbackFn) fallbackFn();
+      return;
+    }
+    toast('Голос не распознался: ' + (e?.detail?.message || e?.detail || e?.message || ''));
+  } finally {
+    _grokBtnReset(btn, originalLabel, originalBg);
+  }
+}
+
+// Сбор значений формы записи (в зависимости от currentKind)
+function _collectRecordFormValues() {
+  const v = { kind: currentKind };
+  const val = id => document.getElementById(id)?.value || null;
+  const num = id => { const x = parseFloat(document.getElementById(id)?.value); return Number.isFinite(x) ? x : null; };
+  v.comment = val('f-comment');
+  if (currentKind === 'expense') {
+    v.name = val('f-name'); v.type = val('f-type'); v.category = val('f-category');
+    v.kassa = val('f-kassa'); v.qty = num('f-qty'); v.price = num('f-price');
+  } else if (currentKind === 'master_payment') {
+    v.master_name = val('f-master-name');
+    v.payment_amount = num('f-payment-amount');
+    v.pay_type = val('f-master-paytype');
+  } else if (currentKind === 'client_payment') {
+    v.rep_name = val('f-rep-name');
+    v.payment_amount = num('f-client-amount');
+    v.is_advance = !!document.getElementById('f-is-advance')?.checked;
+  }
+  return v;
+}
+
+function _applyRecordFormFields(f) {
+  const set = (id, x) => { if (x == null || x === '') return; const el = document.getElementById(id); if (el) { el.value = String(x); el.dispatchEvent(new Event('input', { bubbles: true })); } };
+  set('f-comment', f.comment);
+  if (currentKind === 'expense') {
+    // раскрыть "Комментарий и фото" если Grok вернул comment
+    if (f.comment) { const t = document.getElementById('common-extra'); if (t && t.style.display === 'none') _toggleAllFields(document.getElementById('common-extra-toggle')); }
+    set('f-name', f.name); set('f-type', f.type); set('f-category', f.category); set('f-kassa', f.kassa);
+    if (f.price != null) { set('f-qty', f.qty ?? 1); set('f-price', f.price); }
+    else if (f.sum_buy != null) { set('f-qty', 1); set('f-price', f.sum_buy); }
+    else if (f.qty != null) { set('f-qty', f.qty); }
+    if (typeof calcSum === 'function') calcSum();
+  } else if (currentKind === 'master_payment') {
+    set('f-master-name', f.master_name);
+    set('f-payment-amount', f.payment_amount);
+    if (f.pay_type && typeof _pickPayType === 'function') _pickPayType(f.pay_type);
+  } else if (currentKind === 'client_payment') {
+    set('f-rep-name', f.rep_name);
+    set('f-client-amount', f.payment_amount);
+    if (f.is_advance != null) { const el = document.getElementById('f-is-advance'); if (el) el.checked = !!f.is_advance; }
+  }
+}
+
+// Сбор значений формы задачи
+function _collectTaskFormValues() {
+  return {
+    name: document.getElementById('t-title')?.value || null,
+    description: document.getElementById('t-desc')?.value || null,
+    type: document.getElementById('t-type')?.value || null,
+    priority: document.getElementById('t-prio')?.value || null,
+    due_at: document.getElementById('t-due')?.value || null,
+    assignee_names: (window._taskAssignees || []).map(a => a.name),
+  };
+}
+
+function _applyTaskFormFields(f) {
+  const set = (id, x) => { if (x == null || x === '') return; const el = document.getElementById(id); if (el) { el.value = String(x); el.dispatchEvent(new Event('input', { bubbles: true })); } };
+  set('t-title', f.name);
+  set('t-desc', f.description);
+  set('t-type', f.type);
+  if (f.priority && typeof _pickPrio === 'function') _pickPrio(f.priority);
+  if (f.due_at) set('t-due', f.due_at);
+  if (Array.isArray(f.assignee_names)) {
+    for (const name of f.assignee_names) {
+      const u = (window._taskAllUsers || []).find(u => (u.name || '').toLowerCase() === String(name).toLowerCase());
+      if (u && typeof addTaskAssignee === 'function') addTaskAssignee(u.id, u.name);
+    }
+  }
+  if (typeof _scheduleTaskAutosave === 'function') _scheduleTaskAutosave();
+}
+
 window.startVoiceTaskForm = async function() {
+  const btn = document.getElementById('voice-form-btn-task');
+  if (!btn) return;
+  await _grokVoiceFillCommon({
+    context: 'task',
+    currentValues: _collectTaskFormValues(),
+    apply: _applyTaskFormFields,
+    btn,
+    fallbackFn: _legacyStartVoiceTaskForm,
+  });
+};
+
+async function _legacyStartVoiceTaskForm() {
+  // Прежний браузерный STT — используется когда Grok выключен.
   const btn = document.getElementById('voice-form-btn-task');
   if (!btn) return;
   const isCap = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
@@ -4261,11 +4441,9 @@ window.startVoiceTaskForm = async function() {
     if (!text) return;
     const titleEl = document.getElementById('t-title');
     const descEl = document.getElementById('t-desc');
-    // Простой эвристик: первое предложение — название, остальное — описание
     const parts = text.split(/[.!?]\s+/);
     if (titleEl && parts[0]) titleEl.value = parts[0].trim();
     if (descEl && parts.length > 1) descEl.value = parts.slice(1).join('. ').trim();
-    // Приоритет
     if (/срочн|важн|быстр|сейчас|немедл/i.test(text)) _pickPrio('high');
     else if (/потом|когда|необяз|медлен/i.test(text)) _pickPrio('low');
   };
@@ -4289,7 +4467,7 @@ window.startVoiceTaskForm = async function() {
   r.onresult = (e) => fillFromText(e.results[0][0].transcript);
   r.onerror = reset; r.onend = reset;
   try { r.start(); } catch(_) { reset(); }
-};
+}
 
 window._pickStatus = function(v) {
   const hidden = document.getElementById('t-status');
@@ -6061,10 +6239,21 @@ window.closeSheet = function() {
 window.startVoiceForm = async function() {
   const btn = document.getElementById('voice-form-btn');
   if (!btn) return;
+  await _grokVoiceFillCommon({
+    context: currentKind, // "expense" | "master_payment" | "client_payment"
+    currentValues: _collectRecordFormValues(),
+    apply: _applyRecordFormFields,
+    btn,
+    fallbackFn: _legacyStartVoiceForm,
+  });
+};
+
+async function _legacyStartVoiceForm() {
+  const btn = document.getElementById('voice-form-btn');
+  if (!btn) return;
   const isCap = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
   btn.textContent = '⏹ Слушаю...';
   btn.style.background = 'var(--red)';
-
   if (isCap) {
     const SR = window.Capacitor?.Plugins?.SpeechRecognition;
     if (!SR) { toast('Плагин голоса недоступен'); resetVoiceBtn(); return; }
@@ -6077,32 +6266,21 @@ window.startVoiceForm = async function() {
         const txt = (data?.matches || [])[0];
         if (txt) parseVoiceCommand(txt.toLowerCase());
       });
-      // в Capacitor stop срабатывает по таймауту или через btn click; держим до 30 сек
       await SR.start({ language: 'ru-RU', popup: false, partialResults: true, maxResults: 1, prompt: 'Говорите' });
       try { sub?.remove?.(); } catch(_) {}
       resetVoiceBtn();
-    } catch(e) {
-      toast('Голос: ' + (e?.message || String(e)));
-      resetVoiceBtn();
-    }
+    } catch(e) { toast('Голос: ' + (e?.message || String(e))); resetVoiceBtn(); }
     return;
   }
-
-  // Браузер — Web Speech API
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { toast('Голосовой ввод не поддерживается'); resetVoiceBtn(); return; }
   const r = new SR();
-  r.lang = 'ru-RU';
-  r.interimResults = false;
-  r.maxAlternatives = 1;
-  r.onresult = (e) => {
-    const text = e.results[0][0].transcript.toLowerCase();
-    parseVoiceCommand(text);
-  };
+  r.lang = 'ru-RU'; r.interimResults = false; r.maxAlternatives = 1;
+  r.onresult = (e) => parseVoiceCommand(e.results[0][0].transcript.toLowerCase());
   r.onerror = () => { toast('Ошибка распознавания'); resetVoiceBtn(); };
   r.onend = resetVoiceBtn;
   try { r.start(); } catch(_) { resetVoiceBtn(); }
-};
+}
 
 function resetVoiceBtn() {
   const btn = document.getElementById('voice-form-btn');

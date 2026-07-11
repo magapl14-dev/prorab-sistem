@@ -34,6 +34,12 @@ class Settings(BaseSettings):
     login_max_attempts: int = 3
     login_lockout_seconds: int = 900
 
+    # xAI Grok — для голосового заполнения форм (кнопки "🎙 Сказать всё голосом")
+    xai_api_key: Optional[str] = None
+    xai_base_url: str = "https://api.x.ai/v1"
+    xai_stt_model: str = "grok-stt"
+    xai_llm_model: str = "grok-4-fast-non-reasoning"
+
     class Config:
         env_file = ".env"
         case_sensitive = False
