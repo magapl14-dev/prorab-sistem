@@ -100,6 +100,28 @@ def _system_prompt(context: str, current: dict, extras: dict) -> str:
     task_types = extras.get("task_types") or []
 
     extras_rules = []
+
+    # ── Expense-specific rules ──────────────────────────────────────────────
+    if context == "expense":
+        exp_types      = extras.get("exp_types") or []
+        exp_categories = extras.get("exp_categories") or []
+        kassas         = extras.get("kassas") or []
+        type_enum   = ", ".join(f'"{t}"' for t in exp_types) if exp_types else '"Материал", "Доставка", "Работа", "Прочее"'
+        cat_enum    = ", ".join(f'"{t}"' for t in exp_categories) if exp_categories else '(любая, если сказана)'
+        kassa_enum  = ", ".join(f'"{t}"' for t in kassas) if kassas else '"Клиент дал", "Свои"'
+        extras_rules.append(
+            f'- Поле "type": строго один из [{type_enum}]. Правила: если явно сказано «доставка / привёз» — "Доставка". '
+            f'Если сказано про работу мастеров/бригады — "Работа". Всё остальное (материал, инструмент, любые покупки) — "Материал". '
+            f'Если совсем непонятно — "Прочее". НИКОГДА не возвращай null.'
+        )
+        extras_rules.append(
+            f'- Поле "kassa": строго один из [{kassa_enum}]. По умолчанию — "Клиент дал". '
+            f'Если явно сказано «свои», «мои», «из личных», «из своих» — "Свои". НИКОГДА null.'
+        )
+        extras_rules.append(
+            f'- Поле "category": один из [{cat_enum}]. Если ни одна не подходит — null.'
+        )
+
     if context == "task":
         # Перечислим известные типы, чтобы Grok выбирал из них, а не выдумывал.
         enum = ", ".join(f'"{t}"' for t in task_types) if task_types else '"Общая"'
@@ -219,6 +241,25 @@ async def voice_fill(
     now_moscow_dt = datetime.now(timezone.utc) + timedelta(hours=3)
     extras: dict = {"now_moscow": now_moscow_dt.strftime("%Y-%m-%dT%H:%M")}
 
+    # Для закупа — подтягиваем типы / категории / кассы из справочников,
+    # плюс жёстко указываем дефолты (Материал / Клиент дал).
+    if context == "expense":
+        exp_types = (await db.execute(
+            select(Dictionary).where(Dictionary.kind == "type", Dictionary.active == True)
+            .order_by(Dictionary.display_order, Dictionary.value)
+        )).scalars().all()
+        exp_cats = (await db.execute(
+            select(Dictionary).where(Dictionary.kind == "category", Dictionary.active == True)
+            .order_by(Dictionary.display_order, Dictionary.value)
+        )).scalars().all()
+        kassas = (await db.execute(
+            select(Dictionary).where(Dictionary.kind == "kassa", Dictionary.active == True)
+            .order_by(Dictionary.display_order, Dictionary.value)
+        )).scalars().all()
+        extras["exp_types"]      = [r.value for r in exp_types if r.value]
+        extras["exp_categories"] = [r.value for r in exp_cats if r.value]
+        extras["kassas"]         = [r.value for r in kassas if r.value]
+
     # Для задач подтянем актуальные типы из справочника, чтобы Grok не
     # выдумывал левых и всегда попадал в существующую опцию.
     if context == "task":
@@ -267,5 +308,15 @@ async def voice_fill(
         except Exception as e:
             logger.exception("LLM unexpected error")
             raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail={"stage": "llm", "error": str(e), "transcript": transcript})
+
+    # В поле «Комментарий» кладём полный транскрипт (даже если Grok что-то
+    # разобрал в comment сам) — прораб хочет видеть свою фразу целиком,
+    # чтобы сверить: правильно ли распознано / раскидано по полям.
+    if isinstance(fields, dict):
+        grok_comment = (fields.get("comment") or "").strip()
+        if grok_comment and grok_comment != transcript.strip():
+            fields["comment"] = f"«{transcript.strip()}»\n\n{grok_comment}"
+        else:
+            fields["comment"] = transcript.strip()
 
     return {"transcript": transcript, "fields": fields, "warnings": []}
