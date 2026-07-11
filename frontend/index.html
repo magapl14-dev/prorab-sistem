@@ -3068,22 +3068,43 @@ window.setRptMaster = function(masterId, el) {
 
 async function _populateRptMasterChips() {
   const row = document.getElementById('rpt-master-filter-row');
-  if (!row || row.dataset.populated === '1') return;
+  if (!row) return;
+  // Пересобираем чипы каждый раз: показываем только тех мастеров, у которых
+  // есть выплаты в ТЕКУЩЕЙ выборке (учитывает «Только мои», период, тип).
+  // Сохраняем первый статичный чип «Все мастера», остальные — заменяем.
+  const staticAll = row.querySelector('[data-mid=""], .rpt-chip[onclick*="null"]') || row.firstElementChild;
+  row.innerHTML = staticAll ? staticAll.outerHTML : '';
   try {
-    const masters = await Masters.list(false, currentProject?.code || null);
-    if (!masters.length) { row.dataset.populated = '1'; return; }
-    const chips = masters.map(m => {
+    const recs = _rptAllRecs || [];
+    const seen = new Map(); // id -> {id, name, color, cnt}
+    for (const r of recs) {
+      if (r.kind !== 'master_payment' || !r.master_id) continue;
+      const id = String(r.master_id);
+      const it = seen.get(id) || { id, name: r.master_name || r.name || '—', color: 'var(--orange)', cnt: 0 };
+      it.cnt++;
+      seen.set(id, it);
+    }
+    if (!seen.size) return;
+    // Дополним цвета/имена из справочника мастеров (fire-and-forget).
+    let dict = new Map();
+    try {
+      const all = await Masters.list(false, currentProject?.code || null);
+      dict = new Map(all.map(m => [String(m.id), m]));
+      for (const [id, it] of seen) {
+        const m = dict.get(id);
+        if (m) { it.name = m.name; it.color = m.color || it.color; }
+      }
+    } catch(_) {}
+    const chips = [...seen.values()].map(m => {
       const init = (m.name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
-      const cnt = m.payments_count || 0;
       return `<div class="rpt-chip" data-mid="${esc(m.id)}" onclick="setRptMaster('${esc(m.id)}',this)" title="${esc(m.name)}">
         <span style="display:inline-flex;align-items:center;gap:6px">
-          <span style="width:18px;height:18px;border-radius:50%;background:${esc(m.color || 'var(--orange)')};color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:800">${esc(init)}</span>
-          ${esc(m.name.split(' ').slice(0, 2).join(' '))}${cnt ? ` <span style="opacity:.5">·${cnt}</span>` : ''}
+          <span style="width:18px;height:18px;border-radius:50%;background:${esc(m.color)};color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:800">${esc(init)}</span>
+          ${esc(m.name.split(' ').slice(0, 2).join(' '))}${m.cnt ? ` <span style="opacity:.5">·${m.cnt}</span>` : ''}
         </span>
       </div>`;
     }).join('');
     row.insertAdjacentHTML('beforeend', chips);
-    row.dataset.populated = '1';
   } catch(_) {}
 }
 
