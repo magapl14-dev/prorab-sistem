@@ -1,4 +1,4 @@
-const CACHE = "welldom-v19";
+const CACHE = "welldom-v20";
 const STATIC = ["/", "/index.html", "/api.js", "/manifest.json"];
 
 // Гарантированный fallback: если и сеть, и кэш пусты — отдаём реальный Response,
