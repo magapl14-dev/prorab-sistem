@@ -249,6 +249,7 @@ class Master(Base):
     phone = Column(String(30), nullable=True)
     specialty = Column(String(100), nullable=True)  # "сантехник", "электрик"...
     default_rate = Column(Numeric(12, 2), nullable=True)
+    rate_unit = Column(String(20), nullable=True)  # '₽/м²' | '₽/м.п.' | '₽/час' | '₽/смена' | '₽/день' | '₽/шт' | ...
     color = Column(String(20), nullable=True)
     notes = Column(Text, nullable=True)
     active = Column(Boolean, default=True, nullable=False)
@@ -256,6 +257,24 @@ class Master(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     deleted_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class MasterProjectVisibility(Base):
+    """Per-project override видимости мастера в бригаде проекта.
+
+    mode = 'show' — «всегда показывать» (белый список),
+    mode = 'hide' — «скрыть».
+    Итоговая логика в masters.list:
+      если в проекте есть хотя бы один show — показываем ТОЛЬКО show'ов;
+      иначе — всех кроме hide.
+    """
+    __tablename__ = "master_project_visibility"
+
+    master_id = Column(UUID(as_uuid=True), ForeignKey("masters.id", ondelete="CASCADE"), primary_key=True)
+    project_id = Column(UUID(as_uuid=True), ForeignKey("projects.id", ondelete="CASCADE"), primary_key=True)
+    mode = Column(String(10), nullable=False)  # 'show' | 'hide'
+    set_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    set_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
 
 class TaskComment(Base):

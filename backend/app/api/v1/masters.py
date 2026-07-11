@@ -3,13 +3,14 @@ from typing import Optional
 from uuid import UUID
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_
 
 from ...core.database import get_db
 from ...core.deps import current_user
 from ...core.permissions import require_permission
-from ...models.models import Master, Record, User, Project
+from ...models.models import Master, Record, User, Project, MasterProjectVisibility
 from ...schemas.schemas import MasterCreate, MasterUpdate, MasterOut
 
 router = APIRouter(prefix="/masters", tags=["masters"])
@@ -74,6 +75,7 @@ async def _build_out(
 async def list_masters(
     include_inactive: bool = False,
     project_code: Optional[str] = None,
+    include_hidden: bool = False,   # админ-режим: показать всех вместе с скрытыми (для настройки)
     user: User = Depends(require_permission("master_payments", "view")),
     db: AsyncSession = Depends(get_db),
 ):
@@ -84,7 +86,34 @@ async def list_masters(
         select(Master).where(and_(*filters)).order_by(Master.name)
     )).scalars().all()
     project_id = await _resolve_project_id(db, project_code)
-    return [await _build_out(db, m, project_id) for m in rows]
+
+    # Видимость по проекту:
+    #   - если для проекта есть хоть один show — показываем ТОЛЬКО show'ов;
+    #   - иначе — всех кроме hide.
+    # include_hidden=true отключает фильтрацию — всё видим одним списком
+    # (нужно чтобы админ мог настраивать чекбоксы).
+    visibility_by_id: dict = {}
+    if project_id is not None:
+        vis_rows = (await db.execute(
+            select(MasterProjectVisibility).where(MasterProjectVisibility.project_id == project_id)
+        )).scalars().all()
+        visibility_by_id = {v.master_id: v.mode for v in vis_rows}
+
+        if not include_hidden:
+            has_whitelist = any(mode == "show" for mode in visibility_by_id.values())
+            if has_whitelist:
+                rows = [m for m in rows if visibility_by_id.get(m.id) == "show"]
+            else:
+                rows = [m for m in rows if visibility_by_id.get(m.id) != "hide"]
+
+    out = []
+    for m in rows:
+        item = await _build_out(db, m, project_id)
+        # Прокидываем режим видимости в поле (Pydantic позволит extra в MasterOut? —
+        # проще пометкой в notes-адаптере на фронте, но нам она нужна как отдельное поле).
+        setattr(item, "visibility_mode", visibility_by_id.get(m.id))
+        out.append(item)
+    return out
 
 
 @router.get("/{master_id}", response_model=MasterOut)
@@ -127,6 +156,7 @@ async def create_master(
         phone=(data.phone or "").strip() or None,
         specialty=(data.specialty or "").strip() or None,
         default_rate=data.default_rate,
+        rate_unit=(data.rate_unit or "").strip() or None,
         color=data.color,
         notes=data.notes,
         active=True,
@@ -218,3 +248,49 @@ async def delete_master(
     m.deleted_at = datetime.now(timezone.utc)
     m.active = False
     await db.commit()
+
+
+class VisibilityIn(BaseModel):
+    project_code: str
+    mode: Optional[str] = None  # 'show' | 'hide' | None → сбросить в дефолт
+
+
+@router.put("/{master_id}/visibility")
+async def set_master_visibility(
+    master_id: UUID,
+    data: VisibilityIn,
+    user: User = Depends(require_permission("master_payments", "edit")),
+    db: AsyncSession = Depends(get_db),
+):
+    """Задать per-project режим видимости мастера (`show` / `hide`), либо
+    сбросить (mode=null) — тогда действует автоматика."""
+    project_id = await _resolve_project_id(db, data.project_code)
+    if project_id is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "project not found")
+
+    if data.mode is not None and data.mode not in ("show", "hide"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "mode must be 'show' | 'hide' | null")
+
+    existing = (await db.execute(
+        select(MasterProjectVisibility).where(
+            MasterProjectVisibility.master_id == master_id,
+            MasterProjectVisibility.project_id == project_id,
+        )
+    )).scalar_one_or_none()
+
+    if data.mode is None:
+        if existing:
+            await db.delete(existing)
+            await db.commit()
+        return {"ok": True, "mode": None}
+
+    if existing:
+        existing.mode = data.mode
+        existing.set_by = user.id
+    else:
+        db.add(MasterProjectVisibility(
+            master_id=master_id, project_id=project_id,
+            mode=data.mode, set_by=user.id,
+        ))
+    await db.commit()
+    return {"ok": True, "mode": data.mode}

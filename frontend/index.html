@@ -2401,7 +2401,7 @@ async function renderMastersRoster() {
                 <div style="font-weight:700;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.name)}</div>
                 <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:5px">
                   ${m.specialty ? `<span style="font-size:11px;font-weight:700;background:var(--accent-tint);color:var(--orange);padding:2px 8px;border-radius:99px">🔧 ${esc(m.specialty)}</span>` : ''}
-                  ${rate > 0 ? `<span style="font-size:11px;font-weight:700;background:var(--tag-bg);color:var(--text2);padding:2px 8px;border-radius:99px">${fmt(rate)} ₽/д</span>` : ''}
+                  ${rate > 0 ? `<span style="font-size:11px;font-weight:700;background:var(--tag-bg);color:var(--text2);padding:2px 8px;border-radius:99px">${fmt(rate)} ${esc(m.rate_unit || '₽/д')}</span>` : ''}
                 </div>
                 <div style="font-size:12px;color:var(--text2);margin-top:5px">
                   ${hasPaymentsHere
@@ -2474,7 +2474,37 @@ window.openMasterEdit = async function(masterId) {
         <datalist id="master-spec-list">${(window._knownSpecialties || []).map(s => `<option value="${esc(s)}">`).join('')}</datalist>
       </div>
     </div>
-    <div class="form-group"><label>Ставка / тариф (опц)</label><input id="m-mrate" type="number" value="${m?.default_rate || ''}" placeholder="3000"></div>
+    <div class="form-group">
+      <label>Ставка / тариф (опц)</label>
+      <div style="display:flex;gap:8px;align-items:stretch">
+        <input id="m-mrate" type="number" value="${m?.default_rate || ''}" placeholder="3000" style="flex:2">
+        <select id="m-mrate-unit" style="flex:1.2">
+          ${['','₽/м²','₽/м.п.','₽/час','₽/смена','₽/день','₽/шт','₽/проект'].map(u => `<option value="${u}"${(m?.rate_unit||'')===u?' selected':''}>${u||'ед.'}</option>`).join('')}
+        </select>
+      </div>
+      <div style="font-size:11px;color:var(--text2);margin-top:5px">Число + единица: 1500 ₽/м², 3000 ₽/смена и т.п.</div>
+    </div>
+    ${masterId && currentProject ? `
+      <div class="form-group" style="background:var(--bg);border-radius:12px;padding:12px">
+        <label style="margin-bottom:6px">Видимость в «${esc(currentProject.name)}»</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${[
+            ['', 'Автоматически'],
+            ['show', '✓ Всегда показывать'],
+            ['hide', '✕ Скрыть из бригады'],
+          ].map(([mode, label]) => `
+            <button type="button" onclick="_setMasterVisibility('${masterId}','${mode}')"
+              class="prio-chip ${((m?.visibility_mode||'') === mode) ? 'active' : ''}"
+              style="flex:1;min-width:120px;font-size:12.5px;padding:8px">${label}</button>
+          `).join('')}
+        </div>
+        <div style="font-size:11px;color:var(--text2);margin-top:6px;line-height:1.4">
+          Автоматически — работает общее правило: если у кого-то из мастеров стоит
+          «Всегда показывать», в бригаде видны только они. Иначе — все, кроме
+          отмеченных «Скрыть».
+        </div>
+      </div>
+    ` : ''}
     <div class="form-group"><label>Заметки</label><textarea id="m-mnotes" placeholder="Особенности, контакты бригады...">${esc(m?.notes || '')}</textarea></div>
     ${m ? `<div style="background:var(--bg);border-radius:12px;padding:12px;margin-bottom:6px;display:flex;gap:12px;align-items:center">
       <div style="flex:1;font-size:12.5px">
@@ -2497,6 +2527,7 @@ window._saveMaster = async function(id) {
     phone: document.getElementById('m-mphone').value.trim() || null,
     specialty: document.getElementById('m-mspec').value.trim() || null,
     default_rate: parseFloat(document.getElementById('m-mrate').value) || null,
+    rate_unit: document.getElementById('m-mrate-unit')?.value || null,
     notes: document.getElementById('m-mnotes').value.trim() || null,
   };
   if (!data.name) { toast('Введите имя'); return; }
@@ -2508,6 +2539,22 @@ window._saveMaster = async function(id) {
     renderMastersRoster();
   } catch(e) {
     toast('Ошибка: ' + (e?.detail || JSON.stringify(e)));
+  }
+};
+
+// Установить/сбросить видимость мастера в текущем проекте.
+// mode: '' — сбросить (авто), 'show', 'hide'.
+window._setMasterVisibility = async function(masterId, mode) {
+  if (!currentProject) { toast('Проект не выбран'); return; }
+  try {
+    await Masters.setVisibility(masterId, currentProject.code, mode || null);
+    // Перерисуем карточку (визуально подсветить выбранный чип) — просто ре-опен
+    closeModal();
+    openMasterEdit(masterId);
+    renderMastersRoster();
+    toast(mode === 'hide' ? 'Скрыто из бригады' : mode === 'show' ? 'Всегда показывать' : 'Автоматически');
+  } catch(e) {
+    toast('Ошибка: ' + (e?.detail?.message || e?.detail || ''));
   }
 };
 

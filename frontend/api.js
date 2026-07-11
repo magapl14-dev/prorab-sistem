@@ -194,6 +194,9 @@ export const Masters = {
   update: (id, data) => _patch(`/masters/${id}`, data),
   delete: (id, { force = false } = {}) =>
     _delete(`/masters/${id}${force ? '?force=true' : ''}`),
+  // видимость мастера в проекте: 'show' | 'hide' | null (сброс)
+  setVisibility: (id, projectCode, mode) =>
+    _put(`/masters/${id}/visibility`, { project_code: projectCode, mode }),
 };
 
 export const Tasks = {
@@ -346,4 +349,5 @@ const _get = async (path, params) => {
 };
 const _post = (path, body, auth = true) => _request("POST", path, body, auth);
 const _patch = (path, body) => _request("PATCH", path, body);
+const _put = (path, body) => _request("PUT", path, body);
 const _delete = (path) => _request("DELETE", path);

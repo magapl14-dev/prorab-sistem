@@ -405,6 +405,7 @@ class MasterCreate(BaseModel):
     phone: Optional[str] = None
     specialty: Optional[str] = None
     default_rate: Optional[Decimal] = None
+    rate_unit: Optional[str] = None
     color: Optional[str] = None
     notes: Optional[str] = None
 
@@ -414,6 +415,7 @@ class MasterUpdate(BaseModel):
     phone: Optional[str] = None
     specialty: Optional[str] = None
     default_rate: Optional[Decimal] = None
+    rate_unit: Optional[str] = None
     color: Optional[str] = None
     notes: Optional[str] = None
     active: Optional[bool] = None
@@ -425,6 +427,7 @@ class MasterOut(BaseModel):
     phone: Optional[str] = None
     specialty: Optional[str] = None
     default_rate: Optional[Decimal] = None
+    rate_unit: Optional[str] = None
     color: Optional[str] = None
     notes: Optional[str] = None
     active: bool
@@ -433,6 +436,8 @@ class MasterOut(BaseModel):
     payments_count: int = 0
     last_paid_at: Optional[date] = None
     created_at: datetime
+    # per-project видимость (только когда запрошено ?project_code=)
+    visibility_mode: Optional[str] = None  # 'show' | 'hide' | null
     model_config = {"from_attributes": True}
 
 
