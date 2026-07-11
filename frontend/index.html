@@ -3275,7 +3275,18 @@ async function loadReport() {
         if (new Date(today2.getFullYear(), today2.getMonth(), d).getDay() % 6 !== 0) workLeft++;
       }
       const workPassed = workDays - workLeft;
-      const spentM = parseFloat(plan.spent_monthly);
+      // Когда включён фильтр «Только мои», spent_monthly с бэка ошибочен —
+      // он показывает вклад всего проекта. Считаем сами по _rptAllRecs
+      // (backend их уже отфильтровал по author_id).
+      const _mo = today2.toISOString().slice(0, 7); // YYYY-MM
+      const spentM = _rptMine
+        ? (_rptAllRecs || []).filter(r => (r.operation_date || '').startsWith(_mo))
+            .reduce((s, r) => {
+              if (r.kind === 'expense')          return s + (parseFloat(r.sum_buy) || 0);
+              if (r.kind === 'master_payment')   return s + (parseFloat(r.payment_amount) || 0);
+              return s;
+            }, 0)
+        : parseFloat(plan.spent_monthly);
       const planM = parseFloat(plan.plan_monthly);
       const pctM = planM > 0 ? Math.min(spentM / planM * 100, 100) : 0;
       const behind = spentM < planM * (workPassed / workDays) * 0.9 && planM > 0;
@@ -3285,7 +3296,7 @@ async function loadReport() {
 
       const planHtml = `<div class="dash-card" style="margin:0 12px 8px">
         <div class="dash-card-title">
-          <span>📅 ПЛАН НА ${monthNames2[today2.getMonth()].toUpperCase()}</span>
+          <span>📅 ПЛАН НА ${monthNames2[today2.getMonth()].toUpperCase()}${_rptMine ? ' · МОЙ ВКЛАД' : ''}</span>
           ${behind ? '<span class="dash-warn">⚠️ Отстаём</span>' : '<span class="dash-warn" style="background:#e8f5e9;color:#2e7d32">✓ В темпе</span>'}
         </div>
         <div><span class="dash-amount-lg">${fmt(spentM)} ₽</span><span class="dash-amount-sub">из ${fmt(planM)} ₽</span></div>
