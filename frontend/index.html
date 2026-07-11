@@ -4465,9 +4465,28 @@ function _applyTaskFormFields(f) {
   if (f.priority && typeof _pickPrio === 'function') _pickPrio(f.priority);
   if (f.due_at) set('t-due', f.due_at);
   if (Array.isArray(f.assignee_names)) {
+    // Мягкий матч: сначала точное имя, затем «имя начинается на …» / «содержит …»,
+    // чтобы «Анзор» подцепил «Анзор Магомедов», а падежные формы всё равно ловились.
+    const alreadyIn = new Set((_taskAssignees || []).map(a => String(a.id)));
+    const findUser = (name) => {
+      const n = String(name || '').toLowerCase().trim();
+      if (!n) return null;
+      const list = window._taskAllUsers || [];
+      let u = list.find(u => (u.name || '').toLowerCase() === n);
+      if (u) return u;
+      u = list.find(u => (u.name || '').toLowerCase().split(/\s+/).some(w => w === n));
+      if (u) return u;
+      u = list.find(u => (u.name || '').toLowerCase().startsWith(n) || n.startsWith((u.name || '').toLowerCase()));
+      if (u) return u;
+      u = list.find(u => (u.name || '').toLowerCase().includes(n) || n.includes((u.name || '').toLowerCase()));
+      return u;
+    };
     for (const name of f.assignee_names) {
-      const u = (window._taskAllUsers || []).find(u => (u.name || '').toLowerCase() === String(name).toLowerCase());
-      if (u && typeof addTaskAssignee === 'function') addTaskAssignee(u.id, u.name);
+      const u = findUser(name);
+      if (u && !alreadyIn.has(String(u.id)) && typeof addTaskAssignee === 'function') {
+        addTaskAssignee(u.id, u.name);
+        alreadyIn.add(String(u.id));
+      }
     }
   }
   if (typeof _scheduleTaskAutosave === 'function') _scheduleTaskAutosave();

@@ -117,6 +117,17 @@ def _system_prompt(context: str, current: dict, extras: dict) -> str:
             f'- Поле "priority": "urgent" на «срочно/немедленно», "high" на «важно/быстро», '
             f'"low" на «когда будет время», иначе "medium".'
         )
+        known_users = extras.get("known_users") or []
+        if known_users:
+            users_enum = ", ".join(f'"{n}"' for n in known_users)
+            extras_rules.append(
+                f'- Поле "assignee_names": массив имён из списка [{users_enum}]. Если в речи '
+                f'имя названо в другом падеже («Анзору», «Ивана», «Асхабу») — приведи к тому '
+                f'написанию, что в списке (именительный падеж). Возможны сокращения: если сказано '
+                f'просто имя, а в списке «Иван Петров» — верни «Иван Петров». Если имени в списке '
+                f'нет — не выдумывай, оставь пустой массив []. Если сказано «мне», «на себя» — '
+                f'тоже []; исполнителя-создателя подставит фронт сам.'
+            )
     extras_block = "\n".join(extras_rules) + ("\n" if extras_rules else "")
 
     return (
@@ -218,6 +229,12 @@ async def voice_fill(
         if "Общая" not in types:
             types.insert(0, "Общая")
         extras["task_types"] = types
+        # Известные исполнители — Grok должен возвращать имена ровно как в
+        # системе (в именительном падеже), чтобы фронт их нашёл сходу.
+        users_rows = (await db.execute(
+            select(User).where(User.deleted_at.is_(None), User.active == True).order_by(User.name)
+        )).scalars().all()
+        extras["known_users"] = [u.name for u in users_rows if u.name]
 
     sys_prompt = _system_prompt(context, current, extras)
 
