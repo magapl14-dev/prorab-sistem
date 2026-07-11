@@ -9,33 +9,53 @@ from sqlalchemy import select, func, and_, or_
 from ...core.database import get_db
 from ...core.deps import current_user
 from ...core.permissions import require_permission
-from ...models.models import Master, Record, User
+from ...models.models import Master, Record, User, Project
 from ...schemas.schemas import MasterCreate, MasterUpdate, MasterOut
 
 router = APIRouter(prefix="/masters", tags=["masters"])
 
 
-async def _build_out(db: AsyncSession, m: Master) -> MasterOut:
+async def _resolve_project_id(db: AsyncSession, project_code: Optional[str]) -> Optional[UUID]:
+    if not project_code:
+        return None
+    p = (await db.execute(
+        select(Project).where(Project.code == project_code, Project.deleted_at.is_(None))
+    )).scalar_one_or_none()
+    return p.id if p else None
+
+
+async def _build_out(
+    db: AsyncSession,
+    m: Master,
+    project_id: Optional[UUID] = None,
+) -> MasterOut:
     # агрегаты по master_payment записям. Учитываем и записи без явного master_id,
     # если имя совпадает с именем мастера (миграционная совместимость: раньше
     # мастера были просто текстом в records.name, а после появления сущности
     # часть записей могла сохраниться с NULL master_id).
+    filters = [
+        or_(
+            Record.master_id == m.id,
+            and_(
+                Record.master_id.is_(None),
+                func.lower(Record.name) == m.name.lower(),
+            ),
+        ),
+        Record.kind == "master_payment",
+        Record.deleted_at.is_(None),
+    ]
+    # Когда задан project_id — сумма/счётчик/дата считаются только по этому проекту.
+    # Так карточка мастера внутри конкретного объекта показывает сколько ему
+    # выплачено на этом объекте, а не по всем объектам сразу.
+    if project_id is not None:
+        filters.append(Record.project_id == project_id)
+
     rows = (await db.execute(
         select(
             func.coalesce(func.sum(Record.payment_amount), 0),
             func.count(Record.id),
             func.max(Record.operation_date),
-        ).where(
-            or_(
-                Record.master_id == m.id,
-                and_(
-                    Record.master_id.is_(None),
-                    func.lower(Record.name) == m.name.lower(),
-                ),
-            ),
-            Record.kind == "master_payment",
-            Record.deleted_at.is_(None),
-        )
+        ).where(and_(*filters))
     )).first()
     total = rows[0] or Decimal("0")
     cnt = rows[1] or 0
@@ -53,6 +73,7 @@ async def _build_out(db: AsyncSession, m: Master) -> MasterOut:
 @router.get("", response_model=list[MasterOut])
 async def list_masters(
     include_inactive: bool = False,
+    project_code: Optional[str] = None,
     user: User = Depends(require_permission("master_payments", "view")),
     db: AsyncSession = Depends(get_db),
 ):
@@ -62,12 +83,14 @@ async def list_masters(
     rows = (await db.execute(
         select(Master).where(and_(*filters)).order_by(Master.name)
     )).scalars().all()
-    return [await _build_out(db, m) for m in rows]
+    project_id = await _resolve_project_id(db, project_code)
+    return [await _build_out(db, m, project_id) for m in rows]
 
 
 @router.get("/{master_id}", response_model=MasterOut)
 async def get_master(
     master_id: UUID,
+    project_code: Optional[str] = None,
     user: User = Depends(require_permission("master_payments", "view")),
     db: AsyncSession = Depends(get_db),
 ):
@@ -76,7 +99,8 @@ async def get_master(
     )).scalar_one_or_none()
     if not m:
         raise HTTPException(404)
-    return await _build_out(db, m)
+    project_id = await _resolve_project_id(db, project_code)
+    return await _build_out(db, m, project_id)
 
 
 @router.post("", response_model=MasterOut, status_code=201)

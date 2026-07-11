@@ -2334,7 +2334,9 @@ async function renderMastersRoster() {
   const el = document.getElementById('masters-list');
   el.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
   try {
-    const masters = await Masters.list();
+    // суммы и число выплат считаются по текущему объекту,
+    // чтобы не смешивать с выплатами того же мастера на других проектах
+    const masters = await Masters.list(false, currentProject?.code || null);
     if (!masters.length) {
       el.innerHTML = `
         <div style="padding:40px 20px;text-align:center">
@@ -2391,7 +2393,8 @@ window.openMasterEdit = async function(masterId) {
   let m = null;
   let history = [];
   if (masterId) {
-    try { m = await Masters.get(masterId); } catch(_) {}
+    // тянем мастера с агрегатами по текущему объекту (сумма, счётчик, дата)
+    try { m = await Masters.get(masterId, currentProject?.code || null); } catch(_) {}
     // подгрузим выплаты этого мастера из текущего проекта
     if (currentProject) {
       try {
@@ -2906,7 +2909,7 @@ async function _populateRptMasterChips() {
   const row = document.getElementById('rpt-master-filter-row');
   if (!row || row.dataset.populated === '1') return;
   try {
-    const masters = await Masters.list();
+    const masters = await Masters.list(false, currentProject?.code || null);
     if (!masters.length) { row.dataset.populated = '1'; return; }
     const chips = masters.map(m => {
       const init = (m.name || '?').split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();

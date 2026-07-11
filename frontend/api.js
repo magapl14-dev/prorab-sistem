@@ -155,8 +155,15 @@ export const Admin = {
 };
 
 export const Masters = {
-  list: (includeInactive = false) => _get(`/masters${includeInactive ? '?include_inactive=true' : ''}`),
-  get: (id) => _get(`/masters/${id}`),
+  list: (includeInactive = false, projectCode = null) => {
+    const q = new URLSearchParams();
+    if (includeInactive) q.set('include_inactive', 'true');
+    if (projectCode)     q.set('project_code', projectCode);
+    const s = q.toString();
+    return _get(`/masters${s ? '?' + s : ''}`);
+  },
+  get: (id, projectCode = null) =>
+    _get(`/masters/${id}${projectCode ? '?project_code=' + encodeURIComponent(projectCode) : ''}`),
   create: (data) => _post("/masters", data),
   update: (id, data) => _patch(`/masters/${id}`, data),
   delete: (id) => _delete(`/masters/${id}`),
