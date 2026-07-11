@@ -36,5 +36,5 @@ jobs:
             cd ..
 
             # Restart service
-            sudo systemctl restart welldom
+            sudo systemctl restart prorab-sistem
             echo "Deploy completed at $(date)"

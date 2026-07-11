@@ -5107,7 +5107,30 @@ window.deleteUser = async function(id) {
   try {
     await Admin.users.delete(id);
     closeModal(); toast('Пользователь удалён'); openAdminUsers();
-  } catch(e) { toast('Ошибка: ' + (e?.detail || '')); }
+  } catch(e) {
+    // 409 с деталями: за юзером тянутся активные данные — показываем что именно мешает
+    const d = e?.detail;
+    if (e?.status === 409 && d && d.error === 'has_dependencies') {
+      const bits = [];
+      if (d.records)             bits.push(`<li><b>${d.records}</b> записей (расходы, оплаты и т.п.)</li>`);
+      if (d.tasks_created_open)  bits.push(`<li><b>${d.tasks_created_open}</b> открытых задач, которые он поставил</li>`);
+      if (d.tasks_assigned_open) bits.push(`<li><b>${d.tasks_assigned_open}</b> открытых задач на нём как на исполнителе</li>`);
+      openModal('Не удалить пользователя', `
+        <p>За <b>${esc(d.user_name || '')}</b> ещё числятся активные данные:</p>
+        <ul style="margin:8px 0 12px 20px;line-height:1.5">${bits.join('')}</ul>
+        <p style="color:var(--text2);font-size:13px">
+          Сначала удалите эти записи / завершите или переназначьте задачи на другого исполнителя —
+          после этого пользователя можно будет удалить. Если хочешь временно
+          отключить доступ, используй кнопку <b>«Отключить»</b> — данные останутся.
+        </p>
+        <div class="modal-actions">
+          <button class="btn" onclick="closeModal()">Понятно</button>
+        </div>
+      `);
+      return;
+    }
+    toast('Ошибка: ' + (d?.message || d || ''));
+  }
 };
 
 window.openCreateUser = async function() {

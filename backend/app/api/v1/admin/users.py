@@ -2,12 +2,12 @@ from datetime import datetime, timezone
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from ....core.database import get_db
 from ....core.permissions import require_permission
 from ....core.security import hash_pin, normalize_phone
-from ....models.models import User, UserProject, Project, Role
+from ....models.models import User, UserProject, Project, Role, Record, Task, TaskAssignee
 from ....schemas.schemas import UserCreate, UserOut
 
 
@@ -112,10 +112,55 @@ async def delete_user(
     admin: User = Depends(require_permission("users", "delete")),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(User).where(User.id == UUID(user_id), User.deleted_at.is_(None)))
+    uid = UUID(user_id)
+    result = await db.execute(select(User).where(User.id == uid, User.deleted_at.is_(None)))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
+
+    # Проверяем что за пользователем не тянутся активные записи и открытые задачи —
+    # прежде чем удалить, админ должен либо удалить эти записи, либо переназначить.
+    records_cnt = (await db.execute(
+        select(func.count(Record.id)).where(
+            Record.author_id == uid,
+            Record.deleted_at.is_(None),
+        )
+    )).scalar() or 0
+
+    open_statuses = ("open", "in_progress")
+
+    tasks_created_cnt = (await db.execute(
+        select(func.count(Task.id)).where(
+            Task.created_by == uid,
+            Task.status.in_(open_statuses),
+            Task.deleted_at.is_(None),
+        )
+    )).scalar() or 0
+
+    tasks_assigned_cnt = (await db.execute(
+        select(func.count(Task.id)).where(
+            Task.id.in_(select(TaskAssignee.task_id).where(TaskAssignee.user_id == uid)),
+            Task.status.in_(open_statuses),
+            Task.deleted_at.is_(None),
+        )
+    )).scalar() or 0
+
+    if records_cnt or tasks_created_cnt or tasks_assigned_cnt:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={
+                "error": "has_dependencies",
+                "user_name": user.name,
+                "records": int(records_cnt),
+                "tasks_created_open": int(tasks_created_cnt),
+                "tasks_assigned_open": int(tasks_assigned_cnt),
+                "message": (
+                    "Нельзя удалить пользователя, за ним ещё числятся активные данные. "
+                    "Удалите или переназначьте их и повторите."
+                ),
+            },
+        )
+
     user.deleted_at = datetime.now(timezone.utc)
     await db.commit()
 
