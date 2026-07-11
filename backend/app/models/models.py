@@ -230,11 +230,14 @@ class Task(Base):
     completed_at = Column(DateTime(timezone=True), nullable=True)
     completed_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     bitrix_task_id = Column(String(20), nullable=True)
+    # опциональная привязка к мастеру: удобно для «созвониться / уточнить объём»
+    master_id = Column(UUID(as_uuid=True), ForeignKey("masters.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     deleted_at = Column(DateTime(timezone=True), nullable=True)
 
     project = relationship("Project", foreign_keys=[project_id])
+    master = relationship("Master", foreign_keys=[master_id])
     creator = relationship("User", foreign_keys=[created_by])
     assignees_link = relationship("TaskAssignee", back_populates="task", cascade="all, delete-orphan")
     attachments = relationship("Photo", back_populates="task", foreign_keys="Photo.task_id")
@@ -257,6 +260,22 @@ class Master(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     deleted_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class MasterRate(Base):
+    """Именованные тарифы мастера: 'Штукатурка под обои — 250 ₽/м²',
+    'Штукатурка под покраску — 320 ₽/м²' и т.п. У одного мастера может
+    быть сколько угодно — прораб заранее фиксирует прайс, чтобы не
+    запоминать."""
+    __tablename__ = "master_rates"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    master_id = Column(UUID(as_uuid=True), ForeignKey("masters.id", ondelete="CASCADE"), nullable=False)
+    name = Column(String(200), nullable=False)
+    amount = Column(Numeric(12, 2), nullable=False)
+    unit = Column(String(20), nullable=True)  # '₽/м²' | '₽/час' | ...
+    display_order = Column(Integer, default=0)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 class MasterProjectVisibility(Base):

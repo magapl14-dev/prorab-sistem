@@ -10,8 +10,8 @@ from sqlalchemy import select, func, and_, or_
 from ...core.database import get_db
 from ...core.deps import current_user
 from ...core.permissions import require_permission
-from ...models.models import Master, Record, User, Project, MasterProjectVisibility
-from ...schemas.schemas import MasterCreate, MasterUpdate, MasterOut
+from ...models.models import Master, Record, User, Project, MasterProjectVisibility, MasterRate
+from ...schemas.schemas import MasterCreate, MasterUpdate, MasterOut, MasterRateIn, MasterRateOut
 
 router = APIRouter(prefix="/masters", tags=["masters"])
 
@@ -61,13 +61,20 @@ async def _build_out(
     total = rows[0] or Decimal("0")
     cnt = rows[1] or 0
     last = rows[2]
+    # подтягиваем прайс мастера
+    rate_rows = (await db.execute(
+        select(MasterRate).where(MasterRate.master_id == m.id).order_by(MasterRate.display_order, MasterRate.name)
+    )).scalars().all()
+    rates = [MasterRateOut.model_validate(r) for r in rate_rows]
+
     return MasterOut(
         id=m.id, name=m.name, phone=m.phone, specialty=m.specialty,
-        default_rate=m.default_rate, color=m.color, notes=m.notes, active=m.active,
+        default_rate=m.default_rate, rate_unit=m.rate_unit, color=m.color, notes=m.notes, active=m.active,
         total_paid=Decimal(str(total)),
         payments_count=cnt,
         last_paid_at=last,
         created_at=m.created_at,
+        rates=rates,
     )
 
 
@@ -294,3 +301,81 @@ async def set_master_visibility(
         ))
     await db.commit()
     return {"ok": True, "mode": data.mode}
+
+
+# ── Прайс мастера (Master Rates) ────────────────────────────────────────────
+
+@router.get("/{master_id}/rates", response_model=list[MasterRateOut])
+async def list_master_rates(
+    master_id: UUID,
+    user: User = Depends(require_permission("master_payments", "view")),
+    db: AsyncSession = Depends(get_db),
+):
+    rows = (await db.execute(
+        select(MasterRate).where(MasterRate.master_id == master_id)
+        .order_by(MasterRate.display_order, MasterRate.name)
+    )).scalars().all()
+    return rows
+
+
+@router.post("/{master_id}/rates", response_model=MasterRateOut, status_code=201)
+async def add_master_rate(
+    master_id: UUID,
+    data: MasterRateIn,
+    user: User = Depends(require_permission("master_payments", "edit")),
+    db: AsyncSession = Depends(get_db),
+):
+    m = (await db.execute(
+        select(Master).where(Master.id == master_id, Master.deleted_at.is_(None))
+    )).scalar_one_or_none()
+    if not m:
+        raise HTTPException(404)
+    r = MasterRate(
+        master_id=master_id,
+        name=data.name.strip(),
+        amount=data.amount,
+        unit=(data.unit or "").strip() or None,
+        display_order=data.display_order,
+    )
+    db.add(r)
+    await db.commit()
+    await db.refresh(r)
+    return r
+
+
+@router.patch("/{master_id}/rates/{rate_id}", response_model=MasterRateOut)
+async def update_master_rate(
+    master_id: UUID,
+    rate_id: UUID,
+    data: MasterRateIn,
+    user: User = Depends(require_permission("master_payments", "edit")),
+    db: AsyncSession = Depends(get_db),
+):
+    r = (await db.execute(
+        select(MasterRate).where(MasterRate.id == rate_id, MasterRate.master_id == master_id)
+    )).scalar_one_or_none()
+    if not r:
+        raise HTTPException(404)
+    r.name = data.name.strip()
+    r.amount = data.amount
+    r.unit = (data.unit or "").strip() or None
+    r.display_order = data.display_order
+    await db.commit()
+    await db.refresh(r)
+    return r
+
+
+@router.delete("/{master_id}/rates/{rate_id}", status_code=204)
+async def delete_master_rate(
+    master_id: UUID,
+    rate_id: UUID,
+    user: User = Depends(require_permission("master_payments", "edit")),
+    db: AsyncSession = Depends(get_db),
+):
+    r = (await db.execute(
+        select(MasterRate).where(MasterRate.id == rate_id, MasterRate.master_id == master_id)
+    )).scalar_one_or_none()
+    if not r:
+        raise HTTPException(404)
+    await db.delete(r)
+    await db.commit()

@@ -421,6 +421,22 @@ class MasterUpdate(BaseModel):
     active: Optional[bool] = None
 
 
+class MasterRateOut(BaseModel):
+    id: UUID
+    name: str
+    amount: Decimal
+    unit: Optional[str] = None
+    display_order: int = 0
+    model_config = {"from_attributes": True}
+
+
+class MasterRateIn(BaseModel):
+    name: str
+    amount: Decimal
+    unit: Optional[str] = None
+    display_order: int = 0
+
+
 class MasterOut(BaseModel):
     id: UUID
     name: str
@@ -438,6 +454,8 @@ class MasterOut(BaseModel):
     created_at: datetime
     # per-project видимость (только когда запрошено ?project_code=)
     visibility_mode: Optional[str] = None  # 'show' | 'hide' | null
+    # прайс мастера (заранее заведённые тарифы)
+    rates: List[MasterRateOut] = []
     model_config = {"from_attributes": True}
 
 
@@ -455,6 +473,14 @@ class TaskCommentCreate(BaseModel):
     attachment_ids: List[UUID] = []
 
 
+class TaskMasterBrief(BaseModel):
+    id: UUID
+    name: str
+    phone: Optional[str] = None
+    specialty: Optional[str] = None
+    model_config = {"from_attributes": True}
+
+
 class TaskOut(BaseModel):
     id: UUID
     title: str
@@ -468,6 +494,7 @@ class TaskOut(BaseModel):
     assignees: List[TaskAssigneeBrief] = []
     attachments: List[PhotoOut] = []
     comments: List[TaskCommentOut] = []
+    master: Optional[TaskMasterBrief] = None
     completed_at: Optional[datetime] = None
     created_at: datetime
     model_config = {"from_attributes": True}
@@ -482,6 +509,7 @@ class TaskCreate(BaseModel):
     due_at: Optional[datetime] = None
     assignee_ids: List[UUID] = []
     attachment_ids: List[UUID] = []
+    master_id: Optional[UUID] = None
 
 
 class TaskUpdate(BaseModel):
@@ -494,3 +522,4 @@ class TaskUpdate(BaseModel):
     status: Optional[str] = None
     assignee_ids: Optional[List[UUID]] = None
     attachment_ids: Optional[List[UUID]] = None  # добавить новые приложения
+    master_id: Optional[UUID] = None  # null → отвязать

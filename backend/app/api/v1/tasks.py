@@ -12,7 +12,7 @@ from ...core.permissions import has_permission, require_permission
 from ...models.models import User, Task, TaskAssignee, Project, UserProject, Photo, Dictionary, TaskComment
 from ...schemas.schemas import (
     TaskOut, TaskCreate, TaskUpdate, TaskAssigneeBrief, TaskProjectBrief, PhotoOut, DictionaryOut,
-    TaskCommentOut, TaskCommentCreate,
+    TaskCommentOut, TaskCommentCreate, TaskMasterBrief,
 )
 from ...services.s3 import public_url
 
@@ -91,6 +91,10 @@ def _task_out(t: Task, include_comments: bool = False) -> TaskOut:
     project = TaskProjectBrief(code=t.project.code, name=t.project.name) if t.project else None
     creator = TaskAssigneeBrief(id=t.creator.id, name=t.creator.name) if t.creator else None
     attachments = [_photo_brief(p) for p in (t.attachments or []) if not p.deleted_at]
+    master = TaskMasterBrief(
+        id=t.master.id, name=t.master.name,
+        phone=t.master.phone, specialty=t.master.specialty,
+    ) if t.master else None
     comments = []
     if include_comments:
         comments = [_comment_out(c) for c in sorted((t.comments or []), key=lambda x: x.created_at) if not c.deleted_at]
@@ -98,7 +102,7 @@ def _task_out(t: Task, include_comments: bool = False) -> TaskOut:
         id=t.id, title=t.title, description=t.description, type=t.type, status=t.status,
         priority=t.priority, due_at=t.due_at,
         project=project, creator=creator, assignees=assignees, attachments=attachments,
-        comments=comments,
+        comments=comments, master=master,
         completed_at=t.completed_at, created_at=t.created_at,
     )
 
@@ -177,6 +181,7 @@ async def list_tasks(
         select(Task)
         .options(
             selectinload(Task.project),
+            selectinload(Task.master),
             selectinload(Task.creator),
             selectinload(Task.assignees_link).selectinload(TaskAssignee.user),
             selectinload(Task.attachments),
@@ -201,6 +206,7 @@ async def get_task(
         select(Task)
         .options(
             selectinload(Task.project),
+            selectinload(Task.master),
             selectinload(Task.creator),
             selectinload(Task.assignees_link).selectinload(TaskAssignee.user),
             selectinload(Task.attachments),
@@ -314,6 +320,7 @@ async def create_task(
         due_at=data.due_at,
         created_by=user.id,
         status="open",
+        master_id=data.master_id,
     )
     db.add(task)
     await db.flush()
@@ -341,6 +348,7 @@ async def create_task(
         select(Task)
         .options(
             selectinload(Task.project),
+            selectinload(Task.master),
             selectinload(Task.creator),
             selectinload(Task.assignees_link).selectinload(TaskAssignee.user),
             selectinload(Task.attachments),
@@ -392,6 +400,11 @@ async def update_task(
         task.priority = data.priority or None
     if data.due_at is not None:
         task.due_at = data.due_at
+    # master_id: TaskUpdate.master_id — Optional[UUID]. Мы не отличаем
+    # "не пришло" от "передали null" на уровне Pydantic, поэтому клиент
+    # для отвязки должен явно отправлять null (fields_set проверяем).
+    if "master_id" in (data.model_fields_set or set()):
+        task.master_id = data.master_id
     if data.status is not None:
         if data.status not in ("open", "in_progress", "done", "cancelled"):
             raise HTTPException(400, "Invalid status")
@@ -435,6 +448,7 @@ async def update_task(
         select(Task)
         .options(
             selectinload(Task.project),
+            selectinload(Task.master),
             selectinload(Task.creator),
             selectinload(Task.assignees_link).selectinload(TaskAssignee.user),
             selectinload(Task.attachments),

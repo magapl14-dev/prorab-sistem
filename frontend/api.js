@@ -197,6 +197,13 @@ export const Masters = {
   // видимость мастера в проекте: 'show' | 'hide' | null (сброс)
   setVisibility: (id, projectCode, mode) =>
     _put(`/masters/${id}/visibility`, { project_code: projectCode, mode }),
+  // прайс мастера (несколько именованных тарифов)
+  rates: {
+    list:   (masterId) => _get(`/masters/${masterId}/rates`),
+    add:    (masterId, data) => _post(`/masters/${masterId}/rates`, data),
+    update: (masterId, rateId, data) => _patch(`/masters/${masterId}/rates/${rateId}`, data),
+    delete: (masterId, rateId) => _delete(`/masters/${masterId}/rates/${rateId}`),
+  },
 };
 
 export const Tasks = {

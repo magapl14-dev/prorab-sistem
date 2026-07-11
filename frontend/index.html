@@ -2505,6 +2505,38 @@ window.openMasterEdit = async function(masterId) {
         </div>
       </div>
     ` : ''}
+    ${masterId ? `
+      <div class="form-group" style="background:var(--bg);border-radius:12px;padding:12px">
+        <label style="margin-bottom:8px">Прайс мастера
+          <span style="font-weight:400;color:var(--text2);text-transform:none;letter-spacing:0;font-size:11px">— заранее занеси тарифы, чтобы не запоминать</span>
+        </label>
+        <div id="m-rates-list" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px">
+          ${(m?.rates || []).length === 0
+            ? '<div style="color:var(--text2);font-size:12.5px;padding:6px 2px">Пока нет тарифов — добавьте первый ниже.</div>'
+            : (m.rates.map(r => `
+                <div class="rate-row" data-rate-id="${r.id}" style="display:flex;gap:8px;align-items:center;background:var(--card);padding:8px 10px;border-radius:8px">
+                  <div style="flex:1;font-size:13px;font-weight:600">${esc(r.name)}</div>
+                  <div style="font-weight:800;font-variant-numeric:tabular-nums">${fmt(r.amount)}</div>
+                  <div style="font-size:11px;color:var(--text2);min-width:56px;text-align:right">${esc(r.unit || '')}</div>
+                  <button type="button" onclick="_deleteMasterRate('${masterId}','${r.id}')" style="background:none;border:none;color:var(--red);font-size:16px;cursor:pointer;padding:2px 6px">🗑</button>
+                </div>
+              `).join(''))
+          }
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:stretch">
+          <input id="m-newrate-name" type="text" placeholder="Штукатурка под обои" style="flex:2;min-width:140px">
+          <input id="m-newrate-amount" type="number" placeholder="Цена" style="flex:1;min-width:80px">
+          <select id="m-newrate-unit" style="flex:1;min-width:80px">
+            ${['','₽/м²','₽/м.п.','₽/час','₽/смена','₽/день','₽/шт','₽/проект'].map(u => `<option value="${u}">${u||'ед.'}</option>`).join('')}
+          </select>
+          <button type="button" onclick="_addMasterRate('${masterId}')" style="background:var(--orange);color:#fff;border:none;border-radius:8px;padding:0 14px;font-weight:700;cursor:pointer">+</button>
+        </div>
+      </div>
+    ` : `
+      <div style="font-size:11.5px;color:var(--text2);background:var(--bg);border-radius:10px;padding:10px 12px;margin-bottom:12px">
+        Прайс (несколько тарифов, «штукатурка под обои» / «под покраску» и т.п.) добавится после сохранения мастера.
+      </div>
+    `}
     <div class="form-group"><label>Заметки</label><textarea id="m-mnotes" placeholder="Особенности, контакты бригады...">${esc(m?.notes || '')}</textarea></div>
     ${m ? `<div style="background:var(--bg);border-radius:12px;padding:12px;margin-bottom:6px;display:flex;gap:12px;align-items:center">
       <div style="flex:1;font-size:12.5px">
@@ -2540,6 +2572,28 @@ window._saveMaster = async function(id) {
   } catch(e) {
     toast('Ошибка: ' + (e?.detail || JSON.stringify(e)));
   }
+};
+
+window._addMasterRate = async function(masterId) {
+  const name   = document.getElementById('m-newrate-name').value.trim();
+  const amount = parseFloat(document.getElementById('m-newrate-amount').value);
+  const unit   = document.getElementById('m-newrate-unit').value || null;
+  if (!name || !Number.isFinite(amount) || amount <= 0) { toast('Название и цена'); return; }
+  try {
+    await Masters.rates.add(masterId, { name, amount, unit, display_order: 0 });
+    closeModal();
+    openMasterEdit(masterId);
+    toast('Тариф добавлен');
+  } catch(e) { toast('Ошибка: ' + (e?.detail || '')); }
+};
+
+window._deleteMasterRate = async function(masterId, rateId) {
+  if (!confirm('Удалить этот тариф?')) return;
+  try {
+    await Masters.rates.delete(masterId, rateId);
+    closeModal();
+    openMasterEdit(masterId);
+  } catch(e) { toast('Ошибка: ' + (e?.detail || '')); }
 };
 
 // Установить/сбросить видимость мастера в текущем проекте.
@@ -5078,6 +5132,116 @@ window.submitComment = async function(taskId) {
 window._taskAssignees = [];   // [{id, name}]
 window._taskAllUsers = [];
 
+// Мастер в задаче: скрытый блок, раскрывается по кнопке. Если мастер уже
+// привязан — сразу показываем его карточку с кнопками звонка / перехода.
+window._taskLinkedMaster = null; // { id, name, phone, specialty } | null
+function _taskMasterPickerHtml(existing) {
+  const initial = existing ? JSON.stringify(existing).replace(/'/g,'&#39;') : '';
+  const hasLinked = !!existing;
+  return `
+    <div id="t-master-block" data-initial='${initial}' style="margin-top:6px">
+      ${hasLinked ? '' : `
+        <button type="button" id="t-master-add" onclick="_showTaskMasterPicker()"
+                class="btn btn-secondary" style="width:100%;font-size:13px;padding:9px;background:transparent;border:1px dashed var(--border);color:var(--text2)">
+          👷 Прикрепить мастера (необязательно)
+        </button>`}
+      <div id="t-master-body" style="display:${hasLinked ? 'block' : 'none'}"></div>
+    </div>
+  `;
+}
+
+async function _initTaskMasterPicker() {
+  const block = document.getElementById('t-master-block');
+  if (!block) return;
+  const initialRaw = block.dataset.initial;
+  if (initialRaw) {
+    try { window._taskLinkedMaster = JSON.parse(initialRaw); } catch(_) { window._taskLinkedMaster = null; }
+  } else {
+    window._taskLinkedMaster = null;
+  }
+  if (window._taskLinkedMaster) _renderTaskMasterCard();
+}
+
+window._showTaskMasterPicker = async function() {
+  const body = document.getElementById('t-master-body');
+  const btn  = document.getElementById('t-master-add');
+  if (btn) btn.style.display = 'none';
+  body.style.display = 'block';
+  body.innerHTML = `<div class="loader"><div class="spinner"></div></div>`;
+  try {
+    const masters = await Masters.list(false, currentProject?.code || null);
+    body.innerHTML = `
+      <div style="background:var(--bg);border-radius:12px;padding:10px 12px">
+        <div style="font-size:11px;color:var(--text2);font-weight:700;letter-spacing:.4px;text-transform:uppercase;margin-bottom:8px">Кого прикрепим?</div>
+        <input type="search" id="t-master-search" placeholder="Начни имя..." oninput="_filterTaskMasterList()"
+               style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;margin-bottom:8px">
+        <div id="t-master-list" style="max-height:200px;overflow-y:auto;display:flex;flex-direction:column;gap:4px">
+          ${masters.map(m => `
+            <div class="t-master-opt" data-name-lc="${esc((m.name||'').toLowerCase())}" onclick="_pickTaskMaster('${m.id}','${esc(m.name).replace(/'/g,'&#39;')}','${esc(m.phone||'').replace(/'/g,'&#39;')}','${esc(m.specialty||'').replace(/'/g,'&#39;')}')"
+                 style="padding:8px 10px;background:var(--card);border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+              <div><b>${esc(m.name)}</b>${m.specialty ? ` <span style="color:var(--text2);font-size:12px">· ${esc(m.specialty)}</span>` : ''}</div>
+              ${m.phone ? `<span style="font-size:11px;color:var(--text2)">${esc(m.phone)}</span>` : ''}
+            </div>`).join('')}
+        </div>
+        <button type="button" onclick="_cancelTaskMasterPicker()" style="width:100%;margin-top:8px;background:none;border:none;color:var(--text2);font-size:12px;padding:6px;cursor:pointer">← Отмена</button>
+      </div>`;
+  } catch (e) {
+    body.innerHTML = `<div style="color:var(--red);font-size:12px;padding:8px">Не удалось загрузить: ${esc(e?.detail || '')}</div>`;
+  }
+};
+
+window._filterTaskMasterList = function() {
+  const q = (document.getElementById('t-master-search')?.value || '').toLowerCase().trim();
+  document.querySelectorAll('.t-master-opt').forEach(el => {
+    const match = !q || el.dataset.nameLc.includes(q);
+    el.style.display = match ? '' : 'none';
+  });
+};
+
+window._cancelTaskMasterPicker = function() {
+  const btn = document.getElementById('t-master-add');
+  const body = document.getElementById('t-master-body');
+  if (btn) btn.style.display = '';
+  if (body) { body.style.display = 'none'; body.innerHTML = ''; }
+};
+
+window._pickTaskMaster = function(id, name, phone, specialty) {
+  window._taskLinkedMaster = { id, name, phone: phone || null, specialty: specialty || null };
+  _renderTaskMasterCard();
+  if (typeof _scheduleTaskAutosave === 'function') _scheduleTaskAutosave();
+};
+
+function _renderTaskMasterCard() {
+  const body = document.getElementById('t-master-body');
+  const btn  = document.getElementById('t-master-add');
+  const m = window._taskLinkedMaster;
+  if (btn) btn.style.display = m ? 'none' : '';
+  if (!body) return;
+  if (!m) { body.style.display = 'none'; body.innerHTML = ''; return; }
+  body.style.display = 'block';
+  const init = (m.name || '?').split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
+  const phoneClean = (m.phone || '').replace(/\s+/g,'');
+  body.innerHTML = `
+    <div style="background:var(--bg);border-radius:12px;padding:10px 12px;display:flex;align-items:center;gap:10px">
+      <div style="width:40px;height:40px;border-radius:12px;background:var(--orange);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;flex-shrink:0">${esc(init)}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.name)}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px">${esc(m.specialty || '—')}${m.phone ? ' · ' + esc(m.phone) : ''}</div>
+      </div>
+      ${phoneClean ? `<a href="tel:${esc(phoneClean)}" title="Позвонить" style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:var(--income);color:#fff;text-decoration:none;font-size:15px">📞</a>` : ''}
+      <button type="button" onclick="openMasterEdit('${m.id}')" title="Открыть карточку мастера"
+              style="width:34px;height:34px;border-radius:50%;border:none;background:var(--card);color:var(--text2);cursor:pointer;font-size:15px">👷</button>
+      <button type="button" onclick="_unlinkTaskMaster()" title="Отвязать"
+              style="width:28px;height:28px;border-radius:50%;border:none;background:transparent;color:var(--text2);cursor:pointer;font-size:14px">✕</button>
+    </div>`;
+}
+
+window._unlinkTaskMaster = function() {
+  window._taskLinkedMaster = null;
+  _renderTaskMasterCard();
+  if (typeof _scheduleTaskAutosave === 'function') _scheduleTaskAutosave();
+};
+
 function _assigneePickerHtml() {
   return `
     <div class="assn-wrap">
@@ -5180,12 +5344,14 @@ window.openCreateTask = async function() {
     <div class="form-group"><label>Проект</label><select id="t-project">${projOpts}</select></div>
     <div class="form-group"><label>Срок (дата и время)</label><input id="t-due" type="datetime-local" value="${_nowLocalForDatetimeInput()}"></div>
     <div class="form-group"><label>Исполнители</label>${_assigneePickerHtml()}</div>
+    ${_taskMasterPickerHtml(null)}
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
       <button class="btn" onclick="submitCreateTask()">Создать</button>
     </div>
   `);
   _renderAssigneeChips();
+  _initTaskMasterPicker();
   if (typeof attachVoiceMicsTo === 'function') attachVoiceMicsTo();
   _updateVoiceIndicators();
 
@@ -5236,6 +5402,7 @@ window.submitCreateTask = async function() {
     priority: document.getElementById('t-priority').value || null,
     assignee_ids: _taskAssignees.map(a => a.id),
     attachment_ids: _taskNewAttachments.map(a => a.id),
+    master_id: window._taskLinkedMaster?.id || null,
   };
   try {
     await Tasks.create(data);
@@ -5282,6 +5449,7 @@ window.openEditTask = async function(id) {
         <input type="hidden" id="t-status" value="${esc(task.status || 'open')}">
       </div>
       <div class="form-group"><label>Исполнители</label>${_assigneePickerHtml()}</div>
+      ${_taskMasterPickerHtml(task.master || null)}
       ${_taskCommentsBlock(task)}
       <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--text2);margin-bottom:10px;padding:0 4px">
         <span>Автор: ${esc(task.creator?.name || '?')} · ${new Date(task.created_at).toLocaleString('ru-RU')}</span>
@@ -5294,6 +5462,7 @@ window.openEditTask = async function(id) {
     _taskEditId = task.id;
     _attachTaskAutosave();
     _renderAssigneeChips();
+    _initTaskMasterPicker();
     if (typeof attachVoiceMicsTo === 'function') attachVoiceMicsTo();
     _refreshCmtAttUI();
   } catch(e) {
@@ -5326,6 +5495,7 @@ function _readTaskFormData() {
     priority: document.getElementById('t-priority')?.value || null,
     status: document.getElementById('t-status')?.value,
     assignee_ids: _taskAssignees.map(a => a.id),
+    master_id: window._taskLinkedMaster ? window._taskLinkedMaster.id : null,
   };
   return data;
 }
