@@ -78,7 +78,12 @@ async def login(
         )
     )
     projects = [
-        ProjectBrief(id=up.project_id, code=p.code, name=p.name, role=up.role)
+        ProjectBrief(
+            id=up.project_id, code=p.code, name=p.name, role=up.role,
+            markup_pct=p.markup_pct,
+            foreman_rate_pct=p.foreman_rate_pct,
+            rentier_foreman_share=p.rentier_foreman_share,
+        )
         for up, p in ups.all()
     ]
 
@@ -148,7 +153,12 @@ async def me(user: User = Depends(current_user), db: AsyncSession = Depends(get_
         )
     )
     projects = [
-        ProjectBrief(id=up.project_id, code=p.code, name=p.name, role=up.role)
+        ProjectBrief(
+            id=up.project_id, code=p.code, name=p.name, role=up.role,
+            markup_pct=p.markup_pct,
+            foreman_rate_pct=p.foreman_rate_pct,
+            rentier_foreman_share=p.rentier_foreman_share,
+        )
         for up, p in ups.all()
     ]
     perms = await get_user_permissions(db, user.role)

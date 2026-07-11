@@ -26,6 +26,12 @@ class ProjectBrief(BaseModel):
     code: str
     name: str
     role: str
+    # Экономика проекта — нужна фронту для расчётов (Отчёт: наценка, доля прораба
+    # от раньтье). До этого поля не отдавались, из-за чего currentProject.markup_pct
+    # был undefined и отчёт показывал «Наценка 0%».
+    markup_pct: Optional[Decimal] = None
+    foreman_rate_pct: Optional[Decimal] = None
+    rentier_foreman_share: Optional[Decimal] = None
     model_config = {"from_attributes": True}
 
 
