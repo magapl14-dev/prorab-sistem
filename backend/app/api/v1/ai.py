@@ -47,6 +47,7 @@ CONTEXT_SCHEMAS: dict[str, dict[str, Any]] = {
     "expense": {
         "description": "закупка / расход материалов",
         "fields": {
+            "operation_date": "дата операции в формате 'YYYY-MM-DD'. Если не сказано — null (форма сохранит сегодня).",
             "name":           "название товара, например 'Цемент М500' или 'Плитка керамогранит'",
             "type":           "тип расхода одним словом ('Материал', 'Инструмент', 'Транспорт' и т.п.), если явно не сказан — null",
             "category":       "категория одним словом, если сказана — иначе null",
@@ -61,6 +62,7 @@ CONTEXT_SCHEMAS: dict[str, dict[str, Any]] = {
     "master_payment": {
         "description": "выплата мастеру",
         "fields": {
+            "operation_date": "дата операции 'YYYY-MM-DD'. Если не сказано — null.",
             "master_name":    "имя мастера (например 'Иван' или 'Асхаб-каменщик')",
             "payment_amount": "сумма выплаты в рублях (число)",
             "pay_type":       "тип выплаты: 'salary' (зарплата), 'advance' (аванс), 'bonus' (премия), 'debt' (возврат долга). Если явно не назван — 'salary'.",
@@ -71,6 +73,7 @@ CONTEXT_SCHEMAS: dict[str, dict[str, Any]] = {
     "client_payment": {
         "description": "оплата клиента",
         "fields": {
+            "operation_date": "дата операции 'YYYY-MM-DD'. Если не сказано — null.",
             "rep_name":       "имя представителя клиента, если названо",
             "payment_amount": "сумма в рублях (число)",
             "is_advance":     "true если это аванс, false если основная оплата. Если непонятно — false.",
@@ -100,6 +103,18 @@ def _system_prompt(context: str, current: dict, extras: dict) -> str:
     task_types = extras.get("task_types") or []
 
     extras_rules = []
+
+    # ── Общее правило для operation_date у всех record-контекстов ───────────
+    if context in ("expense", "master_payment", "client_payment"):
+        today_moscow = extras.get("today_moscow", "")
+        extras_rules.append(
+            f'- Поле "operation_date": строка "YYYY-MM-DD". Сегодня {today_moscow} (Москва). '
+            f'«сегодня» / «сейчас» — сегодняшняя дата. «вчера» — минус 1 день. '
+            f'«позавчера» — минус 2. «12 числа» / «двенадцатого» — 12-е число ТЕКУЩЕГО месяца '
+            f'(если это число уже прошло — то текущий месяц; если ещё впереди — предыдущий месяц). '
+            f'«12 июня» — 12 июня текущего года. «на прошлой неделе» — минус 7 дней от сегодня. '
+            f'Если про дату вообще ничего не сказано — null.'
+        )
 
     # ── Expense-specific rules ──────────────────────────────────────────────
     if context == "expense":
@@ -239,7 +254,10 @@ async def voice_fill(
     # Московское время в формате YYYY-MM-DDTHH:MM (без секунд, без Z) —
     # чтобы Grok мог его сопоставить с "завтра", "сегодня к 18" и т.п.
     now_moscow_dt = datetime.now(timezone.utc) + timedelta(hours=3)
-    extras: dict = {"now_moscow": now_moscow_dt.strftime("%Y-%m-%dT%H:%M")}
+    extras: dict = {
+        "now_moscow": now_moscow_dt.strftime("%Y-%m-%dT%H:%M"),
+        "today_moscow": now_moscow_dt.strftime("%Y-%m-%d"),
+    }
 
     # Для закупа — подтягиваем типы / категории / кассы из справочников,
     # плюс жёстко указываем дефолты (Материал / Клиент дал).

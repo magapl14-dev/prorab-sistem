@@ -4564,6 +4564,10 @@ function _collectRecordFormValues() {
 
 function _applyRecordFormFields(f) {
   const set = (id, x) => { if (x == null || x === '') return; const el = document.getElementById(id); if (el) { el.value = String(x); el.dispatchEvent(new Event('input', { bubbles: true })); } };
+  // Дата операции — если Grok распарсил «12 числа» / «вчера» / «12 июня» и т.п.
+  if (f.operation_date && /^\d{4}-\d{2}-\d{2}/.test(f.operation_date)) {
+    set('f-date', f.operation_date.slice(0, 10));
+  }
   set('f-comment', f.comment);
   if (currentKind === 'expense') {
     // раскрыть "Комментарий и фото" если Grok вернул comment
