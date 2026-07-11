@@ -2511,14 +2511,35 @@ window._saveMaster = async function(id) {
   }
 };
 
-window._deleteMaster = async function(id) {
-  if (!confirm('Удалить мастера? История выплат сохранится.')) return;
+window._deleteMaster = async function(id, force = false) {
   try {
-    await Masters.delete(id);
+    await Masters.delete(id, { force });
     closeModal();
+    toast('Мастер удалён · история сохранена');
     renderMastersRoster();
   } catch(e) {
-    toast('Ошибка: ' + (e?.detail || ''));
+    const d = e?.detail;
+    // 409: у мастера есть история выплат/авансов — показываем чёткое окно
+    if (e?.status === 409 && d && d.error === 'has_history') {
+      const bits = [];
+      if (d.advances_count) bits.push(`<li><b>${d.advances_count}</b> ${d.advances_count === 1 ? 'аванс' : 'авансов'} на сумму <b>${fmt(d.advances_sum)} ₽</b></li>`);
+      if (d.payments_count) bits.push(`<li><b>${d.payments_count}</b> ${d.payments_count === 1 ? 'выплата' : 'выплат'} на сумму <b>${fmt(d.payments_sum)} ₽</b></li>`);
+      openModal('Удалить мастера?', `
+        <p>За <b>${esc(d.master_name || '')}</b> уже есть история:</p>
+        <ul style="margin:8px 0 12px 20px;line-height:1.6">${bits.join('')}</ul>
+        <p style="color:var(--text2);font-size:13px;line-height:1.5">
+          Мастера скроем из бригады, но <b>сами записи в отчёте останутся</b> —
+          историю задним числом не чистим. Ты по-прежнему увидишь эти суммы в
+          отчёте объекта и в выплатах.
+        </p>
+        <div class="modal-actions">
+          <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+          <button class="btn" style="background:var(--red)" onclick="_deleteMaster('${id}', true)">Всё равно удалить</button>
+        </div>
+      `);
+      return;
+    }
+    toast('Ошибка: ' + (d?.message || d || e?.message || ''));
   }
 };
 

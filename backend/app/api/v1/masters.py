@@ -160,6 +160,7 @@ async def update_master(
 @router.delete("/{master_id}", status_code=204)
 async def delete_master(
     master_id: UUID,
+    force: bool = False,
     user: User = Depends(require_permission("master_payments", "delete")),
     db: AsyncSession = Depends(get_db),
 ):
@@ -168,6 +169,52 @@ async def delete_master(
     )).scalar_one_or_none()
     if not m:
         raise HTTPException(404)
+
+    # Проверяем нет ли за мастером выплат/авансов. Если есть — просим
+    # подтверждение (force=true). Сами записи никогда не удаляются: даже
+    # после удаления мастера они остаются в отчёте по проекту как
+    # исторические данные.
+    if not force:
+        base_filter = [
+            or_(
+                Record.master_id == m.id,
+                and_(
+                    Record.master_id.is_(None),
+                    func.lower(Record.name) == m.name.lower(),
+                ),
+            ),
+            Record.kind == "master_payment",
+            Record.deleted_at.is_(None),
+        ]
+        advances_row = (await db.execute(
+            select(func.count(Record.id), func.coalesce(func.sum(Record.payment_amount), 0))
+            .where(and_(*base_filter, Record.is_advance == True))
+        )).first()
+        payments_row = (await db.execute(
+            select(func.count(Record.id), func.coalesce(func.sum(Record.payment_amount), 0))
+            .where(and_(*base_filter, Record.is_advance == False))
+        )).first()
+        adv_cnt = int(advances_row[0] or 0)
+        adv_sum = float(advances_row[1] or 0)
+        pay_cnt = int(payments_row[0] or 0)
+        pay_sum = float(payments_row[1] or 0)
+        if adv_cnt or pay_cnt:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                detail={
+                    "error": "has_history",
+                    "master_name": m.name,
+                    "advances_count": adv_cnt,
+                    "advances_sum": adv_sum,
+                    "payments_count": pay_cnt,
+                    "payments_sum": pay_sum,
+                    "message": (
+                        "У мастера есть история выплат/авансов. Удаление скроет мастера, "
+                        "но сами записи останутся в отчёте (историю задним числом не чистим)."
+                    ),
+                },
+            )
+
     m.deleted_at = datetime.now(timezone.utc)
     m.active = False
     await db.commit()

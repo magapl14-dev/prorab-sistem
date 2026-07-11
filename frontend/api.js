@@ -192,7 +192,8 @@ export const Masters = {
     _get(`/masters/${id}${projectCode ? '?project_code=' + encodeURIComponent(projectCode) : ''}`),
   create: (data) => _post("/masters", data),
   update: (id, data) => _patch(`/masters/${id}`, data),
-  delete: (id) => _delete(`/masters/${id}`),
+  delete: (id, { force = false } = {}) =>
+    _delete(`/masters/${id}${force ? '?force=true' : ''}`),
 };
 
 export const Tasks = {
