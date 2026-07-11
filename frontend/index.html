@@ -5087,7 +5087,12 @@ window.openCreateTask = async function() {
     const descEl = document.getElementById('t-desc');
     if (titleEl && draft.title) titleEl.value = draft.title;
     if (descEl && draft.description) descEl.value = draft.description;
-    if (draft.assignees) { _taskAssignees = draft.assignees; _renderAssigneeChips(); }
+    // Черновик перебивает исполнителей ТОЛЬКО если там реально кто-то есть,
+    // иначе оставляем дефолт (создатель), который выставил openCreateTask.
+    if (Array.isArray(draft.assignees) && draft.assignees.length) {
+      _taskAssignees = draft.assignees;
+      _renderAssigneeChips();
+    }
     if (draft.title || draft.description || draft.assignees?.length) {
       toast('🔄 Восстановлен черновик задачи');
     }
