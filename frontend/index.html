@@ -4512,16 +4512,15 @@ async function _grokVoiceFillCommon({ context, currentValues, apply, btn, fallba
       window._aiActive = false;
       _updateVoiceIndicators();
       btn.innerHTML = originalHtml; btn.style.background = originalBg; btn.disabled = false;
-      openModal('💳 Пополни баланс Grok', `
+      openModal('💳 Пополните баланс ИИ', `
         <p style="line-height:1.5;margin-bottom:12px">
-          Голосовое заполнение работает через <b>xAI Grok</b>, у которого сейчас
-          закончились кредиты. Приложение продолжит работать, но 🎙 придётся
-          заполнять вручную, пока баланс не пополнен.
+          Голосовое заполнение работает через ИИ, у которого сейчас закончились
+          кредиты. Приложение продолжит работать, но 🎙 придётся заполнять
+          вручную, пока баланс не пополнен.
         </p>
         <p style="line-height:1.5;color:var(--text2);font-size:13px;margin-bottom:12px">
-          Пополни на <a href="https://console.x.ai" target="_blank" rel="noopener" style="color:var(--orange);font-weight:700">console.x.ai</a>
-          → раздел Billing/Credits. После пополнения — обнови страницу или войди
-          ещё раз, зелёная точка вернётся.
+          После пополнения обновите страницу — зелёная точка на кнопке
+          «🎙 Сказать всё голосом» вернётся, и распознавание снова заработает.
         </p>
         <div class="modal-actions">
           <button class="btn" onclick="closeModal()">Понятно</button>
