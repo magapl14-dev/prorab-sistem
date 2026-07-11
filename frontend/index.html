@@ -1733,10 +1733,19 @@ async function loadHome() {
   try {
     const recs = await Records.list(currentProject.code, { limit: 200 }).catch(() => ({ items: [] }));
     const items = recs.items || [];
-    const expense = items.filter(r => r.kind === 'expense').reduce((s, r) => s + (parseFloat(r.sum_buy) || 0), 0);
-    const payments = items.filter(r => r.kind === 'client_payment').reduce((s, r) => s + (parseFloat(r.payment_amount) || 0), 0);
-    const balance = payments - expense;
-    document.getElementById('home-expense').textContent = fmt(expense) + ' ₽';
+    const buy       = items.filter(r => r.kind === 'expense').reduce((s, r) => s + (parseFloat(r.sum_buy) || 0), 0);
+    const masterOut = items.filter(r => r.kind === 'master_payment').reduce((s, r) => s + (parseFloat(r.payment_amount) || 0), 0);
+    const expense   = buy + masterOut;   // всё что вышло из кассы
+    const payments  = items.filter(r => r.kind === 'client_payment').reduce((s, r) => s + (parseFloat(r.payment_amount) || 0), 0);
+    const balance   = payments - expense;
+    const expEl = document.getElementById('home-expense');
+    expEl.textContent = fmt(expense) + ' ₽';
+    // маленькая расшифровка под цифрой — сколько ушло на закуп и сколько на мастеров
+    document.getElementById('home-expense-breakdown')?.remove();
+    if (masterOut > 0) {
+      expEl.insertAdjacentHTML('afterend',
+        `<div id="home-expense-breakdown" style="font-size:10px;color:var(--text2);margin-top:2px;line-height:1.3">закуп ${fmt(buy)} · мастерам ${fmt(masterOut)}</div>`);
+    }
     document.getElementById('home-income').textContent = fmt(payments) + ' ₽';
     const bel = document.getElementById('home-balance');
     bel.textContent = (balance >= 0 ? '+ ' : '− ') + fmt(Math.abs(balance)) + ' ₽';
@@ -2981,18 +2990,29 @@ async function loadReport() {
 
     // Summary numbers
     const expenses = _rptAllRecs.filter(r => r.kind === 'expense');
+    const masterPays = _rptAllRecs.filter(r => r.kind === 'master_payment');
     const clientPays = _rptAllRecs.filter(r => r.kind === 'client_payment');
     const advances = clientPays.filter(r => r.is_advance);
     const realPayments = clientPays.filter(r => !r.is_advance);
-    const totalExpense = expenses.reduce((s,r) => s + parseFloat(r.sum_buy||0), 0);
+    const totalBuy = expenses.reduce((s,r) => s + parseFloat(r.sum_buy||0), 0);
+    const totalMasterOut = masterPays.reduce((s,r) => s + parseFloat(r.payment_amount||0), 0);
+    const totalExpense = totalBuy + totalMasterOut;   // всё что вышло из кассы
     const totalAdvances = advances.reduce((s,r) => s + parseFloat(r.payment_amount||0), 0);
     const totalRealPayments = realPayments.reduce((s,r) => s + parseFloat(r.payment_amount||0), 0);
     const totalIncome = totalAdvances + totalRealPayments;
     const balance = totalIncome - totalExpense;
     const totalSell = expenses.reduce((s,r) => s + parseFloat(r.sum_sell||0), 0);
-    const markup = totalSell - totalExpense;
+    const markup = totalSell - totalBuy;
 
-    document.getElementById('rpt-expense').textContent = fmt(totalExpense) + ' ₽';
+    const expEl = document.getElementById('rpt-expense');
+    expEl.textContent = fmt(totalExpense) + ' ₽';
+    // Пояснение: сколько из "Расхода" ушло на закуп, а сколько на мастеров
+    const expLbl = expEl.parentElement.querySelector('.rpt-sum-lbl');
+    if (expLbl) {
+      expLbl.innerHTML = totalMasterOut > 0
+        ? `Расход<br><span style="font-size:10px;color:var(--text2)">закуп ${fmt(totalBuy)} · мастерам ${fmt(totalMasterOut)}</span>`
+        : 'Расход';
+    }
     document.getElementById('rpt-income').textContent = fmt(totalIncome) + ' ₽';
     const incLbl = document.getElementById('rpt-income-lbl');
     if (incLbl && totalAdvances > 0) {
@@ -3007,10 +3027,10 @@ async function loadReport() {
     // Price breakdown
     const priceCard = document.getElementById('rpt-price-card');
     priceCard.style.display = '';
-    document.getElementById('rpt-buy').textContent = fmt(totalExpense) + ' ₽';
+    document.getElementById('rpt-buy').textContent = fmt(totalBuy) + ' ₽';
     document.getElementById('rpt-markup-lbl').textContent = `Наценка за ведение ${currentProject.markup_pct||''}%`;
     document.getElementById('rpt-markup-val').textContent = '+' + fmt(markup) + ' ₽';
-    document.getElementById('rpt-sell').textContent = fmt(totalSell || totalExpense) + ' ₽';
+    document.getElementById('rpt-sell').textContent = fmt(totalSell || totalBuy) + ' ₽';
 
     // Plan block (reuse existing rendering)
     if (plan) {
