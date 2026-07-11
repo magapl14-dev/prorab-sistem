@@ -4518,7 +4518,13 @@ function _applyTaskFormFields(f) {
   set('t-title', f.name);
   set('t-desc', f.description);
   set('t-type', f.type);
-  if (f.priority && typeof _pickPrio === 'function') _pickPrio(f.priority);
+  // Grok шлёт priority как 'urgent'|'high'|'medium'|'low', а у нас в форме
+  // только три чипа: 'high' | '' (обычный) | 'low'. Схлопываем + null → 'обычный'.
+  if (typeof _pickPrio === 'function') {
+    const _pmap = { urgent: 'high', high: 'high', medium: '', normal: '', low: 'low' };
+    const _p = (f.priority == null) ? '' : (_pmap[String(f.priority).toLowerCase()] ?? '');
+    _pickPrio(_p);
+  }
   if (f.due_at) set('t-due', f.due_at);
   if (Array.isArray(f.assignee_names)) {
     // Мягкий матч: сначала точное имя, затем «имя начинается на …» / «содержит …»,

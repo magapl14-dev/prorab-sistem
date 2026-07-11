@@ -115,7 +115,8 @@ def _system_prompt(context: str, current: dict, extras: dict) -> str:
         )
         extras_rules.append(
             f'- Поле "priority": "urgent" на «срочно/немедленно», "high" на «важно/быстро», '
-            f'"low" на «когда будет время», иначе "medium".'
+            f'"low" на «когда будет время», ВО ВСЕХ ОСТАЛЬНЫХ СЛУЧАЯХ (в т.ч. если ничего '
+            f'про срочность не сказано) — "medium". Никогда не возвращай null здесь.'
         )
         known_users = extras.get("known_users") or []
         if known_users:
