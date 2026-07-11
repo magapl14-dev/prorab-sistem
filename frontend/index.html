@@ -5028,7 +5028,10 @@ function _taskTypeOptions(types, current = '') {
 
 window.openCreateTask = async function() {
   _taskNewAttachments = [];
-  _taskAssignees = [];
+  // По умолчанию исполнитель — сам создатель задачи. Если он голосом или
+  // руками добавит других — этот будет просто одним из них. Если не подходит —
+  // легко удалить чипом.
+  _taskAssignees = window._user ? [{ id: window._user.id, name: window._user.name }] : [];
   const { users, projects, types } = await _loadTaskFormData();
   _taskAllUsers = users || [];
   const projOpts = '<option value="">📌 Без проекта</option>' +
