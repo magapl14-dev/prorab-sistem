@@ -11,10 +11,13 @@
 Если ключ не настроен — 503; фронт по этому статусу переходит на браузерный STT.
 """
 import json
+import logging
 import re
 from typing import Optional, Any
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
+
+logger = logging.getLogger("welldom.ai")
 
 from ...core.config import settings
 from ...core.deps import current_user
@@ -107,17 +110,21 @@ def _system_prompt(context: str, current: dict, extras: dict) -> str:
 
 
 async def _grok_transcribe(client: httpx.AsyncClient, audio_bytes: bytes, filename: str) -> str:
+    # xAI STT endpoint: POST https://api.x.ai/v1/stt, multipart form.
+    # Ответ — JSON с полем `text`.
     files = {"file": (filename, audio_bytes, "application/octet-stream")}
-    data = {"model": settings.xai_stt_model, "response_format": "text"}
+    data = {"model": settings.xai_stt_model, "format": "json", "language": "ru"}
     r = await client.post(
-        f"{settings.xai_base_url}/audio/transcriptions",
+        f"{settings.xai_base_url}/stt",
         files=files, data=data,
         headers={"Authorization": f"Bearer {settings.xai_api_key}"},
         timeout=60.0,
     )
     r.raise_for_status()
-    # response_format=text → тело это уже строка
-    return r.text.strip() if r.headers.get("content-type", "").startswith("text/") else r.json().get("text", "")
+    try:
+        return (r.json().get("text") or "").strip()
+    except Exception:
+        return r.text.strip()
 
 
 async def _grok_parse(client: httpx.AsyncClient, transcript: str, sys_prompt: str) -> dict:
@@ -175,12 +182,29 @@ async def voice_fill(
         try:
             transcript = await _grok_transcribe(client, audio_bytes, audio.filename or "voice.m4a")
         except httpx.HTTPStatusError as e:
-            raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"stt_failed: {e.response.status_code}")
+            body = e.response.text[:400]
+            logger.error("STT failed %s: %s", e.response.status_code, body)
+            raise HTTPException(
+                status.HTTP_502_BAD_GATEWAY,
+                detail={"stage": "stt", "status": e.response.status_code, "body": body},
+            )
+        except Exception as e:
+            logger.exception("STT unexpected error")
+            raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail={"stage": "stt", "error": str(e)})
+
         if not transcript:
             return {"transcript": "", "fields": {}, "warnings": ["empty transcript"]}
         try:
             fields = await _grok_parse(client, transcript, sys_prompt)
         except httpx.HTTPStatusError as e:
-            raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"llm_failed: {e.response.status_code}")
+            body = e.response.text[:400]
+            logger.error("LLM failed %s: %s", e.response.status_code, body)
+            raise HTTPException(
+                status.HTTP_502_BAD_GATEWAY,
+                detail={"stage": "llm", "status": e.response.status_code, "body": body, "transcript": transcript},
+            )
+        except Exception as e:
+            logger.exception("LLM unexpected error")
+            raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail={"stage": "llm", "error": str(e), "transcript": transcript})
 
     return {"transcript": transcript, "fields": fields, "warnings": []}

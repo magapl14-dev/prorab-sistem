@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     xai_api_key: Optional[str] = None
     xai_base_url: str = "https://api.x.ai/v1"
     xai_stt_model: str = "grok-stt"
-    xai_llm_model: str = "grok-4-fast-non-reasoning"
+    xai_llm_model: str = "grok-4-1-fast"
 
     class Config:
         env_file = ".env"
