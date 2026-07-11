@@ -1,5 +1,10 @@
-const CACHE = "welldom-v18";
+const CACHE = "welldom-v19";
 const STATIC = ["/", "/index.html", "/api.js", "/manifest.json"];
+
+// Гарантированный fallback: если и сеть, и кэш пусты — отдаём реальный Response,
+// а не undefined (иначе браузер валит fetch с TypeError и весь скрипт не грузится).
+const _errorResponse = () =>
+  new Response("", { status: 504, statusText: "Offline and not cached" });
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(STATIC)).catch(() => {}));
@@ -18,24 +23,32 @@ self.addEventListener("fetch", e => {
   if (req.method !== "GET") return;
   if (req.url.includes("/api/")) return;
 
-  // Network-first for HTML (so updates are picked up), cache fallback for offline
+  // Network-first для HTML (чтобы обновления подтягивались), cache-fallback для offline
   if (req.mode === "navigate" || req.destination === "document") {
-    e.respondWith(
-      fetch(req).then(r => {
-        const copy = r.clone();
-        caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {});
+    e.respondWith((async () => {
+      try {
+        const r = await fetch(req);
+        caches.open(CACHE).then(c => c.put(req, r.clone())).catch(() => {});
         return r;
-      }).catch(() => caches.match(req).then(r => r || caches.match("/index.html")))
-    );
+      } catch (_) {
+        return (await caches.match(req))
+            || (await caches.match("/index.html"))
+            || _errorResponse();
+      }
+    })());
     return;
   }
 
-  // Cache-first for static assets
-  e.respondWith(
-    caches.match(req).then(cached => cached || fetch(req).then(r => {
-      const copy = r.clone();
-      caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {});
+  // Cache-first для статики
+  e.respondWith((async () => {
+    const cached = await caches.match(req);
+    if (cached) return cached;
+    try {
+      const r = await fetch(req);
+      caches.open(CACHE).then(c => c.put(req, r.clone())).catch(() => {});
       return r;
-    }).catch(() => cached))
-  );
+    } catch (_) {
+      return _errorResponse();
+    }
+  })());
 });
