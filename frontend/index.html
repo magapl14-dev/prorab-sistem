@@ -2672,12 +2672,12 @@ window.openAddForm = function(kind) {
   document.getElementById('expense-fields').style.display = kind === 'expense' ? '' : 'none';
   document.getElementById('master-fields').style.display = kind === 'master_payment' ? '' : 'none';
   document.getElementById('client-fields').style.display = kind === 'client_payment' ? '' : 'none';
-  // Show common "Комментарий и фото" toggle for master/client (expense form has its own)
+  // Тогл "Комментарий и фото" — общий для всех типов записи
+  // (для расхода отдельного блока фото больше нет).
   const commonToggle = document.getElementById('common-extra-toggle');
   const commonExtra = document.getElementById('common-extra');
   if (commonToggle && commonExtra) {
-    const showCommon = (kind === 'master_payment' || kind === 'client_payment');
-    commonToggle.style.display = showCommon ? '' : 'none';
+    commonToggle.style.display = '';
     commonExtra.style.display = 'none';
     commonToggle.textContent = '▾ Комментарий и фото';
   }
