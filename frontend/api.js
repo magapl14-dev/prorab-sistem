@@ -155,6 +155,7 @@ export const Admin = {
 };
 
 export const AI = {
+  health: () => _get("/ai/health").catch(() => ({ active: false })),
   // Отправляет голосовой Blob в Grok и получает поля формы.
   // context: "expense" | "master_payment" | "client_payment" | "task"
   // currentValues: объект уже заполненных полей (чтобы Grok не перебивал).

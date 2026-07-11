@@ -134,6 +134,7 @@
 .dchip.warn .dv{color:var(--expense)}
 .dchip.bump{animation:bump .4s ease}
 @keyframes bump{0%,100%{transform:scale(1)}40%{transform:scale(1.12)}}
+@keyframes _grokPulse{0%{box-shadow:0 0 0 0 rgba(255,255,255,.85)}70%{box-shadow:0 0 0 12px rgba(255,255,255,0)}100%{box-shadow:0 0 0 0 rgba(255,255,255,0)}}
 .task-streak{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;font-size:12px;font-weight:800;color:#b5560f;background:linear-gradient(90deg,#ffe6c2,#ffd5a3);border-radius:99px;padding:5px 11px;margin-left:8px}
 /* ── Task urgency left bar ── */
 .task-card-urg{position:relative;overflow:hidden}
@@ -1363,6 +1364,7 @@ function applyPrimaryColor(hex) {
   updateOnlineStatus();
   if (OfflineQueue.list.length && navigator.onLine) setTimeout(() => OfflineQueue.flush(), 2000);
   if (Auth.isLoggedIn) {
+    _syncAIStatus();
     try {
       const user = await Auth.me();
       window._user = user;
@@ -1431,6 +1433,7 @@ window.doLogin = async function() {
     const user = await Auth.login(phone, pin);
     window._user = user;
     pinBuffer = ''; updateDots();
+    _syncAIStatus();
     if (user.projects.length === 1) {
       selectProject(user.projects[0]);
     } else if (user.projects.length === 0 && user.role === 'admin') {
@@ -4293,14 +4296,14 @@ async function _grokStartRec() {
 
 async function _grokVoiceFillCommon({ context, currentValues, apply, btn, fallbackFn }) {
   if (!btn) return;
-  // Второй клик — стоп ранее начатой записи
+  // Второй клик — остановить и отправить
   if (_grokVoiceState && _grokVoiceState.btn === btn) {
     try { _grokVoiceState.rec.stop(); } catch(_) {}
     clearTimeout(_grokVoiceState.autostop);
     clearInterval(_grokVoiceState.tick);
     return;
   }
-  const originalLabel = btn.textContent;
+  const originalHtml = btn.innerHTML;
   const originalBg = btn.style.background;
 
   let recData;
@@ -4312,12 +4315,25 @@ async function _grokVoiceFillCommon({ context, currentValues, apply, btn, fallba
   }
 
   const startedAt = Date.now();
-  btn.style.background = 'var(--red)';
-  const tick = setInterval(() => {
-    const sec = Math.round((Date.now() - startedAt) / 1000);
-    btn.textContent = `⏹ Идёт запись ${sec}с — нажмите чтобы отправить`;
-  }, 500);
-  const autostop = setTimeout(() => { try { recData.rec.stop(); } catch(_) {} }, 30000);
+  btn.style.background = 'linear-gradient(135deg,#dc2626,#991b1b)';
+  btn.dataset.recording = '1';
+  // Telegram-style: пульсирующий красный кружок + таймер + подсказка.
+  // Никакого «автостопа по паузе» — MediaRecorder не сваливается пока не скажем stop().
+  // Максимум 5 минут — просто предохранитель от забытой записи.
+  const paint = () => {
+    const total = Math.round((Date.now() - startedAt) / 1000);
+    const mm = String(Math.floor(total / 60)).padStart(2, '0');
+    const ss = String(total % 60).padStart(2, '0');
+    btn.innerHTML =
+      `<span style="display:inline-flex;align-items:center;justify-content:center;gap:9px;font-weight:800;font-size:15px">
+         <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#fff;box-shadow:0 0 0 0 #fff;animation:_grokPulse 1.4s ease-out infinite"></span>
+         Идёт запись · ${mm}:${ss}
+         <span style="opacity:.85;font-weight:600;font-size:12.5px">нажмите чтобы отправить</span>
+       </span>`;
+  };
+  paint();
+  const tick = setInterval(paint, 300);
+  const autostop = setTimeout(() => { try { recData.rec.stop(); } catch(_) {} }, 5 * 60 * 1000);
   _grokVoiceState = { rec: recData.rec, btn, autostop, tick };
 
   let blob;
@@ -4327,15 +4343,16 @@ async function _grokVoiceFillCommon({ context, currentValues, apply, btn, fallba
     clearInterval(tick);
     clearTimeout(autostop);
     _grokVoiceState = null;
+    delete btn.dataset.recording;
   }
 
   if (!blob || !blob.size) {
-    _grokBtnReset(btn, originalLabel, originalBg);
+    btn.innerHTML = originalHtml; btn.style.background = originalBg;
     toast('Пустая запись');
     return;
   }
 
-  btn.textContent = '🧠 Расшифровываю...';
+  btn.innerHTML = '🧠 Расшифровываю...';
   btn.disabled = true;
   try {
     const data = await AI.voiceFill(blob, context, currentValues);
@@ -4343,15 +4360,46 @@ async function _grokVoiceFillCommon({ context, currentValues, apply, btn, fallba
     if (data.fields) apply(data.fields);
   } catch (e) {
     if (e?.status === 503) {
+      window._aiActive = false;
+      _updateVoiceIndicators();
       toast('AI выключен, использую браузер');
-      _grokBtnReset(btn, originalLabel, originalBg);
+      btn.innerHTML = originalHtml; btn.style.background = originalBg; btn.disabled = false;
       if (fallbackFn) fallbackFn();
       return;
     }
     toast('Голос не распознался: ' + (e?.detail?.message || e?.detail || e?.message || ''));
   } finally {
-    _grokBtnReset(btn, originalLabel, originalBg);
+    btn.innerHTML = originalHtml; btn.style.background = originalBg; btn.disabled = false;
+    _updateVoiceIndicators();
   }
+}
+
+// ── Grok-статус индикатор ───────────────────────────────────────────────────
+// window._aiActive: null=не проверено, true=работает, false=выключен/недоступен.
+// Опрашиваем при загрузке приложения и после логина. Обновляем метку кнопок
+// «Сказать всё голосом» — цветная точка + суффикс "(браузер)" при выключенном.
+async function _syncAIStatus() {
+  try {
+    const r = await AI.health();
+    window._aiActive = !!r?.active;
+  } catch(_) {
+    window._aiActive = false;
+  }
+  _updateVoiceIndicators();
+}
+
+function _updateVoiceIndicators() {
+  const s = window._aiActive;
+  const label = s === true
+    ? 'Сказать всё голосом'
+    : s === false ? 'Сказать всё голосом (браузер)' : 'Сказать всё голосом';
+  const dot = s === null ? '' :
+    `<span title="${s ? 'Grok готов' : 'Grok недоступен — используется браузер'}" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${s ? '#22c55e' : '#dc2626'};box-shadow:0 0 8px ${s ? '#22c55eaa' : '#dc262699'};vertical-align:middle;margin-right:9px"></span>`;
+  const html = `${dot}🎙 ${label}`;
+  ['voice-form-btn', 'voice-form-btn-task'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn && !btn.dataset.recording) btn.innerHTML = html;
+  });
 }
 
 // Сбор значений формы записи (в зависимости от currentKind)
@@ -5008,6 +5056,7 @@ window.openCreateTask = async function() {
   `);
   _renderAssigneeChips();
   if (typeof attachVoiceMicsTo === 'function') attachVoiceMicsTo();
+  _updateVoiceIndicators();
 
   // Восстановление черновика новой задачи
   const draft = _Drafts.load('new-task');
