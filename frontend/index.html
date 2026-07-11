@@ -2484,27 +2484,9 @@ window.openMasterEdit = async function(masterId) {
       </div>
       <div style="font-size:11px;color:var(--text2);margin-top:5px">Число + единица: 1500 ₽/м², 3000 ₽/смена и т.п.</div>
     </div>
-    ${masterId && currentProject ? `
-      <div class="form-group" style="background:var(--bg);border-radius:12px;padding:12px">
-        <label style="margin-bottom:6px">Видимость в «${esc(currentProject.name)}»</label>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          ${[
-            ['', 'Автоматически'],
-            ['show', '✓ Всегда показывать'],
-            ['hide', '✕ Скрыть из бригады'],
-          ].map(([mode, label]) => `
-            <button type="button" onclick="_setMasterVisibility('${masterId}','${mode}')"
-              class="prio-chip ${((m?.visibility_mode||'') === mode) ? 'active' : ''}"
-              style="flex:1;min-width:120px;font-size:12.5px;padding:8px">${label}</button>
-          `).join('')}
-        </div>
-        <div style="font-size:11px;color:var(--text2);margin-top:6px;line-height:1.4">
-          Автоматически — работает общее правило: если у кого-то из мастеров стоит
-          «Всегда показывать», в бригаде видны только они. Иначе — все, кроме
-          отмеченных «Скрыть».
-        </div>
-      </div>
-    ` : ''}
+    <!-- Настройка видимости мастера по проектам — вынесена в
+         «Редактирование проекта» (галочки на всех мастеров сразу). -->
+
     ${masterId ? `
       <div class="form-group" style="background:var(--bg);border-radius:12px;padding:12px">
         <label style="margin-bottom:8px">Прайс мастера
@@ -5961,11 +5943,50 @@ window.openEditProject = function(code, markup, rate, eff, fixed, plan, planm, n
       <input id="m-ebxgroup" type="text" value="${esc(bxGroup || '')}" placeholder="10" inputmode="numeric">
       <div style="font-size:11px;color:var(--text2);margin-top:4px">Если интеграция включена — задачи этого проекта попадут именно в эту группу Б24</div>
     </div>
+    <div class="form-group" style="background:var(--bg);border-radius:12px;padding:12px">
+      <label>Мастера бригады <span style="font-weight:400;color:var(--text2);text-transform:none;letter-spacing:0;font-size:11px">— отметь галочками кого показывать. Если ничего не отмечено — видны все.</span></label>
+      <div id="ep-masters" style="max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:4px">
+        <div class="loader"><div class="spinner"></div></div>
+      </div>
+    </div>
     <div class="modal-actions">
       <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
       <button class="btn" onclick="submitEditProject('${code}')">Сохранить</button>
     </div>
   `);
+  _loadProjectMastersVisibility(code);
+};
+
+async function _loadProjectMastersVisibility(code) {
+  const box = document.getElementById('ep-masters');
+  if (!box) return;
+  try {
+    // include_hidden=true чтобы увидеть и «скрытых», иначе их не отметишь.
+    const masters = await Masters.list(false, code, true);
+    if (!masters.length) { box.innerHTML = '<div style="color:var(--text2);font-size:12.5px;padding:6px">Пока нет мастеров в системе.</div>'; return; }
+    window._projMastersDraft = masters.map(m => ({ id: m.id, name: m.name, initial: m.visibility_mode, current: m.visibility_mode }));
+    _renderProjectMastersList();
+  } catch(e) {
+    box.innerHTML = `<div style="color:var(--red);font-size:12px">Ошибка: ${esc(e?.detail || '')}</div>`;
+  }
+}
+
+function _renderProjectMastersList() {
+  const box = document.getElementById('ep-masters');
+  const list = window._projMastersDraft || [];
+  box.innerHTML = list.map((m, idx) => `
+    <label style="display:flex;align-items:center;gap:10px;padding:6px 8px;background:var(--card);border-radius:8px;cursor:pointer">
+      <input type="checkbox" ${m.current === 'show' ? 'checked' : ''}
+             onchange="_toggleProjMaster(${idx}, this.checked)">
+      <span style="flex:1;font-size:13px">${esc(m.name)}</span>
+      ${m.initial === 'hide' ? '<span style="font-size:10px;color:var(--text2)">(было скрыто)</span>' : ''}
+    </label>`).join('');
+}
+
+window._toggleProjMaster = function(idx, checked) {
+  const list = window._projMastersDraft || [];
+  if (!list[idx]) return;
+  list[idx].current = checked ? 'show' : null;
 };
 
 window.submitEditProject = async function(code) {
@@ -5984,6 +6005,14 @@ window.submitEditProject = async function(code) {
   };
   try {
     await Admin.projects.update(code, data);
+    // Обновляем видимость мастеров: сравниваем черновик с initial и шлём
+    // только реальные изменения.
+    const list = window._projMastersDraft || [];
+    const changes = list.filter(m => (m.current || null) !== (m.initial || null));
+    for (const m of changes) {
+      try { await Masters.setVisibility(m.id, code, m.current || null); } catch(_) {}
+    }
+    window._projMastersDraft = null;
     closeModal(); toast('Проект обновлён'); openAdminProjects();
   } catch(e) { toast('Ошибка: ' + (e?.detail || JSON.stringify(e))); }
 };

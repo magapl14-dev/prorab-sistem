@@ -181,10 +181,11 @@ export const AI = {
 };
 
 export const Masters = {
-  list: (includeInactive = false, projectCode = null) => {
+  list: (includeInactive = false, projectCode = null, includeHidden = false) => {
     const q = new URLSearchParams();
     if (includeInactive) q.set('include_inactive', 'true');
     if (projectCode)     q.set('project_code', projectCode);
+    if (includeHidden)   q.set('include_hidden', 'true');
     const s = q.toString();
     return _get(`/masters${s ? '?' + s : ''}`);
   },
