@@ -1742,16 +1742,24 @@ async function loadHome() {
     const items = recs.items || [];
     const buy       = items.filter(r => r.kind === 'expense').reduce((s, r) => s + (parseFloat(r.sum_buy) || 0), 0);
     const masterOut = items.filter(r => r.kind === 'master_payment').reduce((s, r) => s + (parseFloat(r.payment_amount) || 0), 0);
-    const expense   = buy + masterOut;   // всё что вышло из кассы
+    const rawSpent  = buy + masterOut;   // всё что вышло из кассы (без наценки)
+    // Наценка проекта тоже включается в «Расход», чтобы «Баланс» показывал
+    // сколько денег клиента у нас в остатке после вычета И расходов, И наценки.
+    const mkPct     = parseFloat(currentProject?.markup_pct || 0);
+    const markupAmt = rawSpent * mkPct / 100;
+    const expense   = rawSpent + markupAmt;
     const payments  = items.filter(r => r.kind === 'client_payment').reduce((s, r) => s + (parseFloat(r.payment_amount) || 0), 0);
     const balance   = payments - expense;
     const expEl = document.getElementById('home-expense');
     expEl.textContent = fmt(expense) + ' ₽';
-    // маленькая расшифровка под цифрой — сколько ушло на закуп и сколько на мастеров
+    // Мелкая расшифровка под цифрой: закуп · мастерам · наценка
     document.getElementById('home-expense-breakdown')?.remove();
-    if (masterOut > 0) {
+    const bdParts = [`закуп ${fmt(buy)}`];
+    if (masterOut > 0) bdParts.push(`мастерам ${fmt(masterOut)}`);
+    if (markupAmt > 0) bdParts.push(`наценка ${mkPct}% ${fmt(markupAmt)}`);
+    if (bdParts.length > 1) {
       expEl.insertAdjacentHTML('afterend',
-        `<div id="home-expense-breakdown" style="font-size:10px;color:var(--text2);margin-top:2px;line-height:1.3">закуп ${fmt(buy)} · мастерам ${fmt(masterOut)}</div>`);
+        `<div id="home-expense-breakdown" style="font-size:10px;color:var(--text2);margin-top:2px;line-height:1.3">${bdParts.join(' · ')}</div>`);
     }
     document.getElementById('home-income').textContent = fmt(payments) + ' ₽';
     const bel = document.getElementById('home-balance');
@@ -3152,7 +3160,13 @@ async function loadReport() {
     const realPayments = clientPays.filter(r => !r.is_advance);
     const totalBuy = expenses.reduce((s,r) => s + parseFloat(r.sum_buy||0), 0);
     const totalMasterOut = masterPays.reduce((s,r) => s + parseFloat(r.payment_amount||0), 0);
-    const totalExpense = totalBuy + totalMasterOut;   // всё что вышло из кассы
+    // Расход для баланса = закуп + мастера + наценка проекта.
+    // Так «Баланс» показывает сколько ещё у нас лежит из клиентских денег
+    // после того как заложена наша прибыль.
+    const _mkPctForBal = parseFloat(currentProject?.markup_pct || 0);
+    const _rawSpent    = totalBuy + totalMasterOut;
+    const _markupForBal = _rawSpent * _mkPctForBal / 100;
+    const totalExpense = _rawSpent + _markupForBal;
     const totalAdvances = advances.reduce((s,r) => s + parseFloat(r.payment_amount||0), 0);
     const totalRealPayments = realPayments.reduce((s,r) => s + parseFloat(r.payment_amount||0), 0);
     const totalIncome = totalAdvances + totalRealPayments;
@@ -3162,11 +3176,14 @@ async function loadReport() {
 
     const expEl = document.getElementById('rpt-expense');
     expEl.textContent = fmt(totalExpense) + ' ₽';
-    // Пояснение: сколько из "Расхода" ушло на закуп, а сколько на мастеров
+    // Пояснение: закуп · мастерам · наценка
     const expLbl = expEl.parentElement.querySelector('.rpt-sum-lbl');
     if (expLbl) {
-      expLbl.innerHTML = totalMasterOut > 0
-        ? `Расход<br><span style="font-size:10px;color:var(--text2)">закуп ${fmt(totalBuy)} · мастерам ${fmt(totalMasterOut)}</span>`
+      const parts = [`закуп ${fmt(totalBuy)}`];
+      if (totalMasterOut > 0) parts.push(`мастерам ${fmt(totalMasterOut)}`);
+      if (_markupForBal > 0) parts.push(`наценка ${_mkPctForBal}% ${fmt(_markupForBal)}`);
+      expLbl.innerHTML = parts.length > 1
+        ? `Расход<br><span style="font-size:10px;color:var(--text2)">${parts.join(' · ')}</span>`
         : 'Расход';
     }
     document.getElementById('rpt-income').textContent = fmt(totalIncome) + ' ₽';
