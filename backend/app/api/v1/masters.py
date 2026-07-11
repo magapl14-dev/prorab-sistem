@@ -4,7 +4,7 @@ from uuid import UUID
 from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, or_
 
 from ...core.database import get_db
 from ...core.deps import current_user
@@ -16,14 +16,23 @@ router = APIRouter(prefix="/masters", tags=["masters"])
 
 
 async def _build_out(db: AsyncSession, m: Master) -> MasterOut:
-    # агрегаты по master_payment записям
+    # агрегаты по master_payment записям. Учитываем и записи без явного master_id,
+    # если имя совпадает с именем мастера (миграционная совместимость: раньше
+    # мастера были просто текстом в records.name, а после появления сущности
+    # часть записей могла сохраниться с NULL master_id).
     rows = (await db.execute(
         select(
             func.coalesce(func.sum(Record.payment_amount), 0),
             func.count(Record.id),
             func.max(Record.operation_date),
         ).where(
-            Record.master_id == m.id,
+            or_(
+                Record.master_id == m.id,
+                and_(
+                    Record.master_id.is_(None),
+                    func.lower(Record.name) == m.name.lower(),
+                ),
+            ),
             Record.kind == "master_payment",
             Record.deleted_at.is_(None),
         )
