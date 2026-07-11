@@ -1932,6 +1932,21 @@ async function loadHome() {
   } catch(_) {}
 }
 
+// Глобальный переключатель «показывать только мои записи».
+// Синхронизирован с чипом в Отчёте (_rptMine).
+window._onlyMine = window._onlyMine || false;
+
+window.toggleOnlyMine = function(kind) {
+  window._onlyMine = !window._onlyMine;
+  // синхронизируем со старым флагом отчёта
+  window._rptMine = window._onlyMine;
+  loadTab(kind);
+  // если открыт Отчёт — перезагрузим и его
+  if (typeof loadReport === 'function' && document.getElementById('screen-report')?.classList.contains('active')) {
+    loadReport();
+  }
+};
+
 async function loadTab(kind) {
   if (!currentProject) return;
   const containerId = kind === 'expense' ? 'expenses-list' :
@@ -1941,6 +1956,7 @@ async function loadTab(kind) {
   try {
     const params = { kind, limit: 100 };
     if (activeFilter && kind === 'expense') params.type = activeFilter;
+    if (window._onlyMine && window._user) params.author_id = window._user.id;
     const data = await Records.list(currentProject.code, params);
     renderRecords(el, data.items, kind);
   } catch (_) {
@@ -1996,6 +2012,7 @@ function renderRecords(el, items, kind) {
     <div class="rec-toolbar" style="padding:8px 12px 4px;display:flex;flex-direction:column;gap:6px">
       <input type="search" placeholder="🔍 Поиск по записям..." oninput="setRecSearch('${kind}', this.value)" style="padding:11px 14px;border:1px solid var(--border);border-radius:13px;font-size:14px;background:var(--card);color:var(--text);box-shadow:var(--shadow);outline:none">
       <div style="display:flex;gap:6px;overflow-x:auto;scrollbar-width:none">
+        <button class="rec-date-chip${window._onlyMine ? ' active' : ''}" onclick="toggleOnlyMine('${kind}')" style="white-space:nowrap;padding:4px 12px;border-radius:14px;border:1.5px solid var(--border);background:${window._onlyMine ? 'var(--text)' : 'var(--card)'};color:${window._onlyMine ? '#fff' : 'var(--text2)'};font-size:12px;cursor:pointer;font-weight:${window._onlyMine ? '700' : '400'}">👤 Только мои</button>
         <button class="rec-date-chip active" onclick="setRecDate('${kind}','all',this)" style="white-space:nowrap;padding:4px 12px;border-radius:14px;border:1.5px solid var(--border);background:var(--card);color:var(--text2);font-size:12px;cursor:pointer">Все</button>
         <button class="rec-date-chip" onclick="setRecDate('${kind}','today',this)" style="white-space:nowrap;padding:4px 12px;border-radius:14px;border:1.5px solid var(--border);background:var(--card);color:var(--text2);font-size:12px;cursor:pointer">Сегодня</button>
         <button class="rec-date-chip" onclick="setRecDate('${kind}','yesterday',this)" style="white-space:nowrap;padding:4px 12px;border-radius:14px;border:1.5px solid var(--border);background:var(--card);color:var(--text2);font-size:12px;cursor:pointer">Вчера</button>
@@ -3118,6 +3135,9 @@ window.switchRptTab = function(tab) {
 
 window.setRptPeriod = function(period, el) {
   _rptMine = period === 'mine';
+  // Синхронизируем с глобальным флагом, чтобы Закупка/Мастера/Клиент
+  // тоже применили фильтр по автору при следующем открытии.
+  window._onlyMine = _rptMine;
   _rptPeriod = _rptMine ? 'all' : period;
   document.querySelectorAll('[id^="rpt-p-"]').forEach(e => e.classList.remove('active'));
   el.classList.add('active');
