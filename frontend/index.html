@@ -6097,6 +6097,25 @@ window.submitEditProject = async function(code) {
       try { await Masters.setVisibility(m.id, code, m.current || null); } catch(_) {}
     }
     window._projMastersDraft = null;
+    // Если админ поменял НАШ активный проект — обновим currentProject
+    // на месте, чтобы Home/Отчёт сразу увидели новую наценку/ставки без
+    // необходимости релогина.
+    if (currentProject && currentProject.code === code) {
+      currentProject.markup_pct = data.markup_pct;
+      currentProject.foreman_rate_pct = data.foreman_rate_pct;
+      currentProject.rentier_foreman_share = data.rentier_foreman_share;
+      currentProject.name = data.name;
+      // localStorage / _user.projects тоже подкрутим на всякий
+      try {
+        const proj = (window._user?.projects || []).find(p => p.code === code);
+        if (proj) Object.assign(proj, {
+          markup_pct: data.markup_pct,
+          foreman_rate_pct: data.foreman_rate_pct,
+          rentier_foreman_share: data.rentier_foreman_share,
+          name: data.name,
+        });
+      } catch(_) {}
+    }
     closeModal(); toast('Проект обновлён'); openAdminProjects();
   } catch(e) { toast('Ошибка: ' + (e?.detail || JSON.stringify(e))); }
 };
