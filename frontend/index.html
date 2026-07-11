@@ -2333,6 +2333,13 @@ window.switchMastersView = function(view) {
   else loadTab('master_payment');
 };
 
+// Текущий фильтр по специальности в ростере мастеров ('' = все)
+window._mastersSpecFilter = '';
+window._setMasterSpecFilter = function(spec) {
+  window._mastersSpecFilter = (window._mastersSpecFilter === spec) ? '' : spec;
+  renderMastersRoster();
+};
+
 async function renderMastersRoster() {
   const el = document.getElementById('masters-list');
   el.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
@@ -2340,6 +2347,9 @@ async function renderMastersRoster() {
     // суммы и число выплат считаются по текущему объекту,
     // чтобы не смешивать с выплатами того же мастера на других проектах
     const masters = await Masters.list(false, currentProject?.code || null);
+    // Кэшируем известные специальности для datalist в форме редактирования
+    window._knownSpecialties = [...new Set(masters.map(m => (m.specialty || '').trim()).filter(Boolean))].sort();
+
     if (!masters.length) {
       el.innerHTML = `
         <div style="padding:40px 20px;text-align:center">
@@ -2350,38 +2360,60 @@ async function renderMastersRoster() {
       `;
       return;
     }
+
+    // Строим счётчики по специальностям для фильтра-полоски
+    const specCounts = new Map();
+    for (const m of masters) {
+      const key = (m.specialty || '').trim() || '—';
+      specCounts.set(key, (specCounts.get(key) || 0) + 1);
+    }
+    const specChips = [
+      `<button onclick="_setMasterSpecFilter('')" class="rpt-chip${!window._mastersSpecFilter ? ' active' : ''}" style="border:none;padding:5px 11px;border-radius:99px;font-size:12px;font-weight:700;cursor:pointer">Все (${masters.length})</button>`,
+      ...[...specCounts.entries()].sort((a,b) => b[1]-a[1]).map(([spec, n]) =>
+        `<button onclick="_setMasterSpecFilter('${esc(spec).replace(/'/g,'&#39;')}')" class="rpt-chip${window._mastersSpecFilter === spec ? ' active' : ''}" style="border:none;padding:5px 11px;border-radius:99px;font-size:12px;font-weight:700;cursor:pointer">${esc(spec)} (${n})</button>`
+      )
+    ].join('');
+
+    // Применяем фильтр
+    const filtered = window._mastersSpecFilter
+      ? masters.filter(m => ((m.specialty || '').trim() || '—') === window._mastersSpecFilter)
+      : masters;
+
     el.innerHTML = `
-      <div style="padding:8px 12px 4px;text-align:right">
-        <button onclick="openMasterEdit()" style="background:none;border:none;color:var(--orange);font-weight:700;font-size:13px;cursor:pointer;padding:4px 10px">+ Новый мастер</button>
+      <div style="padding:8px 12px 4px;display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <div style="display:flex;gap:6px;overflow-x:auto;flex:1;padding:2px 0">${specChips}</div>
+        <button onclick="openMasterEdit()" style="background:none;border:none;color:var(--orange);font-weight:700;font-size:13px;cursor:pointer;padding:4px 10px;flex-shrink:0">+ Новый</button>
       </div>
-      ${masters.map(m => {
+      ${filtered.map(m => {
         const init = (m.name || '?').split(' ').map(w => w[0]).slice(0,2).join('').toUpperCase();
         const total = parseFloat(m.total_paid || 0);
         const cnt = m.payments_count || 0;
         const last = m.last_paid_at ? new Date(m.last_paid_at).toLocaleDateString('ru-RU', { day:'2-digit', month:'2-digit' }) : '—';
         const color = m.color || 'var(--orange)';
-        // По этому проекту у мастера ещё нет выплат — не показываем сумму,
-        // чтобы не создавалось ощущение будто «мы ему что-то должны на этом объекте».
         const hasPaymentsHere = cnt > 0;
+        const rate = parseFloat(m.default_rate || 0);
+        const phone = (m.phone || '').trim();
         return `
           <div class="record-card" onclick="openMasterEdit('${m.id}')" style="cursor:pointer">
             <div style="display:flex;align-items:center;gap:13px">
               <div style="width:48px;height:48px;border-radius:14px;background:${esc(color)};color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;flex-shrink:0">${esc(init)}</div>
               <div style="flex:1;min-width:0">
                 <div style="font-weight:700;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.name)}</div>
-                <div style="font-size:12px;color:var(--text2);margin-top:3px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-                  ${m.specialty ? `<span>${esc(m.specialty)}</span>${hasPaymentsHere ? '<span style="opacity:.4">·</span>' : ''}` : ''}
+                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:5px">
+                  ${m.specialty ? `<span style="font-size:11px;font-weight:700;background:var(--accent-tint);color:var(--orange);padding:2px 8px;border-radius:99px">🔧 ${esc(m.specialty)}</span>` : ''}
+                  ${rate > 0 ? `<span style="font-size:11px;font-weight:700;background:var(--tag-bg);color:var(--text2);padding:2px 8px;border-radius:99px">${fmt(rate)} ₽/д</span>` : ''}
+                </div>
+                <div style="font-size:12px;color:var(--text2);margin-top:5px">
                   ${hasPaymentsHere
-                    ? `<span>${cnt} ${cnt === 1 ? 'выплата' : 'выплат'}</span>
-                       <span style="opacity:.4">·</span>
-                       <span>посл. ${esc(last)}</span>`
-                    : `<span style="color:var(--text2);opacity:.75">нет выплат на этом объекте</span>`}
+                    ? `${cnt} ${cnt === 1 ? 'выплата' : 'выплат'} · посл. ${esc(last)}`
+                    : `<span style="opacity:.75">нет выплат на этом объекте</span>`}
                 </div>
               </div>
-              <div style="text-align:right;flex-shrink:0">
+              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0">
                 ${hasPaymentsHere
                   ? `<div style="font-weight:800;font-size:15px;color:var(--expense);font-variant-numeric:tabular-nums">− ${fmt(total)} ₽</div>`
                   : `<div style="font-weight:700;font-size:12px;color:var(--text2)">—</div>`}
+                ${phone ? `<a href="tel:${esc(phone.replace(/\s+/g,''))}" onclick="event.stopPropagation()" title="Позвонить ${esc(phone)}" style="display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;background:var(--income);color:#fff;text-decoration:none;font-size:15px;box-shadow:0 2px 6px rgba(0,0,0,.15)">📞</a>` : ''}
               </div>
             </div>
           </div>
@@ -2437,7 +2469,10 @@ window.openMasterEdit = async function(masterId) {
     <div class="form-group"><label>Имя</label><input id="m-mname" type="text" value="${esc(m?.name || '')}" placeholder="Иван Петров"></div>
     <div class="row-2">
       <div class="form-group"><label>Телефон</label><input id="m-mphone" type="tel" value="${esc(m?.phone || '')}" placeholder="+7 ..."></div>
-      <div class="form-group"><label>Специальность</label><input id="m-mspec" type="text" value="${esc(m?.specialty || '')}" placeholder="электрик"></div>
+      <div class="form-group"><label>Специальность</label>
+        <input id="m-mspec" type="text" list="master-spec-list" value="${esc(m?.specialty || '')}" placeholder="электрик">
+        <datalist id="master-spec-list">${(window._knownSpecialties || []).map(s => `<option value="${esc(s)}">`).join('')}</datalist>
+      </div>
     </div>
     <div class="form-group"><label>Ставка / тариф (опц)</label><input id="m-mrate" type="number" value="${m?.default_rate || ''}" placeholder="3000"></div>
     <div class="form-group"><label>Заметки</label><textarea id="m-mnotes" placeholder="Особенности, контакты бригады...">${esc(m?.notes || '')}</textarea></div>
