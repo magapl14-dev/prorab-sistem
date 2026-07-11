@@ -24,6 +24,38 @@ from ...core.database import get_db
 
 logger = logging.getLogger("welldom.ai")
 
+# Признаки того что у xAI-аккаунта закончился баланс / упёрлись в лимит.
+# Отдельно ловим, чтобы фронт показывал понятную модалку «пополните баланс».
+_NO_BALANCE_KEYWORDS = (
+    "insufficient", "credit", "credits", "billing", "quota", "balance",
+    "payment", "topup", "top-up", "free tier", "trial", "exceeded",
+)
+
+
+def _is_no_balance_error(status_code: int, body: str) -> bool:
+    if status_code == 402:
+        return True
+    if status_code in (401, 403, 429):
+        b = (body or "").lower()
+        return any(k in b for k in _NO_BALANCE_KEYWORDS)
+    return False
+
+
+def _no_balance_http_exception(stage: str, status_code: int, body: str) -> HTTPException:
+    return HTTPException(
+        status.HTTP_402_PAYMENT_REQUIRED,
+        detail={
+            "error": "xai_no_balance",
+            "stage": stage,
+            "status": status_code,
+            "message": (
+                "Закончились кредиты Grok — пополни баланс на https://console.x.ai "
+                "и голосовое заполнение снова заработает."
+            ),
+            "console_url": "https://console.x.ai",
+        },
+    )
+
 from ...core.config import settings
 from ...core.deps import current_user
 from ...models.models import User, Dictionary
@@ -304,6 +336,8 @@ async def voice_fill(
         except httpx.HTTPStatusError as e:
             body = e.response.text[:400]
             logger.error("STT failed %s: %s", e.response.status_code, body)
+            if _is_no_balance_error(e.response.status_code, body):
+                raise _no_balance_http_exception("stt", e.response.status_code, body)
             raise HTTPException(
                 status.HTTP_502_BAD_GATEWAY,
                 detail={"stage": "stt", "status": e.response.status_code, "body": body},
@@ -319,6 +353,8 @@ async def voice_fill(
         except httpx.HTTPStatusError as e:
             body = e.response.text[:400]
             logger.error("LLM failed %s: %s", e.response.status_code, body)
+            if _is_no_balance_error(e.response.status_code, body):
+                raise _no_balance_http_exception("llm", e.response.status_code, body)
             raise HTTPException(
                 status.HTTP_502_BAD_GATEWAY,
                 detail={"stage": "llm", "status": e.response.status_code, "body": body, "transcript": transcript},
