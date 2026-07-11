@@ -13,15 +13,20 @@
 import json
 import logging
 import re
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Any
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+
+from ...core.database import get_db
 
 logger = logging.getLogger("welldom.ai")
 
 from ...core.config import settings
 from ...core.deps import current_user
-from ...models.models import User
+from ...models.models import User, Dictionary
 
 
 router = APIRouter(prefix="/ai", tags=["ai"])
@@ -91,18 +96,40 @@ def _system_prompt(context: str, current: dict, extras: dict) -> str:
     if not schema:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"unknown context: {context}")
     fields_desc = "\n".join(f'  - "{k}": {v}' for k, v in schema["fields"].items())
-    now_note = extras.get("now_iso") or ""
-    tz_note = extras.get("timezone") or "Europe/Moscow"
+    now_moscow = extras.get("now_moscow", "")
+    task_types = extras.get("task_types") or []
+
+    extras_rules = []
+    if context == "task":
+        # Перечислим известные типы, чтобы Grok выбирал из них, а не выдумывал.
+        enum = ", ".join(f'"{t}"' for t in task_types) if task_types else '"Общая"'
+        extras_rules.append(
+            f'- Поле "type": строго один из [{enum}]. По умолчанию (когда явно не сказано ни '
+            f'«звонок», «встреча», «монтаж», «закупка», «проверка», «сдача») — "Общая".'
+        )
+        extras_rules.append(
+            f'- Поле "due_at": возвращай строку "YYYY-MM-DDTHH:MM" в московском времени (без Z, '
+            f'без секунд). "завтра" — следующий день, "сегодня к 18" — сегодня 18:00, если '
+            f'сказано «утром» — 09:00, «днём» — 14:00, «вечером» — 19:00, «ночью» — 22:00. '
+            f'Если ни срок, ни день не названы — null.'
+        )
+        extras_rules.append(
+            f'- Поле "priority": "urgent" на «срочно/немедленно», "high" на «важно/быстро», '
+            f'"low" на «когда будет время», иначе "medium".'
+        )
+    extras_block = "\n".join(extras_rules) + ("\n" if extras_rules else "")
+
     return (
         f"Ты помогаешь строительному прорабу заполнять форму: {schema['description']}.\n"
         f"На входе — транскрипт голосового сообщения на русском (возможны опечатки, разговорные обороты).\n"
         f"Твоя задача — вернуть СТРОГО JSON с полями:\n{fields_desc}\n\n"
-        f"Правила:\n"
-        f"- Если поле не упомянуто в речи — ставь null (не выдумывай).\n"
+        f"Общие правила:\n"
+        f"- Если поле не упомянуто в речи — ставь null (не выдумывай), КРОМЕ полей с явно заданным дефолтом ниже.\n"
         f"- Числа возвращай как числа, а не строки (без пробелов, без символа ₽).\n"
         f"- Если сумма произнесена словами ('три с половиной тысячи') — переведи в число (3500).\n"
         f"- Не добавляй никаких других ключей кроме перечисленных.\n"
-        f"- Текущее время сервера: {now_note}, часовой пояс {tz_note}.\n"
+        f"- Текущее московское время: {now_moscow} (Europe/Moscow, UTC+3).\n"
+        f"{extras_block}"
         f"- Уже заполненные пользователем поля не перебивай, если из речи явно не следует замена:\n"
         f"  {json.dumps(current, ensure_ascii=False)}\n"
         f"Возвращай ТОЛЬКО JSON, без пояснений."
@@ -158,6 +185,7 @@ async def voice_fill(
     context: str = Form(...),
     current_json: str = Form("{}"),
     user: User = Depends(current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     if not settings.xai_api_key:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "xai_not_configured")
@@ -174,8 +202,23 @@ async def voice_fill(
     if not audio_bytes:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "empty audio")
 
-    from datetime import datetime, timezone
-    extras = {"now_iso": datetime.now(timezone.utc).isoformat(timespec="seconds"), "timezone": "Europe/Moscow"}
+    # Московское время в формате YYYY-MM-DDTHH:MM (без секунд, без Z) —
+    # чтобы Grok мог его сопоставить с "завтра", "сегодня к 18" и т.п.
+    now_moscow_dt = datetime.now(timezone.utc) + timedelta(hours=3)
+    extras: dict = {"now_moscow": now_moscow_dt.strftime("%Y-%m-%dT%H:%M")}
+
+    # Для задач подтянем актуальные типы из справочника, чтобы Grok не
+    # выдумывал левых и всегда попадал в существующую опцию.
+    if context == "task":
+        rows = (await db.execute(
+            select(Dictionary).where(Dictionary.kind == "task_type", Dictionary.active == True)
+        )).scalars().all()
+        types = [r.value for r in rows if r.value]
+        # Гарантируем что "Общая" есть в списке — используем как дефолт.
+        if "Общая" not in types:
+            types.insert(0, "Общая")
+        extras["task_types"] = types
+
     sys_prompt = _system_prompt(context, current, extras)
 
     async with httpx.AsyncClient() as client:
