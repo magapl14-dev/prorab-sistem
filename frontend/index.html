@@ -144,18 +144,94 @@
 .task-card-urg.urg-week::before{background:#7cb342}
 .task-card-urg.urg-overdue::before{background:var(--expense);width:5px}
 .task-card-urg.urg-done::before{background:#9e9e9e}
-/* ── Home quick actions ── */
-.home-quick{flex:1;display:flex;flex-direction:column;align-items:center;gap:7px;padding:0;background:none;border:none;color:var(--text2);font-size:11px;font-weight:600;cursor:pointer;transition:transform .12s}
-.home-quick:active{transform:scale(.95)}
-.home-quick .hq-ic{width:50px;height:50px;border-radius:16px;background:var(--card);box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;font-size:24px}
-/* ── Home rows ── */
+/* ── Home: header block ── */
+.home-header{padding:8px 20px 16px}
+.home-eyebrow{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--orange);display:inline-flex;align-items:center;gap:8px}
+.home-eyebrow::before{content:"";display:inline-block;width:18px;height:1.5px;background:currentColor;border-radius:1px;opacity:.65}
+.home-greet{font-size:26px;font-weight:800;letter-spacing:-.025em;line-height:1.05;margin-top:6px;color:var(--text)}
+/* ── Home: HERO balance (double-bezel) ── */
+.home-hero{position:relative;margin:0 12px 14px;padding:6px;border-radius:26px;background:linear-gradient(180deg, color-mix(in srgb, var(--orange) 8%, var(--card)) 0%, var(--card) 55%);box-shadow:0 1px 0 rgba(255,255,255,.6) inset, 0 1px 3px rgba(78,52,22,.06), 0 20px 44px -22px rgba(224,120,32,.32), 0 4px 18px -6px rgba(78,52,22,.09);overflow:hidden}
+.home-hero::before{content:"";position:absolute;inset:-30% -20% auto -20%;height:70%;background:radial-gradient(60% 90% at 50% 0%, color-mix(in srgb, var(--orange) 22%, transparent) 0%, transparent 70%);pointer-events:none;z-index:0}
+.home-hero::after{content:"";position:absolute;inset:0;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .35  0 0 0 0 .25  0 0 0 0 .15  0 0 0 .6 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");opacity:.045;mix-blend-mode:multiply;pointer-events:none;z-index:0;border-radius:26px}
+[data-theme="dark"] .home-hero::after{opacity:.09;mix-blend-mode:overlay}
+.home-hero-core{position:relative;z-index:1;background:var(--card);border-radius:22px;padding:18px 18px 16px;box-shadow:inset 0 1px 0 rgba(255,255,255,.9), 0 1px 2px rgba(78,52,22,.04)}
+/* ── Home: entry animations (subtle, staggered) ── */
+@keyframes homeRise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+#tab-home.active .home-header{animation:homeRise .55s cubic-bezier(0.32,0.72,0,1) both}
+#tab-home.active .home-hero{animation:homeRise .6s cubic-bezier(0.32,0.72,0,1) .05s both}
+#tab-home.active .home-quick-row{animation:homeRise .55s cubic-bezier(0.32,0.72,0,1) .12s both}
+#tab-home.active .home-card:nth-of-type(1){animation:homeRise .55s cubic-bezier(0.32,0.72,0,1) .18s both}
+#tab-home.active .home-card:nth-of-type(2){animation:homeRise .55s cubic-bezier(0.32,0.72,0,1) .22s both}
+#tab-home.active .home-card:nth-of-type(3){animation:homeRise .55s cubic-bezier(0.32,0.72,0,1) .26s both}
+#tab-home.active .home-card:nth-of-type(4){animation:homeRise .55s cubic-bezier(0.32,0.72,0,1) .30s both}
+@media (prefers-reduced-motion: reduce){
+  #tab-home.active .home-header,#tab-home.active .home-hero,#tab-home.active .home-quick-row,#tab-home.active .home-card{animation:none!important}
+}
+[data-theme="dark"] .home-hero{background:linear-gradient(180deg, color-mix(in srgb, var(--orange) 18%, var(--card)) 0%, var(--card) 60%);box-shadow:0 1px 0 rgba(255,255,255,.06) inset, 0 20px 44px -22px rgba(224,120,32,.4), 0 4px 18px -6px rgba(0,0,0,.5)}
+[data-theme="dark"] .home-hero-core{box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+.hero-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.hero-label{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--text2)}
+.hero-report{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--text2);background:none;border:none;cursor:pointer;padding:6px 4px 6px 10px;border-radius:99px;transition:transform .3s cubic-bezier(0.32,0.72,0,1),background .25s}
+.hero-report:active{transform:scale(.96);background:var(--chip-bg)}
+.hero-report .hr-arrow{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:99px;background:var(--chip-bg);font-size:12px;line-height:1;transition:transform .35s cubic-bezier(0.32,0.72,0,1)}
+.hero-report:hover .hr-arrow{transform:translateX(2px)}
+.hero-balance{font-size:42px;font-weight:800;color:var(--income);font-variant-numeric:tabular-nums;letter-spacing:-.035em;line-height:1;margin-top:2px}
+.hero-balance.negative{color:var(--expense)}
+.hero-split{display:flex;gap:0;margin-top:16px;padding:12px;background:var(--bg);border-radius:14px;position:relative}
+.hero-split-item{flex:1;min-width:0}
+.hero-split-item + .hero-split-item{padding-left:14px;margin-left:14px;border-left:1px solid var(--hair)}
+.hero-split-lbl{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text2)}
+.hero-split-val{font-size:17px;font-weight:800;margin-top:4px;font-variant-numeric:tabular-nums;letter-spacing:-.015em}
+.hero-goal{margin-top:14px;padding-top:14px;border-top:1px solid var(--hair)}
+.hero-goal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px}
+.hero-goal-lbl{font-size:12.5px;font-weight:700;color:var(--text2);display:inline-flex;align-items:center;gap:6px}
+.hero-goal-lbl .hgl-dot{width:8px;height:8px;border-radius:50%;background:var(--orange);box-shadow:0 0 0 3px color-mix(in srgb, var(--orange) 22%, transparent)}
+.hero-goal-pct{font-size:13px;font-weight:800;color:var(--orange);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.hero-goal-track{height:10px;border-radius:99px;background:var(--bg);overflow:hidden;box-shadow:inset 0 1px 2px rgba(78,52,22,.08)}
+[data-theme="dark"] .hero-goal-track{background:#0a0d11;box-shadow:inset 0 1px 2px rgba(0,0,0,.5)}
+.hero-goal-fill{height:100%;width:0%;border-radius:99px;background:linear-gradient(90deg, var(--orange-light), var(--orange), var(--orange-dark));box-shadow:0 0 12px -2px color-mix(in srgb, var(--orange) 60%, transparent);transition:width .8s cubic-bezier(0.32,0.72,0,1)}
+.hero-goal-info{font-size:11.5px;color:var(--text2);margin-top:8px;line-height:1.35}
+/* ── Home quick actions (bigger, glove-friendly, tactile) ── */
+.home-quick-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:0 12px 22px}
+.home-quick{display:flex;flex-direction:column;align-items:center;gap:8px;padding:12px 4px 10px;background:var(--card);border:1px solid var(--border);border-radius:20px;color:var(--text);font-size:12px;font-weight:700;cursor:pointer;box-shadow:0 1px 0 rgba(255,255,255,.6) inset, 0 1px 2px rgba(78,52,22,.04), 0 6px 14px -8px rgba(78,52,22,.16);transition:transform .28s cubic-bezier(0.32,0.72,0,1),box-shadow .25s}
+.home-quick:active{transform:scale(.96);box-shadow:0 1px 0 rgba(255,255,255,.6) inset, 0 1px 2px rgba(78,52,22,.04)}
+[data-theme="dark"] .home-quick{box-shadow:0 1px 0 rgba(255,255,255,.04) inset, 0 6px 14px -8px rgba(0,0,0,.5)}
+.home-quick .hq-ic{width:52px;height:52px;border-radius:16px;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:inset 0 1px 0 rgba(255,255,255,.55), 0 1px 2px rgba(78,52,22,.06)}
+[data-theme="dark"] .home-quick .hq-ic{box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+.home-quick.hq-buy .hq-ic{background:var(--expense-tint);color:var(--expense)}
+.home-quick.hq-pay .hq-ic{background:var(--accent-tint);color:var(--orange-dark)}
+.home-quick.hq-clt .hq-ic{background:var(--income-tint);color:var(--income)}
+.home-quick.hq-tsk .hq-ic{background:oklch(0.94 0.05 285);color:#5a3fbf}
+[data-theme="dark"] .home-quick.hq-buy .hq-ic{background:color-mix(in srgb, var(--expense) 20%, var(--card));color:#ff8a72}
+[data-theme="dark"] .home-quick.hq-pay .hq-ic{background:color-mix(in srgb, var(--orange) 22%, var(--card));color:var(--orange-light)}
+[data-theme="dark"] .home-quick.hq-clt .hq-ic{background:color-mix(in srgb, var(--income) 20%, var(--card));color:#7dd3a1}
+[data-theme="dark"] .home-quick.hq-tsk .hq-ic{background:#2a2440;color:#b299f5}
+.home-quick .hq-lbl{font-size:11.5px;font-weight:700;letter-spacing:.01em;color:var(--text)}
+/* ── Home: sectioned cards with accent bar ── */
+.home-card{position:relative;background:var(--card);border-radius:20px;padding:16px 16px 14px 18px;margin:0 12px 12px;box-shadow:0 1px 0 rgba(255,255,255,.55) inset, 0 1px 2px rgba(78,52,22,.04), 0 10px 24px -14px rgba(78,52,22,.18);overflow:hidden}
+[data-theme="dark"] .home-card{box-shadow:0 1px 0 rgba(255,255,255,.04) inset, 0 10px 24px -14px rgba(0,0,0,.55)}
+.home-card::before{content:"";position:absolute;left:0;top:16px;bottom:16px;width:3px;border-radius:0 3px 3px 0;background:var(--sect-color, var(--text3));opacity:.8}
+.home-card.sect-tasks{--sect-color:#6B53A0}
+.home-card.sect-buy{--sect-color:var(--expense)}
+.home-card.sect-mst{--sect-color:var(--orange)}
+.home-card.sect-clt{--sect-color:var(--income)}
+.home-card-head{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.home-card-ic{width:26px;height:26px;border-radius:9px;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb, var(--sect-color) 12%, transparent);color:var(--sect-color);flex-shrink:0}
+.home-card-title{font-size:15px;font-weight:800;letter-spacing:-.01em}
+.home-card-count{font-size:11.5px;font-weight:700;color:var(--sect-color);background:color-mix(in srgb, var(--sect-color) 12%, transparent);border-radius:99px;padding:2px 9px;font-variant-numeric:tabular-nums}
+.home-card-all{margin-left:auto;display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:700;color:var(--text2);background:none;border:none;cursor:pointer;padding:4px 2px 4px 8px;border-radius:99px;transition:transform .3s cubic-bezier(0.32,0.72,0,1)}
+.home-card-all:active{transform:scale(.96)}
+.home-card-all .hca-arrow{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:99px;background:var(--chip-bg);font-size:11px;line-height:1;transition:transform .35s cubic-bezier(0.32,0.72,0,1)}
+.home-card-all:hover .hca-arrow{transform:translateX(2px)}
+/* ── Home rows (unchanged behaviourally, refined visuals) ── */
 .home-task-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--hair)}
 .home-task-row:first-child{border-top:none}
-.home-task-check{width:24px;height:24px;flex-shrink:0;border-radius:8px;border:2px solid var(--border);background:transparent;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s}
-.home-task-check.done{border:none;background:var(--income)}
+.home-task-check{width:26px;height:26px;flex-shrink:0;border-radius:9px;border:2px solid var(--border);background:transparent;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .25s cubic-bezier(0.32,0.72,0,1),background .2s,border-color .2s}
+.home-task-check:active{transform:scale(.9)}
+.home-task-check.done{border:none;background:var(--income);box-shadow:0 0 0 3px color-mix(in srgb, var(--income) 20%, transparent)}
 .home-record-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--hair)}
 .home-record-row:first-child{border-top:none}
-.home-record-avt{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.home-record-avt{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;box-shadow:inset 0 1px 0 rgba(255,255,255,.5)}
 /* ── Plan / fact badges ── */
 .pf-badge{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:99px;letter-spacing:.02em;white-space:nowrap}
 .pf-badge.fact{background:var(--income-tint);color:var(--income);border:1px solid color-mix(in srgb, var(--income) 25%, transparent)}
@@ -591,86 +667,88 @@ body{background:var(--bg);position:fixed;inset:0;width:100%;height:100dvh}
     <!-- HOME TAB (command center) -->
     <div class="tab active" id="tab-home">
       <div class="content" id="home-content">
-        <div style="padding:6px 16px 14px">
-          <div style="font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--orange)" id="home-date">—</div>
-          <div style="font-size:23px;font-weight:800;letter-spacing:-.02em;line-height:1.1;margin-top:4px" id="home-greet">Доброе утро</div>
+        <div class="home-header">
+          <div class="home-eyebrow" id="home-date">—</div>
+          <div class="home-greet" id="home-greet">Доброе утро</div>
         </div>
 
-        <!-- Balance card with goal -->
-        <div style="background:var(--card);border-radius:18px;padding:16px;margin:0 12px 12px;box-shadow:var(--shadow)">
-          <div style="display:flex;justify-content:space-between;align-items:center">
-            <span style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text2)">Баланс объекта</span>
-            <button onclick="showTab('report')" style="display:flex;align-items:center;gap:3px;font-size:12px;font-weight:700;color:var(--text2);background:none;border:none;cursor:pointer">Отчёт ›</button>
-          </div>
-          <div id="home-balance" style="font-size:30px;font-weight:800;color:var(--income);margin-top:4px;font-variant-numeric:tabular-nums;letter-spacing:-.02em">— ₽</div>
-          <div style="display:flex;gap:12px;margin-top:14px">
-            <div style="flex:1">
-              <div style="font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text2)">Расход</div>
-              <div id="home-expense" style="font-size:16px;font-weight:800;margin-top:3px;color:var(--expense);font-variant-numeric:tabular-nums">— ₽</div>
+        <!-- Balance card with goal — double-bezel hero -->
+        <div class="home-hero">
+          <div class="home-hero-core">
+            <div class="hero-top">
+              <span class="hero-label">Баланс объекта</span>
+              <button class="hero-report" onclick="showTab('report')">Отчёт<span class="hr-arrow">›</span></button>
             </div>
-            <div style="width:1px;background:var(--hair)"></div>
-            <div style="flex:1">
-              <div style="font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text2)">Оплаты клиента</div>
-              <div id="home-income" style="font-size:16px;font-weight:800;margin-top:3px;color:var(--income);font-variant-numeric:tabular-nums">— ₽</div>
+            <div id="home-balance" class="hero-balance">— ₽</div>
+            <div class="hero-split">
+              <div class="hero-split-item">
+                <div class="hero-split-lbl">Расход</div>
+                <div id="home-expense" class="hero-split-val" style="color:var(--expense)">— ₽</div>
+              </div>
+              <div class="hero-split-item">
+                <div class="hero-split-lbl">Оплаты клиента</div>
+                <div id="home-income" class="hero-split-val" style="color:var(--income)">— ₽</div>
+              </div>
+            </div>
+            <div class="hero-goal">
+              <div class="hero-goal-head">
+                <span class="hero-goal-lbl"><span class="hgl-dot"></span>Цель месяца</span>
+                <span class="hero-goal-pct" id="home-goal-pct">0%</span>
+              </div>
+              <div class="hero-goal-track">
+                <div id="home-goal-bar" class="hero-goal-fill"></div>
+              </div>
+              <div id="home-goal-info" class="hero-goal-info">установите цель в Доход</div>
             </div>
           </div>
-          <div style="height:1px;background:var(--hair);margin:14px 0"></div>
-          <div style="display:flex;justify-content:space-between;margin-bottom:8px">
-            <span style="font-size:12.5px;font-weight:700;color:var(--text2)">🎯 Цель месяца</span>
-            <span style="font-size:12.5px;font-weight:800;color:var(--orange)" id="home-goal-pct">0%</span>
-          </div>
-          <div style="height:9px;border-radius:99px;background:var(--bg);overflow:hidden">
-            <div id="home-goal-bar" style="height:100%;width:0%;border-radius:99px;background:linear-gradient(90deg, var(--orange), var(--orange-dark));transition:width .4s"></div>
-          </div>
-          <div id="home-goal-info" style="font-size:11.5px;color:var(--text2);margin-top:8px">установите цель в Доход</div>
         </div>
 
         <!-- Quick actions -->
-        <div style="display:flex;gap:8px;padding:0 16px 20px" id="home-quick">
-          <button class="home-quick" onclick="openAddForm('expense')"><span class="hq-ic" data-icon="cart" data-icon-size="23" style="color:var(--expense)"></span>Закуп</button>
-          <button class="home-quick" onclick="openAddForm('master_payment')"><span class="hq-ic" data-icon="worker" data-icon-size="23" style="color:var(--orange)"></span>Выплата</button>
-          <button class="home-quick" onclick="openAddForm('client_payment')"><span class="hq-ic" data-icon="wallet" data-icon-size="23" style="color:var(--income)"></span>Платёж</button>
-          <button class="home-quick" onclick="openCreateTask()"><span class="hq-ic" data-icon="tasks" data-icon-size="23" style="color:#6B53A0"></span>Задача</button>
+        <div class="home-quick-row" id="home-quick">
+          <button class="home-quick hq-buy" onclick="openAddForm('expense')"><span class="hq-ic" data-icon="cart" data-icon-size="24"></span><span class="hq-lbl">Закуп</span></button>
+          <button class="home-quick hq-pay" onclick="openAddForm('master_payment')"><span class="hq-ic" data-icon="worker" data-icon-size="24"></span><span class="hq-lbl">Выплата</span></button>
+          <button class="home-quick hq-clt" onclick="openAddForm('client_payment')"><span class="hq-ic" data-icon="wallet" data-icon-size="24"></span><span class="hq-lbl">Платёж</span></button>
+          <button class="home-quick hq-tsk" onclick="openCreateTask()"><span class="hq-ic" data-icon="tasks" data-icon-size="24"></span><span class="hq-lbl">Задача</span></button>
         </div>
 
         <!-- Today's tasks -->
-        <div style="background:var(--card);border-radius:18px;padding:16px;margin:0 12px 12px;box-shadow:var(--shadow)">
-          <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
-            <span style="color:var(--text2)" data-icon="tasks" data-icon-size="18"></span>
-            <span style="font-size:15.5px;font-weight:800">Задачи на сегодня</span>
-            <span id="home-tasks-count" style="font-size:12px;font-weight:700;color:var(--orange);background:var(--accent-tint);border-radius:99px;padding:2px 9px">0</span>
-            <button onclick="showTab('tasks')" style="margin-left:auto;display:flex;align-items:center;gap:3px;font-size:12.5px;font-weight:700;color:var(--text2);background:none;border:none;cursor:pointer">Все ›</button>
+        <div class="home-card sect-tasks">
+          <div class="home-card-head">
+            <span class="home-card-ic" data-icon="tasks" data-icon-size="16"></span>
+            <span class="home-card-title">Задачи на сегодня</span>
+            <span id="home-tasks-count" class="home-card-count">0</span>
+            <button class="home-card-all" onclick="showTab('tasks')">Все<span class="hca-arrow">›</span></button>
           </div>
           <div id="home-tasks-list"></div>
         </div>
 
         <!-- Today's purchases -->
-        <div style="background:var(--card);border-radius:18px;padding:16px;margin:0 12px 12px;box-shadow:var(--shadow)">
-          <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
-            <span style="color:var(--text2)" data-icon="cart" data-icon-size="18"></span>
-            <span style="font-size:15.5px;font-weight:800">Закупки сегодня</span>
-            <span id="home-purchase-count" style="font-size:12px;font-weight:700;color:var(--expense);background:var(--expense-tint);border-radius:99px;padding:2px 9px">0</span>
-            <button onclick="showTab('expenses')" style="margin-left:auto;display:flex;align-items:center;gap:3px;font-size:12.5px;font-weight:700;color:var(--text2);background:none;border:none;cursor:pointer">Все ›</button>
+        <div class="home-card sect-buy">
+          <div class="home-card-head">
+            <span class="home-card-ic" data-icon="cart" data-icon-size="16"></span>
+            <span class="home-card-title">Закупки сегодня</span>
+            <span id="home-purchase-count" class="home-card-count">0</span>
+            <button class="home-card-all" onclick="showTab('expenses')">Все<span class="hca-arrow">›</span></button>
           </div>
           <div id="home-purchase-list"></div>
         </div>
 
         <!-- Master payments -->
-        <div style="background:var(--card);border-radius:18px;padding:16px;margin:0 12px 12px;box-shadow:var(--shadow)">
-          <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
-            <span style="color:var(--text2)" data-icon="worker" data-icon-size="18"></span>
-            <span style="font-size:15.5px;font-weight:800">Выплаты мастерам</span>
-            <button onclick="showTab('masters')" style="margin-left:auto;display:flex;align-items:center;gap:3px;font-size:12.5px;font-weight:700;color:var(--text2);background:none;border:none;cursor:pointer">Все ›</button>
+        <div class="home-card sect-mst">
+          <div class="home-card-head">
+            <span class="home-card-ic" data-icon="worker" data-icon-size="16"></span>
+            <span class="home-card-title">Выплаты мастерам</span>
+            <button class="home-card-all" onclick="showTab('masters')">Все<span class="hca-arrow">›</span></button>
           </div>
           <div id="home-master-list"></div>
         </div>
 
         <!-- Client payments -->
-        <div style="background:var(--card);border-radius:18px;padding:16px;margin:0 12px 12px;box-shadow:var(--shadow)">
-          <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
-            <span style="color:var(--text2)" data-icon="wallet" data-icon-size="18"></span>
-            <span style="font-size:15.5px;font-weight:800">Поступления от клиента</span>
-            <button onclick="showTab('payments')" style="margin-left:auto;display:flex;align-items:center;gap:3px;font-size:12.5px;font-weight:700;color:var(--text2);background:none;border:none;cursor:pointer">Все ›</button>
+        <div class="home-card sect-clt">
+          <div class="home-card-head">
+            <span class="home-card-ic" data-icon="wallet" data-icon-size="16"></span>
+            <span class="home-card-title">Поступления от клиента</span>
+            <button class="home-card-all" onclick="showTab('payments')">Все<span class="hca-arrow">›</span></button>
           </div>
           <div id="home-client-list"></div>
         </div>
