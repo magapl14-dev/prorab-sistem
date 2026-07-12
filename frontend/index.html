@@ -180,12 +180,40 @@
 .tg-wave-bar{flex:1;background:var(--text2);border-radius:2px;min-height:4px;opacity:.45;transition:opacity .15s,background .15s;min-width:2px;max-width:5px}
 .tg-wave-bar.played{background:var(--orange);opacity:1}
 .tg-time{font-family:monospace;font-size:11px;color:var(--text2);flex-shrink:0;min-width:36px;text-align:right}
-/* ── Motivation bar (refreshed) ── */
-#motivation-bar{display:none;cursor:pointer;color:#fff;padding:10px 14px;align-items:center;gap:9px;flex-shrink:0;border-radius:13px;margin:0 12px 6px;box-shadow:0 7px 18px -10px var(--green);background:linear-gradient(90deg,var(--green),var(--earn-grad-a2));transition:background .25s,box-shadow .25s}
+/* ── Motivation bar (2026 polish: bigger amount + streak states + physics) ── */
+#motivation-bar{display:none;cursor:pointer;color:#fff;padding:12px 14px 12px 16px;align-items:center;gap:12px;flex-shrink:0;border-radius:16px;margin:0 12px 8px;box-shadow:0 10px 22px -12px var(--green), 0 1px 0 rgba(255,255,255,.15) inset;background:linear-gradient(105deg,var(--green) 0%,var(--earn-grad-a2) 100%);position:relative;overflow:hidden;transition:background .3s cubic-bezier(0.32,0.72,0,1),box-shadow .3s,transform .18s cubic-bezier(0.32,0.72,0,1);will-change:transform}
+#motivation-bar::before{content:"";position:absolute;inset:0;background:radial-gradient(120% 90% at 100% 0%, rgba(255,255,255,.18) 0%, transparent 60%);pointer-events:none}
 #motivation-bar.show{display:flex}
-#motivation-bar.zero{background:linear-gradient(90deg, oklch(0.86 0.05 150), oklch(0.9 0.04 150));color:var(--mot-zero-ink);box-shadow:none}
-#motivation-bar.hot{animation:motpulse 1.8s ease-in-out infinite}
-@keyframes motpulse{0%,100%{transform:scale(1)}50%{transform:scale(1.015)}}
+#motivation-bar:active{transform:scale(.985)}
+#motivation-bar.zero{background:linear-gradient(105deg, oklch(0.9 0.02 150), oklch(0.94 0.015 150));color:var(--mot-zero-ink);box-shadow:0 1px 2px rgba(78,52,22,.05), 0 6px 14px -10px rgba(78,52,22,.14)}
+#motivation-bar.zero::before{background:radial-gradient(120% 90% at 100% 0%, rgba(78,52,22,.05) 0%, transparent 60%)}
+#motivation-bar.hot{animation:motpulse 2.2s ease-in-out infinite;box-shadow:0 14px 30px -12px var(--orange), 0 0 0 1px rgba(255,255,255,.18) inset}
+@keyframes motpulse{0%,100%{transform:scale(1)}50%{transform:scale(1.018)}}
+.mot-emoji{font-size:19px;flex-shrink:0;line-height:1;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:9px;background:rgba(255,255,255,.16);backdrop-filter:blur(4px)}
+#motivation-bar.zero .mot-emoji{background:rgba(78,52,22,.06)}
+.mot-body{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.1}
+.mot-eyebrow{font-size:9.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;opacity:.72}
+.mot-amt{font-size:19px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.02em;margin-top:2px}
+.mot-amt.tick{animation:motTick .55s cubic-bezier(0.32,0.72,0,1)}
+@keyframes motTick{0%{transform:translateY(6px);opacity:.4}100%{transform:translateY(0);opacity:1}}
+.mot-hint{font-size:10.5px;font-weight:600;opacity:.78;margin-top:1px}
+/* Streak pill states: 0 = grey/mute, 1-2 = yellow, 3-6 = orange fire, 7+ = gold with glow. */
+.mot-streak{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:800;padding:5px 9px 5px 7px;border-radius:99px;flex-shrink:0;background:rgba(255,255,255,.14);color:rgba(255,255,255,.85);transition:background .3s, color .3s, box-shadow .3s;line-height:1}
+.mot-streak .mot-streak-ic{font-size:12px;line-height:1;filter:grayscale(.9);opacity:.65;transition:filter .3s,opacity .3s,transform .35s cubic-bezier(0.32,0.72,0,1)}
+.mot-streak.s-low{background:linear-gradient(135deg,#ffe084,#ffcf5a);color:#5a3d0d}
+.mot-streak.s-low .mot-streak-ic{filter:none;opacity:1}
+.mot-streak.s-mid{background:linear-gradient(135deg,#ffb35a,#ff8a2b);color:#fff;box-shadow:0 4px 10px -4px rgba(255,138,43,.6)}
+.mot-streak.s-mid .mot-streak-ic{filter:none;opacity:1;transform:scale(1.08)}
+.mot-streak.s-hi{background:linear-gradient(135deg,#f9d97a 0%,#efb949 50%,#c7902d 100%);color:#4a2c05;box-shadow:0 0 0 2px rgba(255,215,120,.35), 0 6px 14px -4px rgba(199,144,45,.55);animation:motGoldGlow 2.6s ease-in-out infinite}
+.mot-streak.s-hi .mot-streak-ic{filter:none;opacity:1;transform:scale(1.14)}
+@keyframes motGoldGlow{0%,100%{box-shadow:0 0 0 2px rgba(255,215,120,.3), 0 6px 14px -4px rgba(199,144,45,.5)}50%{box-shadow:0 0 0 3px rgba(255,215,120,.55), 0 10px 22px -6px rgba(199,144,45,.7)}}
+#motivation-bar.zero .mot-streak{background:rgba(78,52,22,.08);color:var(--mot-zero-ink)}
+.mot-chevron{opacity:.7;font-size:15px;line-height:1;flex-shrink:0;transition:transform .3s cubic-bezier(0.32,0.72,0,1)}
+#motivation-bar:hover .mot-chevron{transform:translateX(2px)}
+@media (prefers-reduced-motion: reduce){
+  .mot-streak.s-hi,.mot-amt.tick{animation:none !important;transition:none !important}
+  .mot-eyebrow{opacity:.9}
+}
 /* ── Confetti + "+1 ✓" celebration ── */
 .celebrate-layer{position:fixed;inset:0;z-index:9999;pointer-events:none;overflow:hidden}
 .celebrate-layer i{position:absolute;width:9px;height:9px;border-radius:2px;animation:conf 1.1s ease-out forwards}
@@ -731,6 +759,21 @@ body{background:var(--bg);position:fixed;inset:0;width:100%;height:100dvh}
 /* ── A11Y: skip-link для клавиатурной навигации ── */
 .skip-link{position:absolute;left:-9999px;top:0;background:var(--orange);color:#fff;padding:14px 20px;z-index:10000;border-radius:0 0 12px 0;font-weight:800;font-size:14px;text-decoration:none;box-shadow:0 6px 18px rgba(0,0,0,.25)}
 .skip-link:focus,.skip-link:focus-visible{left:0;outline:3px solid #fff;outline-offset:-6px}
+/* ── Empty / error state (2026 polish: soft illustration, consistent type, rise-in) ── */
+.empty{text-align:center;padding:48px 24px 40px;color:var(--text2);animation:emptyRise .55s cubic-bezier(0.32,0.72,0,1) both}
+.empty .icon{font-size:44px;margin-bottom:10px;display:inline-flex;align-items:center;justify-content:center;width:76px;height:76px;border-radius:22px;background:color-mix(in srgb, var(--orange) 8%, var(--card));box-shadow:0 1px 0 rgba(255,255,255,.6) inset, 0 8px 22px -14px rgba(78,52,22,.28);position:relative;line-height:1}
+[data-theme="dark"] .empty .icon{background:color-mix(in srgb, var(--orange) 15%, var(--card));box-shadow:0 1px 0 rgba(255,255,255,.05) inset, 0 8px 22px -12px rgba(0,0,0,.6)}
+.empty .icon::after{content:"";position:absolute;inset:6px;border-radius:16px;border:1px dashed color-mix(in srgb, var(--orange) 24%, transparent);pointer-events:none}
+.empty > *:not(.icon){font-size:14px;font-weight:700;color:var(--text);line-height:1.35;letter-spacing:-.01em}
+.empty > .icon + *{margin-top:6px}
+.empty > * > div[style*="color:var(--text2)"],
+.empty > * > div[style]:not([style*="color"]){color:var(--text2)}
+.empty > div[style*="font-size:12px"]{color:var(--text2);font-weight:600}
+.empty.err .icon{background:color-mix(in srgb, var(--danger) 10%, var(--card))}
+[data-theme="dark"] .empty.err .icon{background:color-mix(in srgb, var(--danger) 22%, var(--card))}
+.empty.err .icon::after{border-color:color-mix(in srgb, var(--danger) 32%, transparent)}
+@keyframes emptyRise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@media (prefers-reduced-motion: reduce){.empty{animation:none}}
 /* ── theme-toggle unified visual language ── */
 .theme-toggle-btn{position:relative;transition:background .2s,box-shadow .2s,transform .12s}
 .theme-toggle-btn .theme-icon{display:inline-block;transition:transform .35s cubic-bezier(0.32,0.72,0,1)}
@@ -740,8 +783,6 @@ body{background:var(--bg);position:fixed;inset:0;width:100%;height:100dvh}
 [data-theme="dark"] .theme-toggle-btn[aria-pressed="true"]{background:color-mix(in srgb, var(--orange) 22%, var(--card));color:var(--orange-light)}
 .btn-secondary.theme-toggle-btn[aria-pressed="true"]{background:color-mix(in srgb, var(--orange) 10%, var(--card));color:var(--orange);border-color:var(--orange)}
 /* ── utils ── */
-.empty{text-align:center;padding:60px 20px;color:var(--text2)}
-.empty .icon{font-size:48px;margin-bottom:12px}
 .loader{display:flex;justify-content:center;padding:40px}
 .spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--orange);border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -821,11 +862,15 @@ body{background:var(--bg);position:fixed;inset:0;width:100%;height:100dvh}
     <button class="icon-btn theme-toggle-btn" onclick="toggleTheme()" id="theme-btn-top" title="Тёмная тема" aria-label="Переключить тему" aria-pressed="false" style="margin-right:4px"><span class="theme-icon" aria-hidden="true">🌙</span></button>
     <button class="user-avatar" onclick="showTab('profile')" id="user-avatar-btn">М</button>
   </div>
-  <div id="motivation-bar" onclick="showTab('dashboard')">
-    <span id="mot-emoji" style="font-size:17px;flex-shrink:0">💪</span>
-    <span id="mot-text" style="flex:1;font-size:13.5px;font-weight:700">Сегодня: <span id="mot-today">+0 ₽</span></span>
-    <span style="opacity:.85"><span id="mot-streak">🔥 0</span></span>
-    <span style="flex-shrink:0;opacity:.85">›</span>
+  <div id="motivation-bar" onclick="showTab('dashboard')" role="button" tabindex="0" aria-label="Заработок за сегодня — открыть дашборд">
+    <span id="mot-emoji" class="mot-emoji" role="img" aria-label="настроение">💪</span>
+    <span class="mot-body">
+      <span id="mot-eyebrow" class="mot-eyebrow">Сегодня</span>
+      <span id="mot-text" class="mot-amt">+<span id="mot-today">0</span> ₽</span>
+      <span id="mot-hint" class="mot-hint" style="display:none"></span>
+    </span>
+    <span id="mot-streak" class="mot-streak" data-streak="0"><span class="mot-streak-ic" aria-hidden="true">🔥</span><span id="mot-streak-n">0</span> дн</span>
+    <span class="mot-chevron" aria-hidden="true">›</span>
   </div>
   <div style="flex:1;overflow:hidden;display:flex;flex-direction:column">
 
@@ -2224,7 +2269,7 @@ async function loadTab(kind) {
     const data = await Records.list(currentProject.code, params);
     renderRecords(el, data.items, kind);
   } catch (_) {
-    el.innerHTML = '<div class="empty"><div class="icon">⚠️</div>Ошибка загрузки</div>';
+    el.innerHTML = '<div class="empty err"><div class="icon">⚠️</div>Ошибка загрузки<div style="font-size:12px;font-weight:600;margin-top:6px">Проверьте связь и попробуйте снова</div></div>';
   }
 }
 
@@ -2300,7 +2345,7 @@ function renderRecords(el, items, kind) {
 function renderRecordsCards(el, items, kind) {
   const cards = el.querySelector(`#rec-cards-${kind}`) || el;
   if (!items.length) {
-    cards.innerHTML = `<div class="empty"><div class="icon">${kind === 'expense' ? '🛒' : kind === 'master_payment' ? '👷' : '💰'}</div>Записей не найдено</div>`;
+    cards.innerHTML = `<div class="empty"><div class="icon">${kind === 'expense' ? '🛒' : kind === 'master_payment' ? '👷' : '💰'}</div>Записей не найдено<div style="font-size:12px;font-weight:600;margin-top:6px">Смените фильтр или добавьте новую запись</div></div>`;
     return;
   }
   cards.innerHTML = items.map(r => {
@@ -2532,8 +2577,19 @@ async function loadMotivation() {
                     (parseFloat(ps.month.fixed || 0));
     }
     const todayEl = document.getElementById('mot-today');
-    todayEl.textContent = `+${fmt(today)} ₽`;
-    todayEl.dataset.monthEarned = String(monthEarned);
+    // Track prior value to trigger a subtle upward tick when the amount grows.
+    // Stash both today+monthEarned on the BAR itself, so state-branch innerHTML
+    // rewrites below don't wipe the data (the mot-today span is a child of
+    // mot-text and gets replaced in the "zero" branch). Legacy checkGoalReached
+    // code still reads mot-today.dataset.monthEarned when it exists.
+    const prevToday = parseFloat(bar.dataset.today || '0');
+    bar.dataset.today = String(today);
+    bar.dataset.monthEarned = String(monthEarned);
+    if (todayEl) {
+      todayEl.textContent = fmt(today);
+      todayEl.dataset.monthEarned = String(monthEarned);
+      todayEl.dataset.today = String(today);
+    }
     // Apply mood tint based on monthly goal progress
     const goalKey = `goal_${currentProject.code}_${_user.id}`;
     const goal = parseFloat(localStorage.getItem(goalKey) || 0);
@@ -2544,27 +2600,57 @@ async function loadMotivation() {
     const stored = JSON.parse(localStorage.getItem(_streakKey()) || '{}');
     if (streak > (stored.best || 0)) { stored.best = streak; localStorage.setItem(_streakKey(), JSON.stringify(stored)); }
     const best = stored.best || streak;
-    document.getElementById('mot-streak').textContent = streak > 0
-      ? `🔥 ${streak} дн${best > streak ? ' (рекорд '+best+')' : ''}`
-      : '🔥 0';
+    // Streak pill: number + state class (grey / yellow / orange fire / gold).
+    const streakEl = document.getElementById('mot-streak');
+    const streakN = document.getElementById('mot-streak-n');
+    if (streakEl && streakN) {
+      streakN.textContent = String(streak);
+      streakEl.dataset.streak = String(streak);
+      streakEl.classList.remove('s-low','s-mid','s-hi');
+      if (streak >= 7) streakEl.classList.add('s-hi');
+      else if (streak >= 3) streakEl.classList.add('s-mid');
+      else if (streak >= 1) streakEl.classList.add('s-low');
+      streakEl.setAttribute('title', streak > 0
+        ? `${streak} дн подряд${best > streak ? ' · рекорд ' + best : ''}`
+        : 'Внесите первую запись, чтобы начать серию');
+    }
     // Three states based on today's earnings vs daily-goal proxy
     const monthGoal = parseFloat(localStorage.getItem(goalKey) || 0);
     const dailyGoal = monthGoal > 0 ? monthGoal / 22 : 5000;
     const emoji = document.getElementById('mot-emoji');
-    const text = document.getElementById('mot-text');
+    const eyebrow = document.getElementById('mot-eyebrow');
+    const hint = document.getElementById('mot-hint');
+    const amt = document.getElementById('mot-text');
     bar.classList.remove('zero', 'hot');
     bar.classList.add('show');
     if (today <= 0) {
       bar.classList.add('zero');
-      emoji.textContent = '🌅';
-      text.innerHTML = 'Начнём день — внесите первую запись';
+      if (emoji) emoji.textContent = '🌅';
+      if (eyebrow) eyebrow.textContent = 'Начнём день';
+      if (amt) amt.innerHTML = 'Внесите первую запись';
+      if (hint) { hint.style.display = 'none'; }
     } else if (today >= dailyGoal) {
       bar.classList.add('hot');
-      emoji.textContent = '🔥';
-      text.innerHTML = `Сегодня заработано: <span id="mot-today">+${fmt(today)} ₽</span>`;
+      if (emoji) emoji.textContent = '🔥';
+      if (eyebrow) eyebrow.textContent = 'Сегодня — план выполнен';
+      if (amt) amt.innerHTML = `+<span id="mot-today" data-today="${today}">${fmt(today)}</span> ₽`;
+      if (hint) { hint.style.display = ''; hint.textContent = `план дня ${fmt(dailyGoal)} ₽`; }
     } else {
-      emoji.textContent = '💪';
-      text.innerHTML = `Сегодня: <span id="mot-today">+${fmt(today)} ₽</span> · можно ещё`;
+      if (emoji) emoji.textContent = '💪';
+      if (eyebrow) eyebrow.textContent = 'Сегодня заработано';
+      if (amt) amt.innerHTML = `+<span id="mot-today" data-today="${today}">${fmt(today)}</span> ₽`;
+      if (hint) {
+        hint.style.display = '';
+        const left = Math.max(0, dailyGoal - today);
+        hint.textContent = left > 0 ? `до плана ещё ${fmt(left)} ₽` : 'можно ещё';
+      }
+    }
+    // Subtle upward tick animation on amount growth
+    if (today > prevToday && amt) {
+      amt.classList.remove('tick');
+      // reflow to restart animation
+      void amt.offsetWidth;
+      amt.classList.add('tick');
     }
   } catch (_) {
     bar.classList.remove('show');
@@ -2714,7 +2800,7 @@ async function renderMastersRoster() {
       }).join('')}
     `;
   } catch(e) {
-    el.innerHTML = `<div class="empty">Ошибка: ${esc(e?.detail || JSON.stringify(e))}</div>`;
+    el.innerHTML = `<div class="empty err"><div class="icon">⚠️</div>Ошибка загрузки<div style="font-size:12px;font-weight:600;margin-top:6px">${esc(e?.detail || JSON.stringify(e))}</div></div>`;
   }
 }
 
@@ -2937,7 +3023,7 @@ function renderMasterCards(el, items) {
   });
   const list = Object.values(groups).sort((a,b) => (b.lastDate||'').localeCompare(a.lastDate||''));
   if (!list.length) {
-    el.querySelector('#rec-cards-master_payment').innerHTML = `<div class="empty"><div class="icon">👷</div>Мастеров пока нет</div>`;
+    el.querySelector('#rec-cards-master_payment').innerHTML = `<div class="empty"><div class="icon">👷</div>Нет мастеров в бригаде<div style="font-size:12px;font-weight:600;margin-top:6px">Добавьте первую выплату — мастер появится автоматически</div></div>`;
     return;
   }
   el.querySelector('#rec-cards-master_payment').innerHTML = list.map(g => {
@@ -3276,11 +3362,13 @@ window.saveRecord = async function() {
       } else {
         toast('Запись добавлена ✅');
       }
-      // Track goal crossing for confetti
-      const prev = parseFloat(document.getElementById('mot-today')?.dataset?.monthEarned || 0);
+      // Track goal crossing for confetti — read from bar itself since the
+      // "zero" state branch of loadMotivation can wipe the mot-today span.
+      const _mb = document.getElementById('motivation-bar');
+      const prev = parseFloat(_mb?.dataset?.monthEarned || document.getElementById('mot-today')?.dataset?.monthEarned || 0);
       loadTab(currentKind);
       loadMotivation().then(() => {
-        const cur = parseFloat(document.getElementById('mot-today')?.dataset?.monthEarned || 0);
+        const cur = parseFloat(_mb?.dataset?.monthEarned || document.getElementById('mot-today')?.dataset?.monthEarned || 0);
         checkGoalReached(prev, cur);
       });
     } catch (netErr) {
@@ -3616,7 +3704,7 @@ async function loadReport() {
   } catch(e) {
     console.error(e);
     _rptAllRecs = [];
-    el.innerHTML = `<div class="empty"><div class="icon">⚠️</div>Ошибка загрузки<div style="font-size:12px;color:var(--text2);margin-top:6px">${e?.detail || e?.message || ''}</div></div>`;
+    el.innerHTML = `<div class="empty err"><div class="icon">⚠️</div>Ошибка загрузки<div style="font-size:12px;font-weight:600;margin-top:6px">${esc(e?.detail || e?.message || 'Проверьте связь')}</div></div>`;
   }
 }
 
@@ -3642,7 +3730,7 @@ function renderRptContent() {
     const photos = viewRecs.flatMap(r => r.photos || []).filter(p => p.url);
     el.innerHTML = planHtml + (photos.length
       ? `<div class="rpt-photo-grid">${photos.map(p=>`<img src="${p.url}" loading="lazy">`).join('')}</div>`
-      : '<div class="empty"><div class="icon">🖼</div>Нет фотографий</div>');
+      : '<div class="empty"><div class="icon">🖼</div>Нет фотографий<div style="font-size:12px;font-weight:600;margin-top:6px">Приложите фото к закупкам или выплатам</div></div>');
     return;
   }
 
@@ -3654,7 +3742,7 @@ function renderRptContent() {
         <div><div style="font-weight:600">${esc(r.name||'—')}</div><div style="font-size:12px;color:var(--text2)">${d}</div></div>
         <div style="font-weight:700;font-size:16px;color:var(--red)">-${fmt(r.payment_amount||0)} ₽</div>
       </div>`;
-    }).join('') : '<div class="empty">Нет выплат мастерам</div>') + '</div>';
+    }).join('') : '<div class="empty"><div class="icon">👷</div>Нет выплат мастерам<div style="font-size:12px;font-weight:600;margin-top:6px">Здесь появятся все выплаты по этому периоду</div></div>') + '</div>';
     return;
   }
 
@@ -3706,7 +3794,7 @@ function renderRptContent() {
       </div>`;
     }).join('');
 
-    const noData = '<div class="empty" style="padding:12px 0">Нет данных</div>';
+    const noData = '<div class="empty" style="padding:20px 12px;animation:none"><div style="font-size:13px;font-weight:600;color:var(--text2)">Нет данных за период</div></div>';
     el.innerHTML = planHtml +
       `<div class="rpt-analytics-card">
         <div class="summary-title" style="margin-bottom:4px">По типам</div>
@@ -3726,8 +3814,8 @@ function renderRptContent() {
   recs.sort((a,b) => (b.operation_date||'').localeCompare(a.operation_date||''));
 
   const emptyMsg = _rptAllRecs.length === 0
-    ? '<div class="empty"><div class="icon">📋</div>Записей нет<div style="font-size:12px;color:var(--text2);margin-top:6px">Добавьте запись через вкладки<br>Закупки, Мастера или Приходы</div></div>'
-    : '<div class="empty"><div class="icon">🔍</div>Нет записей по фильтру</div>';
+    ? '<div class="empty"><div class="icon">📋</div>Записей нет<div style="font-size:12px;font-weight:600;margin-top:6px">Добавьте запись через вкладки<br>Закупки, Мастера или Приходы</div></div>'
+    : '<div class="empty"><div class="icon">🔍</div>Ничего не найдено<div style="font-size:12px;font-weight:600;margin-top:6px">Попробуйте сменить фильтр или период</div></div>';
 
   const listHtml = recs.length ? recs.map(r => {
     const d = r.operation_date ? r.operation_date.slice(0,10).split('-').reverse().join('.') : '';
@@ -3786,7 +3874,7 @@ async function loadDashboard() {
   if (_dashTab === 'all') {
     try {
       const all = await Earnings.all().catch(() => []);
-      if (!all.length) { el.innerHTML = '<div class="empty"><div class="icon">📊</div>Нет данных по проектам</div>'; return; }
+      if (!all.length) { el.innerHTML = '<div class="empty"><div class="icon">📊</div>Нет данных по проектам<div style="font-size:12px;font-weight:600;margin-top:6px">Как появятся записи — покажем аналитику</div></div>'; return; }
       let html = '';
       for (const e of all) {
         html += `<div class="dash-card">
@@ -3798,7 +3886,7 @@ async function loadDashboard() {
         </div>`;
       }
       el.innerHTML = html;
-    } catch(_) { el.innerHTML = '<div class="empty">Ошибка загрузки</div>'; }
+    } catch(_) { el.innerHTML = '<div class="empty err"><div class="icon">⚠️</div>Ошибка загрузки<div style="font-size:12px;font-weight:600;margin-top:6px">Обновите страницу или проверьте связь</div></div>'; }
     return;
   }
 
@@ -4086,10 +4174,10 @@ async function loadDashboard() {
 
     html += `<div class="dash-notice">ℹ️ Только ваш персональный заработок по этому проекту. Другие прорабы вас не видят. Ставку и эффективность настраивает администратор.</div>`;
 
-    el.innerHTML = html || '<div class="empty">Нет данных</div>';
+    el.innerHTML = html || '<div class="empty"><div class="icon">📊</div>Пока нет данных<div style="font-size:12px;font-weight:600;margin-top:6px">Начните вести записи — здесь появится сводка</div></div>';
   } catch(e) {
     console.error(e);
-    el.innerHTML = '<div class="empty">Ошибка загрузки</div>';
+    el.innerHTML = '<div class="empty err"><div class="icon">⚠️</div>Ошибка загрузки<div style="font-size:12px;font-weight:600;margin-top:6px">Обновите страницу или проверьте связь</div></div>';
   }
 }
 
@@ -4227,7 +4315,7 @@ async function loadTasks() {
     if (range.overdueOnly) tasks = tasks.filter(t => t.due_at && new Date(t.due_at) < new Date() && t.status !== 'done');
     renderTaskList(tasks);
   } catch(e) {
-    el.innerHTML = '<div class="empty">Ошибка: ' + esc(e?.detail || JSON.stringify(e)) + '</div>';
+    el.innerHTML = '<div class="empty err"><div class="icon">⚠️</div>Ошибка загрузки<div style="font-size:12px;font-weight:600;margin-top:6px">' + esc(e?.detail || JSON.stringify(e)) + '</div></div>';
   }
 }
 
@@ -4267,7 +4355,7 @@ function _isoForDatetimeInput(iso) {
 function renderTaskList(tasks) {
   const el = document.getElementById('tasks-list');
   if (!tasks.length) {
-    el.innerHTML = '<div class="empty">Нет задач</div>';
+    el.innerHTML = '<div class="empty"><div class="icon">✓</div>Задач нет<div style="font-size:12px;font-weight:600;margin-top:6px">Смените фильтр или создайте задачу кнопкой «+ Задача»</div></div>';
     return;
   }
   const _urgClass = (t) => {
@@ -6589,7 +6677,7 @@ async function _renderAnalytics() {
     const params = _analyticsRangeParams();
     if (_analyticsProject !== 'all') params.project_code = _analyticsProject;
     const rows = await Admin.analytics.users(params);
-    if (!rows.length) { listEl.innerHTML = '<div class="empty">Нет данных</div>'; return; }
+    if (!rows.length) { listEl.innerHTML = '<div class="empty"><div class="icon">📊</div>Нет данных за период<div style="font-size:12px;font-weight:600;margin-top:6px">Попробуйте выбрать другой период</div></div>'; return; }
 
     // Sort: most active first
     rows.sort((a, b) => (b.records_total + b.tasks_completed) - (a.records_total + a.tasks_completed));
@@ -6640,7 +6728,7 @@ async function _renderAnalytics() {
       `;
     }).join('');
   } catch(e) {
-    listEl.innerHTML = `<div class="empty">Ошибка: ${esc(e?.detail || JSON.stringify(e))}</div>`;
+    listEl.innerHTML = `<div class="empty err"><div class="icon">⚠️</div>Ошибка загрузки<div style="font-size:12px;font-weight:600;margin-top:6px">${esc(e?.detail || JSON.stringify(e))}</div></div>`;
   }
 }
 
