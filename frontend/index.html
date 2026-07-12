@@ -3236,6 +3236,22 @@ window.setRptCategory = function(cat) {
 
 async function loadReport() {
   if (!currentProject) return;
+
+  // Освежаем экономику проекта — markup_pct / foreman_rate_pct / rentier_foreman_share
+  // могут быть undefined в устаревшем _user (кэш SW, старый логин до расширения
+  // ProjectBrief). Без этого Отчёт показывает «Наценка 0%» даже когда в админке
+  // стоит 15%. Один Auth.me на переключение таба — недорого.
+  try {
+    const fresh = await Auth.me();
+    const p = (fresh?.projects || []).find(x => x.code === currentProject.code);
+    if (p) {
+      currentProject.markup_pct = p.markup_pct;
+      currentProject.foreman_rate_pct = p.foreman_rate_pct;
+      currentProject.rentier_foreman_share = p.rentier_foreman_share;
+      window._user = fresh;
+    }
+  } catch(_) {}
+
   _rptAllRecs = null; // mark as loading
   const el = document.getElementById('rpt-content');
   el.innerHTML = '<div class="loader"><div class="spinner"></div></div>';
