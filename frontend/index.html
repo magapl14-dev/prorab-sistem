@@ -223,6 +223,73 @@
 .home-card-all:active{transform:scale(.96)}
 .home-card-all .hca-arrow{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:99px;background:var(--chip-bg);font-size:11px;line-height:1;transition:transform .35s cubic-bezier(0.32,0.72,0,1)}
 .home-card-all:hover .hca-arrow{transform:translateX(2px)}
+/* ── A11Y: contrast, focus, touch, motion — post-redesign (WCAG 2.1 AA) ── */
+:root{
+  --text2: oklch(0.44 0.012 65);
+  --orange-text: oklch(0.48 0.16 45);
+  --income-text: oklch(0.46 0.13 158);
+  --expense-text: oklch(0.48 0.17 27);
+}
+.home-eyebrow,
+.hero-goal-pct{color:var(--orange-text)}
+[data-theme="dark"] .home-eyebrow,
+[data-theme="dark"] .hero-goal-pct{color:var(--orange-light)}
+.hero-split-val{font-size:19px;letter-spacing:-.02em}
+#home-expense{color:var(--expense-text) !important}
+#home-income{color:var(--income-text) !important}
+[data-theme="dark"] #home-expense{color:#ff8a72 !important}
+[data-theme="dark"] #home-income{color:#7dd3a1 !important}
+.home-card-count{
+  background:color-mix(in srgb, var(--sect-color) 15%, var(--card));
+  color:color-mix(in srgb, var(--sect-color) 78%, #000);
+}
+.home-card-ic{
+  background:color-mix(in srgb, var(--sect-color) 16%, var(--card));
+  color:color-mix(in srgb, var(--sect-color) 72%, #000);
+}
+[data-theme="dark"] .home-card-count,
+[data-theme="dark"] .home-card-ic{
+  background:color-mix(in srgb, var(--sect-color) 24%, var(--card));
+  color:color-mix(in srgb, var(--sect-color) 28%, #fff);
+}
+.home-quick.hq-clt .hq-ic{color:var(--income-text)}
+.hero-report{min-height:44px;padding:8px 10px 8px 14px}
+.home-card-all{min-height:44px;padding:8px 6px 8px 12px}
+.filter-chip{min-height:44px;display:inline-flex;align-items:center}
+.top-bar-logo{min-height:44px}
+.home-quick:focus-visible,
+.hero-report:focus-visible,
+.home-card-all:focus-visible,
+.filter-chip:focus-visible,
+.home-task-check:focus-visible,
+.top-bar-logo:focus-visible,
+.icon-btn:focus-visible,
+.user-avatar:focus-visible{
+  outline:3px solid var(--orange);
+  outline-offset:2px;
+  border-radius:inherit;
+}
+[data-theme="dark"] .home-quick:focus-visible,
+[data-theme="dark"] .hero-report:focus-visible,
+[data-theme="dark"] .home-card-all:focus-visible{
+  outline-color:var(--orange-light);
+  box-shadow:0 0 0 5px color-mix(in srgb, var(--orange) 25%, transparent);
+}
+@media (prefers-reduced-motion: reduce){
+  #motivation-bar.hot,
+  .dchip.bump,
+  .hero-goal-fill{animation:none !important;transition:none !important}
+}
+@media (prefers-contrast: more){
+  .home-hero::after,
+  .home-hero::before{display:none}
+  .home-hero{background:var(--card)}
+  .home-card,.home-hero-core,.home-quick{border:1px solid var(--text2)}
+}
+@media (prefers-reduced-transparency: reduce){
+  .home-hero::after{display:none}
+  .bottom-nav{background:var(--card) !important;backdrop-filter:none !important;-webkit-backdrop-filter:none !important}
+}
 /* ── Home rows (unchanged behaviourally, refined visuals) ── */
 .home-task-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--hair)}
 .home-task-row:first-child{border-top:none}
@@ -644,7 +711,7 @@ body{background:var(--bg);position:fixed;inset:0;width:100%;height:100dvh}
 <div id="main-screen" class="screen">
   <div class="top-bar">
     <button type="button" class="top-bar-logo" onclick="showTab('home')" aria-label="На главную" style="cursor:pointer">
-      <span class="logo-house">🏠</span>
+      <span class="logo-house" aria-hidden="true">🏠</span>
       <span>WELL DOM</span>
     </button>
     <button class="project-pill" onclick="goBack()" id="project-pill-btn">
@@ -677,9 +744,9 @@ body{background:var(--bg);position:fixed;inset:0;width:100%;height:100dvh}
           <div class="home-hero-core">
             <div class="hero-top">
               <span class="hero-label">Баланс объекта</span>
-              <button class="hero-report" onclick="showTab('report')">Отчёт<span class="hr-arrow">›</span></button>
+              <button class="hero-report" onclick="showTab('report')">Отчёт<span class="hr-arrow" aria-hidden="true">›</span></button>
             </div>
-            <div id="home-balance" class="hero-balance">— ₽</div>
+            <div id="home-balance" class="hero-balance" role="status" aria-live="polite" aria-atomic="true" aria-label="Баланс объекта">— ₽</div>
             <div class="hero-split">
               <div class="hero-split-item">
                 <div class="hero-split-lbl">Расход</div>
@@ -695,7 +762,7 @@ body{background:var(--bg);position:fixed;inset:0;width:100%;height:100dvh}
                 <span class="hero-goal-lbl"><span class="hgl-dot"></span>Цель месяца</span>
                 <span class="hero-goal-pct" id="home-goal-pct">0%</span>
               </div>
-              <div class="hero-goal-track">
+              <div id="home-goal-track" class="hero-goal-track" role="progressbar" aria-label="Прогресс цели месяца" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="Цель не задана">
                 <div id="home-goal-bar" class="hero-goal-fill"></div>
               </div>
               <div id="home-goal-info" class="hero-goal-info">установите цель в Доход</div>
@@ -717,7 +784,7 @@ body{background:var(--bg);position:fixed;inset:0;width:100%;height:100dvh}
             <span class="home-card-ic" data-icon="tasks" data-icon-size="16"></span>
             <span class="home-card-title">Задачи на сегодня</span>
             <span id="home-tasks-count" class="home-card-count">0</span>
-            <button class="home-card-all" onclick="showTab('tasks')">Все<span class="hca-arrow">›</span></button>
+            <button class="home-card-all" onclick="showTab('tasks')">Все<span class="hca-arrow" aria-hidden="true">›</span></button>
           </div>
           <div id="home-tasks-list"></div>
         </div>
@@ -728,7 +795,7 @@ body{background:var(--bg);position:fixed;inset:0;width:100%;height:100dvh}
             <span class="home-card-ic" data-icon="cart" data-icon-size="16"></span>
             <span class="home-card-title">Закупки сегодня</span>
             <span id="home-purchase-count" class="home-card-count">0</span>
-            <button class="home-card-all" onclick="showTab('expenses')">Все<span class="hca-arrow">›</span></button>
+            <button class="home-card-all" onclick="showTab('expenses')">Все<span class="hca-arrow" aria-hidden="true">›</span></button>
           </div>
           <div id="home-purchase-list"></div>
         </div>
@@ -738,7 +805,7 @@ body{background:var(--bg);position:fixed;inset:0;width:100%;height:100dvh}
           <div class="home-card-head">
             <span class="home-card-ic" data-icon="worker" data-icon-size="16"></span>
             <span class="home-card-title">Выплаты мастерам</span>
-            <button class="home-card-all" onclick="showTab('masters')">Все<span class="hca-arrow">›</span></button>
+            <button class="home-card-all" onclick="showTab('masters')">Все<span class="hca-arrow" aria-hidden="true">›</span></button>
           </div>
           <div id="home-master-list"></div>
         </div>
@@ -748,7 +815,7 @@ body{background:var(--bg);position:fixed;inset:0;width:100%;height:100dvh}
           <div class="home-card-head">
             <span class="home-card-ic" data-icon="wallet" data-icon-size="16"></span>
             <span class="home-card-title">Поступления от клиента</span>
-            <button class="home-card-all" onclick="showTab('payments')">Все<span class="hca-arrow">›</span></button>
+            <button class="home-card-all" onclick="showTab('payments')">Все<span class="hca-arrow" aria-hidden="true">›</span></button>
           </div>
           <div id="home-client-list"></div>
         </div>
@@ -1850,6 +1917,7 @@ async function loadHome() {
     const goalBar = document.getElementById('home-goal-bar');
     const goalPct = document.getElementById('home-goal-pct');
     const goalInfo = document.getElementById('home-goal-info');
+    const goalTrack = document.getElementById('home-goal-track');
     if (goal > 0) {
       const ps = await Earnings.periodStats(currentProject.code).catch(() => null);
       const monthEarned = ps?.month
@@ -1859,10 +1927,18 @@ async function loadHome() {
       goalBar.style.width = pct + '%';
       goalPct.textContent = pct + '%';
       goalInfo.textContent = `${fmt(monthEarned)} из ${fmt(goal)} ₽`;
+      if (goalTrack) {
+        goalTrack.setAttribute('aria-valuenow', String(pct));
+        goalTrack.setAttribute('aria-valuetext', `${pct}% — ${fmt(monthEarned)} из ${fmt(goal)} ₽`);
+      }
     } else {
       goalBar.style.width = '0%';
       goalPct.textContent = '0%';
       goalInfo.innerHTML = `<button onclick="setEarningsGoal('${currentProject.code}')" style="background:none;border:none;color:var(--orange);font-weight:700;cursor:pointer;padding:0;font-size:11.5px">Установить цель →</button>`;
+      if (goalTrack) {
+        goalTrack.setAttribute('aria-valuenow', '0');
+        goalTrack.setAttribute('aria-valuetext', 'Цель не задана');
+      }
     }
   } catch(_) {}
 
