@@ -644,6 +644,9 @@ body{background:var(--bg);position:fixed;inset:0;width:100%;height:100dvh}
 .admin-item p{font-size:13px;color:var(--text2);margin-top:4px}
 .icon-btn-sm{width:32px;height:32px;border-radius:50%;background:#f0f0f0;border:none;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center}
 
+/* ── A11Y: skip-link для клавиатурной навигации ── */
+.skip-link{position:absolute;left:-9999px;top:0;background:var(--orange);color:#fff;padding:14px 20px;z-index:10000;border-radius:0 0 12px 0;font-weight:800;font-size:14px;text-decoration:none;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+.skip-link:focus,.skip-link:focus-visible{left:0;outline:3px solid #fff;outline-offset:-6px}
 /* ── utils ── */
 .empty{text-align:center;padding:60px 20px;color:var(--text2)}
 .empty .icon{font-size:48px;margin-bottom:12px}
@@ -655,6 +658,7 @@ body{background:var(--bg);position:fixed;inset:0;width:100%;height:100dvh}
 </style>
 </head>
 <body>
+<a href="#tab-home" class="skip-link">Перейти к содержанию</a>
 <div id="app">
 
 <!-- LOGIN SCREEN -->
@@ -732,7 +736,7 @@ body{background:var(--bg);position:fixed;inset:0;width:100%;height:100dvh}
 
     <!-- EXPENSES TAB -->
     <!-- HOME TAB (command center) -->
-    <div class="tab active" id="tab-home">
+    <main class="tab active" id="tab-home" aria-label="Главная">
       <div class="content" id="home-content">
         <div class="home-header">
           <div class="home-eyebrow" id="home-date">—</div>
@@ -779,48 +783,48 @@ body{background:var(--bg);position:fixed;inset:0;width:100%;height:100dvh}
         </div>
 
         <!-- Today's tasks -->
-        <div class="home-card sect-tasks">
+        <section class="home-card sect-tasks" aria-labelledby="hc-tasks-title">
           <div class="home-card-head">
-            <span class="home-card-ic" data-icon="tasks" data-icon-size="16"></span>
-            <span class="home-card-title">Задачи на сегодня</span>
+            <span class="home-card-ic" data-icon="tasks" data-icon-size="16" aria-hidden="true"></span>
+            <span class="home-card-title" id="hc-tasks-title">Задачи на сегодня</span>
             <span id="home-tasks-count" class="home-card-count">0</span>
             <button class="home-card-all" onclick="showTab('tasks')">Все<span class="hca-arrow" aria-hidden="true">›</span></button>
           </div>
           <div id="home-tasks-list"></div>
-        </div>
+        </section>
 
         <!-- Today's purchases -->
-        <div class="home-card sect-buy">
+        <section class="home-card sect-buy" aria-labelledby="hc-buy-title">
           <div class="home-card-head">
-            <span class="home-card-ic" data-icon="cart" data-icon-size="16"></span>
-            <span class="home-card-title">Закупки сегодня</span>
+            <span class="home-card-ic" data-icon="cart" data-icon-size="16" aria-hidden="true"></span>
+            <span class="home-card-title" id="hc-buy-title">Закупки сегодня</span>
             <span id="home-purchase-count" class="home-card-count">0</span>
             <button class="home-card-all" onclick="showTab('expenses')">Все<span class="hca-arrow" aria-hidden="true">›</span></button>
           </div>
           <div id="home-purchase-list"></div>
-        </div>
+        </section>
 
         <!-- Master payments -->
-        <div class="home-card sect-mst">
+        <section class="home-card sect-mst" aria-labelledby="hc-mst-title">
           <div class="home-card-head">
-            <span class="home-card-ic" data-icon="worker" data-icon-size="16"></span>
-            <span class="home-card-title">Выплаты мастерам</span>
+            <span class="home-card-ic" data-icon="worker" data-icon-size="16" aria-hidden="true"></span>
+            <span class="home-card-title" id="hc-mst-title">Выплаты мастерам</span>
             <button class="home-card-all" onclick="showTab('masters')">Все<span class="hca-arrow" aria-hidden="true">›</span></button>
           </div>
           <div id="home-master-list"></div>
-        </div>
+        </section>
 
         <!-- Client payments -->
-        <div class="home-card sect-clt">
+        <section class="home-card sect-clt" aria-labelledby="hc-clt-title">
           <div class="home-card-head">
-            <span class="home-card-ic" data-icon="wallet" data-icon-size="16"></span>
-            <span class="home-card-title">Поступления от клиента</span>
+            <span class="home-card-ic" data-icon="wallet" data-icon-size="16" aria-hidden="true"></span>
+            <span class="home-card-title" id="hc-clt-title">Поступления от клиента</span>
             <button class="home-card-all" onclick="showTab('payments')">Все<span class="hca-arrow" aria-hidden="true">›</span></button>
           </div>
           <div id="home-client-list"></div>
-        </div>
+        </section>
       </div>
-    </div>
+    </main>
 
     <div class="tab" id="tab-expenses">
       <div class="section-header">
