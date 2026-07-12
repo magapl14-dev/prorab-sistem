@@ -514,6 +514,15 @@ body{background:var(--bg);position:fixed;inset:0;width:100%;height:100dvh}
 .filter-chip{white-space:nowrap;padding:8px 14px;border-radius:999px;border:none;background:var(--card);font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;color:var(--text2);box-shadow:var(--shadow);flex-shrink:0}
 .filter-chip:active{transform:scale(.96)}
 .filter-chip.active{background:var(--orange);color:#fff;box-shadow:0 6px 14px -7px var(--orange)}
+/* ── tasks filter block: unified wrapper with primary/secondary hierarchy ── */
+.tasks-filter-wrap{background:color-mix(in srgb, var(--task-color) 5%, var(--card));padding:8px 0 6px;border-bottom:1px solid var(--border);flex-shrink:0}
+[data-theme="dark"] .tasks-filter-wrap{background:color-mix(in srgb, var(--task-color) 14%, var(--card))}
+.tasks-filter-wrap .filters{padding:0 12px 6px}
+.tasks-filter-wrap .filters:last-child{padding-bottom:2px}
+.tasks-filter-wrap .filters[data-tier="primary"] .filter-chip{padding:9px 15px;font-size:13.5px;font-weight:700}
+.tasks-filter-wrap .filters[data-tier="secondary"] .filter-chip{padding:6px 12px;font-size:11.5px;font-weight:600;opacity:.9}
+.tasks-filter-wrap .filters[data-tier="secondary"] .filter-chip.active{opacity:1}
+.tasks-filter-wrap .filters + .filters{border-top:none}
 
 /* ── dashboard ── */
 .dash-subtabs{display:flex;background:var(--card);border-bottom:1px solid var(--border);flex-shrink:0}
@@ -621,13 +630,20 @@ body{background:var(--bg);position:fixed;inset:0;width:100%;height:100dvh}
 .rpt-subtabs::-webkit-scrollbar{display:none}
 .rpt-stab{flex:0 0 auto;padding:10px 14px;border:none;background:none;font-size:13px;font-weight:500;cursor:pointer;color:var(--text2);border-bottom:3px solid transparent;white-space:nowrap;display:flex;align-items:center;gap:5px}
 .rpt-stab.active{color:var(--orange);border-bottom-color:var(--orange);font-weight:600}
-.rpt-filters{padding:8px 12px;background:var(--card);border-bottom:1px solid var(--border);flex-shrink:0}
-.rpt-filter-row{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-bottom:6px}
-.rpt-filter-row:last-child{margin-bottom:0}
+/* ── report filters (unified tint wrapper, 3-row hierarchy) ── */
+.rpt-filters{padding:10px 10px 8px;background:color-mix(in srgb, var(--orange) 4%, var(--card));border-bottom:1px solid var(--border);flex-shrink:0;display:flex;flex-direction:column;gap:6px}
+[data-theme="dark"] .rpt-filters{background:color-mix(in srgb, var(--orange) 8%, var(--card))}
+.rpt-filter-row{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:1px 2px;align-items:center}
 .rpt-filter-row::-webkit-scrollbar{display:none}
-.rpt-chip{white-space:nowrap;padding:5px 12px;border-radius:20px;border:1.5px solid var(--border);background:var(--card);font-size:12px;cursor:pointer;color:var(--text2);display:flex;align-items:center;gap:4px;flex-shrink:0}
-.rpt-chip.active{background:var(--orange);color:#fff;border-color:var(--orange)}
-.rpt-chip select{border:none;background:none;font-size:12px;color:inherit;outline:none;cursor:pointer}
+/* Row 1 = primary (period). Bigger, more contrast. */
+.rpt-filter-row:nth-child(1) .rpt-chip{padding:7px 14px;font-size:12.5px;font-weight:700}
+/* Row 2+3 = secondary (type/category/master). Smaller, quieter. */
+.rpt-filter-row:nth-child(n+2) .rpt-chip{padding:5px 11px;font-size:11.5px;font-weight:600;opacity:.92}
+.rpt-filter-row:nth-child(n+2) .rpt-chip.active{opacity:1}
+.rpt-chip{white-space:nowrap;padding:5px 12px;border-radius:20px;border:1px solid var(--border);background:var(--card);font-size:12px;cursor:pointer;color:var(--text2);display:flex;align-items:center;gap:4px;flex-shrink:0;box-shadow:0 1px 1px rgba(78,52,22,.03);transition:background .15s,border-color .15s,transform .12s}
+.rpt-chip:active{transform:scale(.96)}
+.rpt-chip.active{background:var(--orange);color:#fff;border-color:var(--orange);box-shadow:0 4px 10px -6px var(--orange)}
+.rpt-chip select{border:none;background:none;font-size:12px;color:inherit;outline:none;cursor:pointer;font-family:inherit}
 .rpt-rec{background:var(--card);margin:0 12px 8px;border-radius:var(--radius);padding:12px 14px;box-shadow:0 1px 3px rgba(0,0,0,.07);display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
 .rpt-rec-left{flex:1;min-width:0}
 .rpt-rec-title{font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -715,6 +731,14 @@ body{background:var(--bg);position:fixed;inset:0;width:100%;height:100dvh}
 /* ── A11Y: skip-link для клавиатурной навигации ── */
 .skip-link{position:absolute;left:-9999px;top:0;background:var(--orange);color:#fff;padding:14px 20px;z-index:10000;border-radius:0 0 12px 0;font-weight:800;font-size:14px;text-decoration:none;box-shadow:0 6px 18px rgba(0,0,0,.25)}
 .skip-link:focus,.skip-link:focus-visible{left:0;outline:3px solid #fff;outline-offset:-6px}
+/* ── theme-toggle unified visual language ── */
+.theme-toggle-btn{position:relative;transition:background .2s,box-shadow .2s,transform .12s}
+.theme-toggle-btn .theme-icon{display:inline-block;transition:transform .35s cubic-bezier(0.32,0.72,0,1)}
+.theme-toggle-btn:active{transform:scale(.94)}
+.theme-toggle-btn:active .theme-icon{transform:rotate(-16deg)}
+.theme-toggle-btn[aria-pressed="true"]{background:color-mix(in srgb, var(--orange) 14%, var(--card));color:var(--orange);box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--orange) 40%, transparent), 0 0 0 2px color-mix(in srgb, var(--orange) 12%, transparent)}
+[data-theme="dark"] .theme-toggle-btn[aria-pressed="true"]{background:color-mix(in srgb, var(--orange) 22%, var(--card));color:var(--orange-light)}
+.btn-secondary.theme-toggle-btn[aria-pressed="true"]{background:color-mix(in srgb, var(--orange) 10%, var(--card));color:var(--orange);border-color:var(--orange)}
 /* ── utils ── */
 .empty{text-align:center;padding:60px 20px;color:var(--text2)}
 .empty .icon{font-size:48px;margin-bottom:12px}
@@ -794,7 +818,7 @@ body{background:var(--bg);position:fixed;inset:0;width:100%;height:100dvh}
       <span id="project-title">Проект</span>
       <span style="margin-left:auto;opacity:.8">▾</span>
     </button>
-    <button class="icon-btn" onclick="toggleTheme()" id="theme-btn-top" title="Тема" style="margin-right:4px">🌙</button>
+    <button class="icon-btn theme-toggle-btn" onclick="toggleTheme()" id="theme-btn-top" title="Тёмная тема" aria-label="Переключить тему" aria-pressed="false" style="margin-right:4px"><span class="theme-icon" aria-hidden="true">🌙</span></button>
     <button class="user-avatar" onclick="showTab('profile')" id="user-avatar-btn">М</button>
   </div>
   <div id="motivation-bar" onclick="showTab('dashboard')">
@@ -920,8 +944,8 @@ body{background:var(--bg);position:fixed;inset:0;width:100%;height:100dvh}
         <button class="add-btn" id="add-master-btn" onclick="openAddForm('master_payment')">+ Выплата</button>
       </div>
       <div style="display:flex;background:var(--card);border-bottom:1px solid var(--border)">
-        <button class="dash-subtab active" id="m-subtab-roster" onclick="switchMastersView('roster')">👷 Бригада</button>
-        <button class="dash-subtab" id="m-subtab-payments" onclick="switchMastersView('payments')">📋 Выплаты</button>
+        <button class="dash-subtab active" id="m-subtab-roster" onclick="switchMastersView('roster')"><span data-icon="worker" data-icon-size="16" aria-hidden="true" style="vertical-align:-3px;margin-right:6px"></span>Бригада</button>
+        <button class="dash-subtab" id="m-subtab-payments" onclick="switchMastersView('payments')"><span aria-hidden="true" style="margin-right:6px">📋</span>Выплаты</button>
       </div>
       <div class="content" id="masters-list"></div>
     </div>
@@ -938,8 +962,8 @@ body{background:var(--bg);position:fixed;inset:0;width:100%;height:100dvh}
     <!-- DASHBOARD TAB -->
     <div class="tab" id="tab-dashboard">
       <div class="dash-subtabs">
-        <button class="dash-subtab active" id="dsubtab-current" onclick="switchDashTab('current')">🏗️ Текущий проект</button>
-        <button class="dash-subtab" id="dsubtab-all" onclick="switchDashTab('all')">⊞ Все проекты</button>
+        <button class="dash-subtab active" id="dsubtab-current" onclick="switchDashTab('current')"><span aria-hidden="true" style="margin-right:6px">🏗️</span>Текущий проект</button>
+        <button class="dash-subtab" id="dsubtab-all" onclick="switchDashTab('all')"><span aria-hidden="true" style="margin-right:6px">⊞</span>Все проекты</button>
       </div>
       <div class="content" id="dash-content">
         <div class="loader"><div class="spinner"></div></div>
@@ -963,15 +987,15 @@ body{background:var(--bg);position:fixed;inset:0;width:100%;height:100dvh}
         <div class="rpt-price-row"><span>ИТОГО клиенту</span><span class="orange" id="rpt-sell">—</span></div>
       </div>
       <div class="rpt-subtabs">
-        <button class="rpt-stab active" id="rst-list" onclick="switchRptTab('list')">☰ Список</button>
-        <button class="rpt-stab" id="rst-photos" onclick="switchRptTab('photos')">🖼 Фото</button>
-        <button class="rpt-stab" id="rst-masters" onclick="switchRptTab('masters')">👷 Мастера</button>
-        <button class="rpt-stab" id="rst-analytics" onclick="switchRptTab('analytics')">📊 Аналитика</button>
+        <button class="rpt-stab active" id="rst-list" onclick="switchRptTab('list')"><span aria-hidden="true">☰</span>Список</button>
+        <button class="rpt-stab" id="rst-photos" onclick="switchRptTab('photos')"><span aria-hidden="true">🖼</span>Фото</button>
+        <button class="rpt-stab" id="rst-masters" onclick="switchRptTab('masters')"><span data-icon="worker" data-icon-size="14" aria-hidden="true" style="vertical-align:-2px"></span>Мастера</button>
+        <button class="rpt-stab" id="rst-analytics" onclick="switchRptTab('analytics')"><span aria-hidden="true">📊</span>Аналитика</button>
       </div>
       <div class="rpt-filters" id="rpt-filters">
         <div class="rpt-filter-row">
           <div class="rpt-chip active" id="rpt-p-all" onclick="setRptPeriod('all',this)">Все</div>
-          <div class="rpt-chip" id="rpt-p-mine" onclick="setRptPeriod('mine',this)">👤 Только мои</div>
+          <div class="rpt-chip" id="rpt-p-mine" onclick="setRptPeriod('mine',this)"><span aria-hidden="true">👤</span>Только мои</div>
           <div class="rpt-chip" id="rpt-p-today" onclick="setRptPeriod('today',this)">Сегодня</div>
           <div class="rpt-chip" id="rpt-p-week" onclick="setRptPeriod('week',this)">Неделя</div>
           <div class="rpt-chip" id="rpt-p-month" onclick="setRptPeriod('month',this)">Месяц</div>
@@ -980,14 +1004,14 @@ body{background:var(--bg);position:fixed;inset:0;width:100%;height:100dvh}
           <div class="rpt-chip active" id="rpt-t-all" onclick="setRptType('all',this)">Все</div>
           <div class="rpt-chip" id="rpt-t-mat" onclick="setRptType('expense',this)">Закупки</div>
           <div class="rpt-chip" id="rpt-t-pay" onclick="setRptType('client_payment',this)">Приходы</div>
-          <div class="rpt-chip" style="padding:0 4px 0 12px">
-            📋 <select id="rpt-cat-select" onchange="setRptCategory(this.value)">
+          <div class="rpt-chip" style="padding:2px 8px 2px 12px">
+            <span aria-hidden="true">📋</span><select id="rpt-cat-select" onchange="setRptCategory(this.value)">
               <option value="">Все категории</option>
             </select>
           </div>
         </div>
         <div class="rpt-filter-row" id="rpt-master-filter-row">
-          <div class="rpt-chip active" id="rpt-m-all" onclick="setRptMaster('',this)">👷 Все мастера</div>
+          <div class="rpt-chip active" id="rpt-m-all" onclick="setRptMaster('',this)"><span data-icon="worker" data-icon-size="12" aria-hidden="true" style="vertical-align:-1px"></span>Все мастера</div>
         </div>
       </div>
       <div class="content" id="rpt-content" style="padding-top:8px"></div>
@@ -996,7 +1020,7 @@ body{background:var(--bg);position:fixed;inset:0;width:100%;height:100dvh}
     <!-- TASKS TAB -->
     <div class="tab" id="tab-tasks">
       <div class="section-header">
-        <h2>Задачи <span class="task-streak" id="task-streak" style="display:none">🔥 <span id="task-streak-n">0</span> дн</span></h2>
+        <h2>Задачи <span class="task-streak" id="task-streak" style="display:none"><span role="img" aria-label="серия дней подряд">🔥</span> <span id="task-streak-n">0</span> дн</span></h2>
         <button class="add-btn" id="add-task-btn" onclick="openCreateTask()">+ Задача</button>
       </div>
       <div class="task-day-chips" id="task-day-chips">
@@ -1010,21 +1034,23 @@ body{background:var(--bg);position:fixed;inset:0;width:100%;height:100dvh}
           <span class="dv" id="dchip-overdue-n">0</span><span class="dl">просрочено</span>
         </div>
       </div>
-      <div class="filters" id="task-filters">
-        <div class="filter-chip active" data-filter="active" onclick="setTaskFilter('active',this)">Активные</div>
-        <div class="filter-chip" data-filter="mine" onclick="setTaskFilter('mine',this)">👤 Мои</div>
-        <div class="filter-chip" data-filter="project" onclick="setTaskFilter('project',this)">🏗️ Этот проект</div>
-        <div class="filter-chip" data-filter="noproject" onclick="setTaskFilter('noproject',this)">📌 Без проекта</div>
-        <div class="filter-chip" data-filter="done" onclick="setTaskFilter('done',this)">✓ Готово</div>
-        <div class="filter-chip" data-filter="all" onclick="setTaskFilter('all',this)">Все</div>
-      </div>
-      <div class="filters" id="task-date-filters" style="border-top:1px dashed var(--border)">
-        <div class="filter-chip active" data-date="all" onclick="setTaskDateFilter('all',this)">📅 За всё время</div>
-        <div class="filter-chip" data-date="today" onclick="setTaskDateFilter('today',this)">🔥 Сегодня</div>
-        <div class="filter-chip" data-date="week" onclick="setTaskDateFilter('week',this)">Неделя</div>
-        <div class="filter-chip" data-date="month" onclick="setTaskDateFilter('month',this)">Месяц</div>
-        <div class="filter-chip" data-date="overdue" onclick="setTaskDateFilter('overdue',this)">⚠️ Просрочено</div>
-        <div class="filter-chip" id="task-date-custom" data-date="custom" onclick="openTaskDateRange()">Произвольно</div>
+      <div class="tasks-filter-wrap">
+        <div class="filters" id="task-filters" data-tier="primary">
+          <div class="filter-chip active" data-filter="active" onclick="setTaskFilter('active',this)">Активные</div>
+          <div class="filter-chip" data-filter="mine" onclick="setTaskFilter('mine',this)"><span aria-hidden="true" style="margin-right:5px">👤</span>Мои</div>
+          <div class="filter-chip" data-filter="project" onclick="setTaskFilter('project',this)"><span aria-hidden="true" style="margin-right:5px">🏗️</span>Этот проект</div>
+          <div class="filter-chip" data-filter="noproject" onclick="setTaskFilter('noproject',this)"><span aria-hidden="true" style="margin-right:5px">📌</span>Без проекта</div>
+          <div class="filter-chip" data-filter="done" onclick="setTaskFilter('done',this)"><span aria-hidden="true" style="margin-right:5px">✓</span>Готово</div>
+          <div class="filter-chip" data-filter="all" onclick="setTaskFilter('all',this)">Все</div>
+        </div>
+        <div class="filters" id="task-date-filters" data-tier="secondary">
+          <div class="filter-chip active" data-date="all" onclick="setTaskDateFilter('all',this)"><span aria-hidden="true" style="margin-right:4px">📅</span>За всё время</div>
+          <div class="filter-chip" data-date="today" onclick="setTaskDateFilter('today',this)"><span aria-hidden="true" style="margin-right:4px">🔥</span>Сегодня</div>
+          <div class="filter-chip" data-date="week" onclick="setTaskDateFilter('week',this)">Неделя</div>
+          <div class="filter-chip" data-date="month" onclick="setTaskDateFilter('month',this)">Месяц</div>
+          <div class="filter-chip" data-date="overdue" onclick="setTaskDateFilter('overdue',this)"><span aria-hidden="true" style="margin-right:4px">⚠️</span>Просрочено</div>
+          <div class="filter-chip" id="task-date-custom" data-date="custom" onclick="openTaskDateRange()">Произвольно</div>
+        </div>
       </div>
       <div class="content" id="tasks-list"></div>
     </div>
@@ -1051,7 +1077,7 @@ body{background:var(--bg);position:fixed;inset:0;width:100%;height:100dvh}
             <span style="color:var(--text2)" data-icon="chevron" data-icon-size="18"></span>
           </button>
           <div style="font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text2);margin:18px 2px 10px">Настройки</div>
-          <button class="btn btn-secondary" onclick="toggleTheme()" id="theme-btn" style="margin-bottom:10px">🌙 Тёмная тема</button>
+          <button class="btn btn-secondary theme-toggle-btn" onclick="toggleTheme()" id="theme-btn" aria-pressed="false" style="margin-bottom:10px"><span class="theme-icon" aria-hidden="true">🌙</span> <span class="theme-label">Тёмная тема</span></button>
           <button class="btn btn-secondary" onclick="toggleSound()" id="sound-btn" style="margin-bottom:10px">🔊 Звуки</button>
           <button class="btn btn-secondary" onclick="showChangePinForm()">Изменить PIN</button>
           <button class="btn btn-danger" style="margin-top:10px" onclick="doLogout()">Выйти из системы</button>
@@ -1770,10 +1796,19 @@ window.updateRentierDistribution = function() {
 
 function _syncThemeIcons() {
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-  const top = document.getElementById('theme-btn-top');
-  if (top) top.textContent = isDark ? '☀️' : '🌙';
-  const inProfile = document.getElementById('theme-btn');
-  if (inProfile) inProfile.textContent = isDark ? '☀️ Светлая тема' : '🌙 Тёмная тема';
+  const glyph = isDark ? '☀️' : '🌙';
+  const label = isDark ? 'Светлая тема' : 'Тёмная тема';
+  // Both toggles share the same visual language + aria-pressed state.
+  document.querySelectorAll('.theme-toggle-btn').forEach(btn => {
+    btn.setAttribute('aria-pressed', String(isDark));
+    btn.setAttribute('title', label);
+    const ic = btn.querySelector('.theme-icon');
+    const lb = btn.querySelector('.theme-label');
+    if (ic) ic.textContent = glyph;
+    if (lb) lb.textContent = label;
+    // Top-bar variant carries no label span — set its text directly.
+    if (!ic && !lb) btn.textContent = glyph;
+  });
   const sb = document.getElementById('sound-btn');
   if (sb) sb.textContent = localStorage.getItem('sound_off') === '1' ? '🔇 Звуки выключены' : '🔊 Звуки включены';
 }
