@@ -50,7 +50,14 @@ npm run init:ios
 
 ## Регулярная разработка
 
-После любой правки в `../frontend/` нужно засинкать веб-код в Capacitor:
+`www/` в git не лежит — это копия `../frontend/`. После правки фронта:
+
+```bash
+npm run sync-web
+# или из корня репо: make sync-web
+```
+
+`open:*` и `build:android*` уже вызывают `sync-web` сами. Pytest падает, если после копии деревья не совпали.
 
 ```bash
 # Открыть в Android Studio (там Run/Debug → выбрать устройство)

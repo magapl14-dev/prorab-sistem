@@ -2,7 +2,8 @@ from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 from decimal import Decimal
-from fastapi import APIRouter, Depends, HTTPException, status
+from collections import defaultdict
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_
@@ -25,64 +26,122 @@ async def _resolve_project_id(db: AsyncSession, project_code: Optional[str]) -> 
     return p.id if p else None
 
 
+async def _payment_stats(
+    db: AsyncSession,
+    masters: list[Master],
+    project_id: Optional[UUID],
+) -> dict[UUID, tuple[Decimal, int, Optional[object]]]:
+    stats: dict[UUID, tuple[Decimal, int, Optional[object]]] = {
+        m.id: (Decimal("0"), 0, None) for m in masters
+    }
+    if not masters:
+        return stats
+    ids = [m.id for m in masters]
+    name_to_id = {m.name.lower(): m.id for m in masters}
+
+    f_id = [
+        Record.kind == "master_payment",
+        Record.deleted_at.is_(None),
+        Record.master_id.in_(ids),
+    ]
+    if project_id is not None:
+        f_id.append(Record.project_id == project_id)
+    q1 = (
+        select(
+            Record.master_id,
+            func.coalesce(func.sum(Record.payment_amount), 0),
+            func.count(Record.id),
+            func.max(Record.operation_date),
+        )
+        .where(and_(*f_id))
+        .group_by(Record.master_id)
+    )
+    for mid, total, cnt, last in (await db.execute(q1)).all():
+        stats[mid] = (Decimal(str(total or 0)), int(cnt or 0), last)
+
+    names = list(name_to_id)
+    f_name = [
+        Record.kind == "master_payment",
+        Record.deleted_at.is_(None),
+        Record.master_id.is_(None),
+        func.lower(Record.name).in_(names),
+    ]
+    if project_id is not None:
+        f_name.append(Record.project_id == project_id)
+    q2 = (
+        select(
+            func.lower(Record.name),
+            func.coalesce(func.sum(Record.payment_amount), 0),
+            func.count(Record.id),
+            func.max(Record.operation_date),
+        )
+        .where(and_(*f_name))
+        .group_by(func.lower(Record.name))
+    )
+    for nlower, total, cnt, last in (await db.execute(q2)).all():
+        mid = name_to_id.get(nlower)
+        if not mid:
+            continue
+        t0, c0, l0 = stats[mid]
+        new_last = last if not l0 else (max([x for x in (l0, last) if x is not None]) if last else l0)
+        stats[mid] = (t0 + Decimal(str(total or 0)), c0 + int(cnt or 0), new_last)
+    return stats
+
+
+async def _assemble_outs(
+    db: AsyncSession,
+    masters: list[Master],
+    project_id: Optional[UUID] = None,
+    visibility_by_id: Optional[dict] = None,
+) -> list[MasterOut]:
+    if not masters:
+        return []
+    stats = await _payment_stats(db, masters, project_id)
+    ids = [m.id for m in masters]
+    rate_rows = (
+        await db.execute(
+            select(MasterRate)
+            .where(MasterRate.master_id.in_(ids))
+            .order_by(MasterRate.display_order, MasterRate.name)
+        )
+    ).scalars().all()
+    rates_by: dict = defaultdict(list)
+    for r in rate_rows:
+        rates_by[r.master_id].append(MasterRateOut.model_validate(r))
+    vis = visibility_by_id or {}
+    out = []
+    for m in masters:
+        total, cnt, last = stats[m.id]
+        out.append(
+            MasterOut(
+                id=m.id, name=m.name, phone=m.phone, specialty=m.specialty,
+                default_rate=m.default_rate, rate_unit=m.rate_unit, color=m.color,
+                notes=m.notes, active=m.active,
+                total_paid=total, payments_count=cnt, last_paid_at=last,
+                created_at=m.created_at,
+                visibility_mode=vis.get(m.id),
+                rates=rates_by.get(m.id, []),
+            )
+        )
+    return out
+
+
 async def _build_out(
     db: AsyncSession,
     m: Master,
     project_id: Optional[UUID] = None,
 ) -> MasterOut:
-    # агрегаты по master_payment записям. Учитываем и записи без явного master_id,
-    # если имя совпадает с именем мастера (миграционная совместимость: раньше
-    # мастера были просто текстом в records.name, а после появления сущности
-    # часть записей могла сохраниться с NULL master_id).
-    filters = [
-        or_(
-            Record.master_id == m.id,
-            and_(
-                Record.master_id.is_(None),
-                func.lower(Record.name) == m.name.lower(),
-            ),
-        ),
-        Record.kind == "master_payment",
-        Record.deleted_at.is_(None),
-    ]
-    # Когда задан project_id — сумма/счётчик/дата считаются только по этому проекту.
-    # Так карточка мастера внутри конкретного объекта показывает сколько ему
-    # выплачено на этом объекте, а не по всем объектам сразу.
-    if project_id is not None:
-        filters.append(Record.project_id == project_id)
-
-    rows = (await db.execute(
-        select(
-            func.coalesce(func.sum(Record.payment_amount), 0),
-            func.count(Record.id),
-            func.max(Record.operation_date),
-        ).where(and_(*filters))
-    )).first()
-    total = rows[0] or Decimal("0")
-    cnt = rows[1] or 0
-    last = rows[2]
-    # подтягиваем прайс мастера
-    rate_rows = (await db.execute(
-        select(MasterRate).where(MasterRate.master_id == m.id).order_by(MasterRate.display_order, MasterRate.name)
-    )).scalars().all()
-    rates = [MasterRateOut.model_validate(r) for r in rate_rows]
-
-    return MasterOut(
-        id=m.id, name=m.name, phone=m.phone, specialty=m.specialty,
-        default_rate=m.default_rate, rate_unit=m.rate_unit, color=m.color, notes=m.notes, active=m.active,
-        total_paid=Decimal(str(total)),
-        payments_count=cnt,
-        last_paid_at=last,
-        created_at=m.created_at,
-        rates=rates,
-    )
+    return (await _assemble_outs(db, [m], project_id))[0]
 
 
 @router.get("", response_model=list[MasterOut])
 async def list_masters(
+    response: Response,
     include_inactive: bool = False,
     project_code: Optional[str] = None,
     include_hidden: bool = False,   # админ-режим: показать всех вместе с скрытыми (для настройки)
+    limit: int = Query(200, ge=1, le=500),
+    offset: int = Query(0, ge=0),
     user: User = Depends(require_permission("master_payments", "view")),
     db: AsyncSession = Depends(get_db),
 ):
@@ -113,14 +172,10 @@ async def list_masters(
             else:
                 rows = [m for m in rows if visibility_by_id.get(m.id) != "hide"]
 
-    out = []
-    for m in rows:
-        item = await _build_out(db, m, project_id)
-        # Прокидываем режим видимости в поле (Pydantic позволит extra в MasterOut? —
-        # проще пометкой в notes-адаптере на фронте, но нам она нужна как отдельное поле).
-        setattr(item, "visibility_mode", visibility_by_id.get(m.id))
-        out.append(item)
-    return out
+    total = len(rows)
+    rows = rows[offset: offset + limit]
+    response.headers["X-Total-Count"] = str(total)
+    return await _assemble_outs(db, rows, project_id, visibility_by_id)
 
 
 @router.get("/{master_id}", response_model=MasterOut)

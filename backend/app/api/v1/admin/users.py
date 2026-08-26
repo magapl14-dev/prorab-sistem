@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
@@ -19,10 +19,19 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 
 
 @router.get("/users", response_model=list[UserOut])
-async def list_users(admin: User = Depends(require_permission("users", "view")), db: AsyncSession = Depends(get_db)):
+async def list_users(
+    response: Response,
+    limit: int = Query(200, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    admin: User = Depends(require_permission("users", "view")),
+    db: AsyncSession = Depends(get_db),
+):
+    base = select(User).where(User.deleted_at.is_(None))
+    total = (await db.execute(select(func.count()).select_from(User).where(User.deleted_at.is_(None)))).scalar() or 0
     rows = (await db.execute(
-        select(User).where(User.deleted_at.is_(None)).order_by(User.name)
+        base.order_by(User.name).limit(limit).offset(offset)
     )).scalars().all()
+    response.headers["X-Total-Count"] = str(total)
     return rows
 
 

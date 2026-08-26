@@ -1,49 +1,48 @@
-# Архитектура
+# Архитектура WELL DOM
 
-## 2. Компоненты системы
+Сверка с репозиторием, срез S7. Ниже — **как устроено в коде**, не целевая схема из старых черновиков.
 
-### Reverse Proxy (Caddy)
-Caddy — современная альтернатива Nginx с автоматическим Let's Encrypt SSL.
-Принимает все входящие HTTPS-запросы, терминирует TLS, проксирует на FastAPI.
-Также раздаёт статику PWA (index.html, манифест, иконки).
+Продукт: учёт для прорабов (закупки, выплаты мастерам, приходы клиента, задачи, фото, админка). Бренд в UI — WELL DOM.
 
-### Application Server (FastAPI)
-Главное приложение на Python 3.12. Запускается через uvicorn (ASGI-сервер) в
-нескольких воркерах для параллельной обработки запросов. Каждый воркер —
-отдельный процесс, общается с БД через пул соединений.
+## Стек (факт)
 
-### PostgreSQL 16
-Основное хранилище. Используется primary + read replica для разделения
-нагрузки: запись идёт в primary, отчёты и аналитика читают с реплики. Бэкапы
-каждые 6 часов, WAL-архивирование для point-in-time recovery.
+| Слой | Что в репо |
+|------|------------|
+| Клиент | Vanilla JS PWA: `frontend/index.html` (оболочка вкладок) + `frontend/css/app.css` + `frontend/js/app.js` + `frontend/api.js`. Не Vue. |
+| API | FastAPI, Python 3.12, SQLAlchemy 2 async, Alembic, Pydantic v2. Префикс `/api/v1`. |
+| Auth | JWT access + refresh, PIN (bcrypt), RBAC `RolePermission` / `Role`. |
+| БД | **Один** PostgreSQL 16. Один `DATABASE_URL`. |
+| Redis | Refresh-токены (`refresh:`), отзыв access (`revoked:`), счётчик попыток логина по IP. |
+| Файлы | По умолчанию `storage_type=local` (диск + `PUT /api/v1/photos/local-upload/…`). MinIO/S3 — если явно `STORAGE_TYPE=s3` (presigned PUT). |
+| Мобайл | Capacitor 6. `mobile/www` собирается `node mobile/sync-web.js` из `frontend/`. |
+| Тесты | `cd backend && python -m pytest -q` (характеризация S1–S6 + этот срез). |
 
-### Redis
-Используется для:
+## Как ходят запросы
 
-- Сессии пользователей и JWT refresh-токены
-- Rate limiting (защита от подбора PIN, ограничение запросов на endpoint)
-- Кеширование часто запрашиваемых данных (справочники, агрегаты дашборда)
-- Pub/Sub для уведомлений в реальном времени (опционально)
+**Dev (`infra/docker-compose.yml`):** Postgres, Redis, MinIO, API на `:8000`. FastAPI сам раздаёт `frontend/` через StaticFiles.
 
-### S3-совместимое хранилище фото
-Все фотографии чеков, квитанций и стройки хранятся в S3-совместимом объектном
-хранилище. Варианты:
+**Prod-compose (`infra/docker-compose.prod.yml`):** Caddy 2 слушает 80/443, TLS, gzip. `/api/*` и `/health` → FastAPI; `/s3/*` → MinIO; остальное — файлы `/srv/frontend`.
 
-- Yandex Object Storage (рекомендуется для РФ)
-- Selectel S3, VK Cloud Object Storage
-- Self-hosted MinIO (для air-gap инсталляций)
+**Альтернатива в репо (не compose):** `infra/nginx.conf` + `infra/welldom.service` (uvicorn `--workers 2` на 127.0.0.1:8000). Какой из двух вариантов крутится на конкретном хосте — смотреть деплой, не этот файл.
 
-Фото загружаются через presigned URL — клиент общается с S3 напрямую, минуя
-сервер. Это снимает нагрузку с FastAPI.
+Docker-образ API: `uvicorn --reload`, один процесс. Пул SQLAlchemy в коде: `pool_size=20`.
 
-### Google Sheets integration (опциональная)
-Отдельный модуль `sheets_exporter`, который по запросу администратора
-формирует Google-таблицу проекта в формате, аналогичном текущей системе.
-Используется для:
+## Данные и файлы
 
-- Передачи отчётности клиенту в привычном для него виде
-- Резервного хранения данных в Google Drive
-- Бухгалтерской выгрузки (одна таблица на проект, привычный формат)
+- Таблицы: users, projects, records, photos, masters, tasks, roles, dictionaries, app_settings и связанные (Alembic `001`…`017`).
+- Источник истины — PostgreSQL. Google Sheets (`app/services/gsheets.py`) — выгрузка админом, write-only из БД.
+- Bitrix24 и xAI (голос в формах) — опциональные настройки/ключи, не ядро учёта.
 
-Sheets не является источником истины и используется только в режиме
-«read from PostgreSQL, write to Sheets».
+## Не реализовано
+
+ADR: **не внедрять это «заодно»**, пока нет отдельной фичи и OK.
+
+| Раньше architecture.md писал как факт | В коде |
+|----------------------------------------|--------|
+| PostgreSQL primary + **read replica**, отчёты с реплики | Один инстанс, один URL |
+| Бэкапы каждые 6 часов, WAL / PITR | В репо не настроено |
+| Redis кеширует справочники и агрегаты дашборда | Нет чтения кеша на этих путях |
+| Redis Pub/Sub, уведомления в реальном времени | Нет |
+| Клиент всегда грузит фото в S3 напрямую | Дефолт — local upload через API |
+
+Смена этого списка — фича со спекой, не правка документа задним числом и не скрытый деплой replica.

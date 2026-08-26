@@ -68,12 +68,22 @@ async def get_upload_url(
 
 
 @router.put("/photos/local-upload/{path:path}")
-async def local_upload(path: str, request: Request):
+async def local_upload(
+    path: str,
+    request: Request,
+    user: User = Depends(require_permission("photos", "create")),
+):
     """Receive file upload for local storage (replaces S3 presigned PUT)."""
     if settings.storage_type != "local":
         raise HTTPException(status.HTTP_404_NOT_FOUND)
+    normalized = path.replace("\\", "/").lstrip("/")
+    if ".." in normalized.split("/") or not normalized.startswith("photos/"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid upload path")
     data = await request.body()
-    save_local(path, data)
+    try:
+        save_local(normalized, data)
+    except ValueError:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid upload path")
     return Response(status_code=200)
 
 

@@ -67,10 +67,14 @@ export const Photos = {
       kind,
       media_type: mediaType,
     });
+    const headers = { "Content-Type": file.type || (mediaType === "audio" ? "audio/webm" : "image/jpeg") };
+    if (/\/photos\/local-upload\//.test(urlResp.upload_url) && _accessToken) {
+      headers["Authorization"] = `Bearer ${_accessToken}`;
+    }
     const resp = await fetch(urlResp.upload_url, {
       method: "PUT",
       body: file,
-      headers: { "Content-Type": file.type || (mediaType === "audio" ? "audio/webm" : "image/jpeg") },
+      headers,
     });
     if (!resp.ok) {
       const body = await resp.text().catch(() => "");

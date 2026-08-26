@@ -1,8 +1,15 @@
 google-credentials.json
+*-credentials.json
 *.pem
 *.key
 .env
+.env.*
+!.env.example
 __pycache__/
 *.pyc
 .venv/
 venv/
+node_modules/
+uploads/
+*.jks
+*.keystore

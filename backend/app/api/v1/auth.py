@@ -1,5 +1,6 @@
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -14,6 +15,8 @@ from ...schemas.schemas import (
     LoginRequest, TokenResponse, RefreshRequest, ChangePinRequest,
     UserBrief, ProjectBrief,
 )
+
+_optional_bearer = HTTPBearer(auto_error=False)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -122,8 +125,20 @@ async def refresh(
 
 
 @router.post("/logout")
-async def logout(data: RefreshRequest, redis=Depends(get_redis)):
+async def logout(
+    data: RefreshRequest,
+    credentials: HTTPAuthorizationCredentials | None = Depends(_optional_bearer),
+    redis=Depends(get_redis),
+):
     await redis.delete(f"refresh:{data.refresh_token}")
+    if credentials and credentials.credentials:
+        token = credentials.credentials
+        payload = decode_token(token)
+        if payload.get("type") == "access":
+            exp = payload.get("exp")
+            now = datetime.now(timezone.utc).timestamp()
+            ttl = int(exp - now) if exp and exp > now else 60
+            await redis.setex(f"revoked:{token}", max(ttl, 1), "1")
     return {"ok": True}
 
 

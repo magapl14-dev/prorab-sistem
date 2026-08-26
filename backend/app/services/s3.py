@@ -50,10 +50,16 @@ def public_url(key: str) -> str:
 
 
 def save_local(key: str, data: bytes) -> str:
-    path = _local_dir() / key
+    key_norm = key.replace("\\", "/").lstrip("/")
+    if ".." in key_norm.split("/"):
+        raise ValueError("invalid key")
+    root = _local_dir().resolve()
+    path = (root / key_norm).resolve()
+    if not str(path).startswith(str(root)):
+        raise ValueError("invalid key")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(data)
-    return key
+    return key_norm
 
 
 def create_thumbnail(s3_key: str) -> str | None:

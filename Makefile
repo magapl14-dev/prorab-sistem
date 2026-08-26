@@ -1,6 +1,13 @@
 COMPOSE=docker compose -f infra/docker-compose.yml
 
-.PHONY: up down logs migrate admin shell
+.PHONY: up down logs migrate admin shell test sync-web
+
+sync-web:
+	node mobile/sync-web.js
+
+test:
+	node mobile/sync-web.js
+	cd backend && python -m pytest -q
 
 up:
 	$(COMPOSE) up -d --build

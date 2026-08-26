@@ -1,9 +1,9 @@
 from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_
+from sqlalchemy import select, and_, or_, func
 from sqlalchemy.orm import selectinload
 
 from ...core.database import get_db
@@ -132,6 +132,7 @@ async def _resolve_project(db: AsyncSession, code: Optional[str]) -> Optional[Pr
 
 @router.get("", response_model=list[TaskOut])
 async def list_tasks(
+    response: Response,
     project_code: Optional[str] = None,
     status_filter: Optional[str] = Query(None, alias="status"),
     assignee: Optional[str] = None,  # 'me' or user UUID
@@ -139,6 +140,8 @@ async def list_tasks(
     due_from: Optional[datetime] = None,
     due_to: Optional[datetime] = None,
     include_done: bool = True,
+    limit: int = Query(200, ge=1, le=500),
+    offset: int = Query(0, ge=0),
     user: User = Depends(require_permission("tasks", "view")),
     db: AsyncSession = Depends(get_db),
 ):
@@ -177,6 +180,9 @@ async def list_tasks(
     if due_to:
         filters.append(Task.due_at <= due_to)
 
+    total = (await db.execute(
+        select(func.count()).select_from(Task).where(and_(*filters))
+    )).scalar() or 0
     rows = (await db.execute(
         select(Task)
         .options(
@@ -192,7 +198,10 @@ async def list_tasks(
             Task.due_at.asc().nulls_last(),
             Task.created_at.desc(),
         )
+        .limit(limit)
+        .offset(offset)
     )).scalars().all()
+    response.headers["X-Total-Count"] = str(total)
     return [_task_out(t) for t in rows]
 
 

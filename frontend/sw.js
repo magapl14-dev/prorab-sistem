@@ -1,5 +1,5 @@
-const CACHE = "welldom-v20";
-const STATIC = ["/", "/index.html", "/api.js", "/manifest.json"];
+const CACHE = "welldom-v21";
+const STATIC = ["/", "/index.html", "/api.js", "/css/app.css", "/js/app.js", "/manifest.json"];
 
 // Гарантированный fallback: если и сеть, и кэш пусты — отдаём реальный Response,
 // а не undefined (иначе браузер валит fetch с TypeError и весь скрипт не грузится).

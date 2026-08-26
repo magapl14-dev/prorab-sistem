@@ -6,7 +6,7 @@ _pool = None
 async def get_redis():
     global _pool
     if not settings.redis_enabled:
-        return _NullRedis()
+        return _null_redis
     if _pool is None:
         import redis.asyncio as aioredis
         _pool = aioredis.from_url(settings.redis_url, encoding="utf-8", decode_responses=True)
@@ -21,10 +21,29 @@ async def close_redis():
 
 
 class _NullRedis:
-    """No-op Redis when Redis is not available."""
-    async def get(self, key): return None
-    async def set(self, key, value): pass
-    async def setex(self, key, ttl, value): pass
-    async def delete(self, key): pass
-    async def incr(self, key): return 1
-    async def expire(self, key, ttl): pass
+    """In-process store when Redis is off — revoke/login counters survive the request."""
+
+    def __init__(self):
+        self._store: dict = {}
+
+    async def get(self, key):
+        return self._store.get(key)
+
+    async def set(self, key, value):
+        self._store[key] = value
+
+    async def setex(self, key, ttl, value):
+        self._store[key] = value
+
+    async def delete(self, key):
+        self._store.pop(key, None)
+
+    async def incr(self, key):
+        self._store[key] = int(self._store.get(key) or 0) + 1
+        return self._store[key]
+
+    async def expire(self, key, ttl):
+        return True
+
+
+_null_redis = _NullRedis()
