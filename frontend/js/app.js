@@ -242,9 +242,23 @@ function applyPrimaryColor(hex) {
   root.style.setProperty('--orange-light', _shade(hex, 0.18));
 }
 
+function _setupServiceWorker() {
+  if (!('serviceWorker' in navigator)) return;
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then(reg => {
+    reg.update();
+  }).catch(() => {});
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloaded) return;
+    reloaded = true;
+    location.reload();
+  });
+}
+
 // ── Boot ─────────────────────────────────────────────────────────────────────
 (async function boot() {
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
+  _setupServiceWorker();
   applyBranding();
   updateOnlineStatus();
   if (OfflineQueue.list.length && navigator.onLine) setTimeout(() => OfflineQueue.flush(), 2000);

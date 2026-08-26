@@ -55,3 +55,21 @@ async def test_static_css_js_served(client):
     assert page.status_code == 200
     assert 'id="tab-home"' in page.text
     assert 'href="/css/app.css"' in page.text
+
+
+def test_sw_updates_without_incognito():
+    sw = (FRONTEND / "sw.js").read_text(encoding="utf-8")
+    js = (FRONTEND / "js" / "app.js").read_text(encoding="utf-8")
+    assert "welldom-v22" in sw
+    assert 'cache: "no-store"' in sw
+    assert "_isAppShell" in sw
+    assert "updateViaCache: 'none'" in js
+    assert "controllerchange" in js
+
+
+async def test_sw_js_not_http_cached(client):
+    r = await client.get("/sw.js")
+    assert r.status_code == 200
+    assert "welldom-v22" in r.text
+    cc = r.headers.get("cache-control", "").lower()
+    assert "no-store" in cc or "no-cache" in cc

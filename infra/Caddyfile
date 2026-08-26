@@ -25,6 +25,9 @@ welldom05.duckdns.org {
         reverse_proxy minio:9000
     }
 
+    @pwa_shell path /sw.js /index.html /js/app.js /css/app.css /api.js /
+    header @pwa_shell Cache-Control "no-cache, no-store, must-revalidate"
+
     handle {
         root * /srv/frontend
         try_files {path} /index.html

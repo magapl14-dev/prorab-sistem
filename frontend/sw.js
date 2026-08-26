@@ -1,10 +1,23 @@
-const CACHE = "welldom-v21";
+const CACHE = "welldom-v22";
 const STATIC = ["/", "/index.html", "/api.js", "/css/app.css", "/js/app.js", "/manifest.json"];
 
-// Гарантированный fallback: если и сеть, и кэш пусты — отдаём реальный Response,
-// а не undefined (иначе браузер валит fetch с TypeError и весь скрипт не грузится).
 const _errorResponse = () =>
   new Response("", { status: 504, statusText: "Offline and not cached" });
+
+function _isAppShell(req, url) {
+  if (req.mode === "navigate" || req.destination === "document") return true;
+  if (req.destination === "script" || req.destination === "style") return true;
+  const p = url.pathname;
+  return (
+    p === "/sw.js" ||
+    p === "/index.html" ||
+    p === "/api.js" ||
+    p === "/css/app.css" ||
+    p === "/js/app.js" ||
+    p.endsWith(".js") ||
+    p.endsWith(".css")
+  );
+}
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(STATIC)).catch(() => {}));
@@ -21,13 +34,13 @@ self.addEventListener("activate", e => {
 self.addEventListener("fetch", e => {
   const req = e.request;
   if (req.method !== "GET") return;
-  if (req.url.includes("/api/")) return;
+  const url = new URL(req.url);
+  if (url.pathname.includes("/api/")) return;
 
-  // Network-first для HTML (чтобы обновления подтягивались), cache-fallback для offline
-  if (req.mode === "navigate" || req.destination === "document") {
+  if (_isAppShell(req, url)) {
     e.respondWith((async () => {
       try {
-        const r = await fetch(req);
+        const r = await fetch(req, { cache: "no-store" });
         caches.open(CACHE).then(c => c.put(req, r.clone())).catch(() => {});
         return r;
       } catch (_) {
@@ -39,7 +52,6 @@ self.addEventListener("fetch", e => {
     return;
   }
 
-  // Cache-first для статики
   e.respondWith((async () => {
     const cached = await caches.match(req);
     if (cached) return cached;

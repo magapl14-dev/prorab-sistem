@@ -47,6 +47,19 @@ app.add_middleware(
 
 app.include_router(api_router)
 
+_PWA_NO_CACHE = {"/sw.js", "/index.html", "/js/app.js", "/css/app.css", "/api.js", "/manifest.json"}
+
+
+@app.middleware("http")
+async def pwa_no_cache_headers(request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if path in _PWA_NO_CACHE or path == "/":
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+    return response
+
+
 # Serve uploaded files
 if settings.storage_type == "local":
     upload_path = Path(settings.upload_dir)
