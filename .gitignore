@@ -13,3 +13,7 @@ node_modules/
 uploads/
 *.jks
 *.keystore
+
+# Graphify: keep the graph in git, not machine-local sidecars
+graphify-out/cost.json
+graphify-out/.graphify_root
