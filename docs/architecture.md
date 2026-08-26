@@ -15,7 +15,7 @@
 | Redis | Refresh-токены (`refresh:`), отзыв access (`revoked:`), счётчик попыток логина по IP. |
 | Файлы | По умолчанию `storage_type=local` (диск + `PUT /api/v1/photos/local-upload/…`). MinIO/S3 — если явно `STORAGE_TYPE=s3` (presigned PUT). |
 | Мобайл | Capacitor 6. `mobile/www` собирается `node mobile/sync-web.js` из `frontend/`. |
-| Тесты | `cd backend && python -m pytest -q` (характеризация S1–S6 + этот срез). |
+| Тесты | `cd backend && python -m pytest -q` (25 тестов: S1–S7 + PWA-кэш). Канон статуса — `STATUS.md` в корне. |
 
 ## Как ходят запросы
 

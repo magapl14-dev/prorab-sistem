@@ -1,22 +1,16 @@
 # STATUS: prorab-refactor-epic
 
 Путь: roadmap
-Сейчас: S1–S7 зелёные (эпик срезов закрыт)
-Дальше: новый срез только по OK; replica/cache не внедряли
+Сейчас: эпик S1–S7 закрыт; PWA-кэш починен и на проде (`eb2b4b0`)
+Дальше: новый срез только по OK (см. корневой `STATUS.md`)
 Параллель: нет
 
-Активный kit: `docs/superpowers/features/prorab-refactor-epic/`
-Модель спеки: living
+Канон для новой сессии: **`STATUS.md` в корне репо**, не этот файл.
 
 | Gate | Status | Evidence |
 |------|--------|----------|
-| start | n/a | brownfield, не новый продукт |
-| spec | n/a | эпик; спека будет у S1 |
-| plan | n/a | roadmap есть, плана S1 нет |
-| implement | S7-ok | 23 tests; architecture.md = факт кода; replica/cache в «Не реализовано» |
-| security | pending | находки в research; отчёт S2 |
-| qa | pending | suite отсутствует |
+| implement | done | S1–S7 + баг stale PWA |
+| qa | ok | 25 pytest |
+| release | done | prod welldom05, коммиты `5038e34` и `eb2b4b0` |
 
 `skip_specs:` false
-
-Blocking: нет тестового замка — код рефакторинга нельзя начинать.
