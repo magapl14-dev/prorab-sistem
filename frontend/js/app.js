@@ -465,7 +465,10 @@ function _syncThemeIcons() {
 window.toggleSound = function() {
   const off = localStorage.getItem('sound_off') === '1';
   if (off) { localStorage.removeItem('sound_off'); toast('Звуки включены'); playCashSound(); }
-  else { localStorage.setItem('sound_off','1'); toast('Звуки отключены'); }
+  else {
+    if (!confirm('Выключить звуки приложения, включая кассовый сигнал о заработке?')) return;
+    localStorage.setItem('sound_off','1'); toast('Звуки отключены');
+  }
   _syncThemeIcons();
 };
 
