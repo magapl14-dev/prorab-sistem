@@ -1,8 +1,25 @@
+import os
 import uuid
 import shutil
+from collections.abc import AsyncIterable
 from pathlib import Path
 from io import BytesIO
 from ..core.config import settings
+
+_LOCAL_EXTENSIONS = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/heic": "heic",
+    "image/heif": "heif",
+    "audio/webm": "webm",
+    "audio/ogg": "ogg",
+    "audio/mp4": "m4a",
+    "audio/mpeg": "mp3",
+    "audio/aac": "aac",
+    "audio/wav": "wav",
+    "audio/x-m4a": "m4a",
+}
 
 
 def _local_dir() -> Path:
@@ -15,7 +32,11 @@ def _local_dir() -> Path:
 
 def generate_presigned_put(filename: str, mime_type: str, size: int) -> tuple[str, str]:
     if settings.storage_type == "local":
-        ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "jpg"
+        base_mime = mime_type.split(";", 1)[0].strip().lower()
+        try:
+            ext = _LOCAL_EXTENSIONS[base_mime]
+        except KeyError as exc:
+            raise ValueError("unsupported MIME type") from exc
         key = f"photos/{uuid.uuid4()}.{ext}"
         # For local storage the "upload URL" points to our own API
         url = f"{settings.public_url}/api/v1/photos/local-upload/{key}"
@@ -49,17 +70,123 @@ def public_url(key: str) -> str:
     return f"{settings.s3_endpoint}/{settings.s3_bucket}/{key}"
 
 
-def save_local(key: str, data: bytes) -> str:
-    key_norm = key.replace("\\", "/").lstrip("/")
-    if ".." in key_norm.split("/"):
+def _open_local_root() -> int:
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    root = Path(settings.upload_dir)
+    if root.is_absolute():
+        fd = os.open("/", flags)
+        parts = root.parts[1:]
+    else:
+        fd = os.open(".", flags)
+        parts = root.parts
+
+    try:
+        for part in parts:
+            if part in ("", "."):
+                continue
+            try:
+                os.mkdir(part, dir_fd=fd)
+            except FileExistsError:
+                pass
+            next_fd = os.open(part, flags, dir_fd=fd)
+            os.close(fd)
+            fd = next_fd
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+async def save_local_stream(key: str, chunks: AsyncIterable[bytes], *, expected_size: int, max_size: int) -> str:
+    key_parts = key.split("/") if isinstance(key, str) else []
+    if (
+        len(key_parts) != 2
+        or key_parts[0] != "photos"
+        or key_parts[1] in ("", ".", "..")
+        or "\\" in key
+        or "\x00" in key
+    ):
         raise ValueError("invalid key")
-    root = _local_dir().resolve()
-    path = (root / key_norm).resolve()
-    if not str(path).startswith(str(root)):
-        raise ValueError("invalid key")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(data)
-    return key_norm
+    if (
+        not isinstance(expected_size, int)
+        or isinstance(expected_size, bool)
+        or not isinstance(max_size, int)
+        or isinstance(max_size, bool)
+        or expected_size <= 0
+        or max_size <= 0
+        or expected_size > max_size
+    ):
+        raise ValueError("invalid size")
+
+    root_fd = _open_local_root()
+    photos_fd: int | None = None
+    temp_fd: int | None = None
+    temp_name: str | None = None
+    try:
+        try:
+            os.mkdir("photos", dir_fd=root_fd)
+        except FileExistsError:
+            pass
+        photos_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+        photos_fd = os.open("photos", photos_flags, dir_fd=root_fd)
+
+        temp_flags = (
+            os.O_WRONLY
+            | os.O_CREAT
+            | os.O_EXCL
+            | os.O_NOFOLLOW
+        )
+        while True:
+            candidate = f".upload-{uuid.uuid4().hex}.tmp"
+            try:
+                temp_fd = os.open(candidate, temp_flags, 0o600, dir_fd=photos_fd)
+                temp_name = candidate
+                break
+            except FileExistsError:
+                continue
+
+        total = 0
+        async for chunk in chunks:
+            if not isinstance(chunk, bytes):
+                raise TypeError("upload chunks must be bytes")
+            next_total = total + len(chunk)
+            if next_total > expected_size or next_total > max_size:
+                raise ValueError("upload size exceeded")
+            view = memoryview(chunk)
+            while view:
+                written = os.write(temp_fd, view)
+                if written == 0:
+                    raise OSError("failed to write upload")
+                view = view[written:]
+            total = next_total
+
+        if total != expected_size:
+            raise ValueError("upload size mismatch")
+
+        os.fsync(temp_fd)
+        os.close(temp_fd)
+        temp_fd = None
+        os.link(
+            temp_name,
+            key_parts[1],
+            src_dir_fd=photos_fd,
+            dst_dir_fd=photos_fd,
+            follow_symlinks=False,
+        )
+        os.unlink(temp_name, dir_fd=photos_fd)
+        temp_name = None
+        return key
+    finally:
+        if temp_fd is not None:
+            os.close(temp_fd)
+        if temp_name is not None and photos_fd is not None:
+            try:
+                os.unlink(temp_name, dir_fd=photos_fd)
+            except FileNotFoundError:
+                pass
+        if photos_fd is not None:
+            os.close(photos_fd)
+        os.close(root_fd)
 
 
 def create_thumbnail(s3_key: str) -> str | None:

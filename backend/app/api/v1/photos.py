@@ -13,7 +13,7 @@ from ...core.permissions import has_permission, require_permission
 from ...core.config import settings
 from ...models.models import User, Photo
 from ...schemas.schemas import UploadUrlRequest, UploadUrlResponse, ConfirmUploadRequest, PhotoOut
-from ...services.s3 import generate_presigned_put, create_thumbnail, public_url, delete_object, save_local
+from ...services.s3 import generate_presigned_put, create_thumbnail, public_url, delete_object, save_local_stream
 
 router = APIRouter(tags=["photos"])
 _executor = ThreadPoolExecutor(max_workers=4)
@@ -46,6 +46,8 @@ async def get_upload_url(
     if mime_base not in allowed:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Unsupported {media_type} type: {data.mime_type}")
     max_bytes = 20 * 1024 * 1024 if media_type == "image" else 30 * 1024 * 1024
+    if settings.storage_type == "local" and data.size <= 0:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "File size must be positive")
     if data.size > max_bytes:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Max file size {max_bytes // (1024*1024)} MB")
 
@@ -72,18 +74,60 @@ async def local_upload(
     path: str,
     request: Request,
     user: User = Depends(require_permission("photos", "create")),
+    db: AsyncSession = Depends(get_db),
 ):
     """Receive file upload for local storage (replaces S3 presigned PUT)."""
     if settings.storage_type != "local":
         raise HTTPException(status.HTTP_404_NOT_FOUND)
-    normalized = path.replace("\\", "/").lstrip("/")
-    if ".." in normalized.split("/") or not normalized.startswith("photos/"):
+    raw_path = request.scope.get("raw_path") or b""
+    path_parts = path.split("/")
+    if (
+        len(path_parts) != 2
+        or path_parts[0] != "photos"
+        or path_parts[1] in ("", ".", "..")
+        or "\\" in path
+        or "%" in path
+        or b"%" in raw_path
+    ):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid upload path")
-    data = await request.body()
+
+    result = await db.execute(
+        select(Photo).where(
+            Photo.s3_bucket == "local",
+            Photo.s3_key == path,
+            Photo.uploaded_by == user.id,
+            Photo.is_confirmed.is_(False),
+            Photo.deleted_at.is_(None),
+        )
+    )
+    photo = result.scalar_one_or_none()
+    if not photo:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Upload not found")
+
+    request_mime = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+    photo_mime = photo.mime_type.split(";", 1)[0].strip().lower()
+    if request_mime != photo_mime:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid upload MIME type")
+
+    max_sizes = {
+        "image": 20 * 1024 * 1024,
+        "audio": 30 * 1024 * 1024,
+    }
+    max_bytes = max_sizes.get(photo.media_type)
+    if max_bytes is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid upload media type")
+
     try:
-        save_local(normalized, data)
+        await save_local_stream(
+            photo.s3_key,
+            request.stream(),
+            expected_size=photo.size_bytes,
+            max_size=max_bytes,
+        )
     except ValueError:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid upload path")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid upload")
+    except FileExistsError:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Upload already exists")
     return Response(status_code=200)
 
 
@@ -114,7 +158,10 @@ async def confirm_upload(
 
     # генерим миниатюру только для изображений
     if photo.media_type == "image":
-        background_tasks.add_task(asyncio.ensure_future, _make_thumbnail(photo.id, photo.s3_key))
+        if settings.storage_type == "local":
+            background_tasks.add_task(_make_thumbnail, photo.id, photo.s3_key)
+        else:
+            background_tasks.add_task(asyncio.ensure_future, _make_thumbnail(photo.id, photo.s3_key))
 
     return PhotoOut(
         id=photo.id, s3_key=photo.s3_key, thumb_key=photo.thumb_key,
